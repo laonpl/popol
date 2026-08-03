@@ -146,6 +146,10 @@ router.delete('/account', authMiddleware, async (req, res) => {
     const jobSnap = await adminDb.collection('jobMatches').where('userId', '==', uid).get();
     jobSnap.docs.forEach(d => batch.delete(d.ref));
 
+    // 제품 행동 이벤트에도 사용자 식별자가 있으므로 계정 삭제 시 함께 제거한다.
+    const eventSnap = await adminDb.collection('productEvents').where('userId', '==', uid).get();
+    eventSnap.docs.forEach(d => batch.delete(d.ref));
+
     await batch.commit();
 
     // 4. 탈퇴 기록 저장 (관리자 대시보드 이탈율 집계용 — 계정 삭제 후엔 복구 불가)

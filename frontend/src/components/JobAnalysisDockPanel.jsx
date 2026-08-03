@@ -172,20 +172,20 @@ export default function JobAnalysisDockPanel({
                         <p className="truncate text-[12px] font-black text-gray-700">{item.section.title}</p>
                         {item.changed ? (
                           applied[idx] ? (
-                            <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-emerald-600"><Check size={12} /> 적용됨</span>
+                            <span className="flex shrink-0 items-center gap-1 text-[12px] font-bold text-emerald-600"><Check size={12} /> 적용됨</span>
                           ) : (
                             <button type="button" onClick={() => applyItem(item, idx)}
-                              className="shrink-0 rounded-md bg-primary-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors">적용</button>
+                              className="shrink-0 rounded-md bg-primary-600 px-2.5 py-1 text-[12px] font-bold text-white hover:bg-primary-700 transition-colors">적용</button>
                           )
                         ) : (
-                          <span className="shrink-0 text-[11px] font-bold text-gray-300">변경 없음</span>
+                          <span className="shrink-0 text-[12px] font-bold text-gray-300">변경 없음</span>
                         )}
                       </div>
                       {item.changed && (
                         <>
                           <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-gray-400 line-through decoration-gray-300">{item.section.content}</p>
                           <p className="mt-1.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-gray-800">{item.tailoredContent}</p>
-                          {item.changeReason && <p className="mt-2 rounded-lg bg-primary-50/60 px-2.5 py-1.5 text-[11px] leading-relaxed text-primary-700">{item.changeReason}</p>}
+                          {item.changeReason && <p className="mt-2 rounded-lg bg-primary-50/60 px-2.5 py-1.5 text-[12px] leading-relaxed text-primary-700">{item.changeReason}</p>}
                         </>
                       )}
                     </div>

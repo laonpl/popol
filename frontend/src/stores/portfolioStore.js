@@ -67,6 +67,7 @@ const usePortfolioStore = create((set, get) => ({
       'yooptaContent', 'customBlocks', 'hiddenSections', 'sectionOrder', 'contentBlockOrder',
       'tableColumns', 'customSectionIcons', 'customSectionStyles', 'customSectionTitleSegments',
       'pendingAutofill',
+      'portfolioPlan',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
     const { data: created } = await api.post('/portfolio', docData);

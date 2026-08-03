@@ -288,7 +288,7 @@ function ExperiencePickerModal({ experiences, usedIds, loading, onSelect, onClos
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-[14px] font-bold text-gray-800">{exp.title || '제목 없는 경험'}</span>
-                    {used && <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500">추가됨</span>}
+                    {used && <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[11.5px] font-bold text-gray-500">추가됨</span>}
                   </span>
                   <span className="mt-1 block text-[11.5px] font-semibold text-primary-500">{exp.framework || 'STRUCTURED'}{exp.category ? ` · ${exp.category}` : ''}</span>
                   {summary && <span className="mt-1.5 line-clamp-2 block text-[12.5px] leading-relaxed text-gray-500">{summary}</span>}
@@ -402,9 +402,9 @@ function ThemePanel({ portfolio, onTheme, onClose }) {
 
       {/* ── AI 색조합 추천 — 템플릿(+연결된 기업 무드)에 맞춰 분석 ── */}
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] font-bold text-gray-400">AI 추천 조합</p>
+        <p className="text-[12px] font-bold text-gray-400">AI 추천 조합</p>
         {aiPalettes && !aiLoading && (
-          <button type="button" onClick={fetchAiPalettes} className="text-[11px] font-bold text-primary-500 hover:text-primary-700">다시 추천</button>
+          <button type="button" onClick={fetchAiPalettes} className="text-[12px] font-bold text-primary-500 hover:text-primary-700">다시 추천</button>
         )}
       </div>
       {aiLoading ? (
@@ -414,7 +414,7 @@ function ThemePanel({ portfolio, onTheme, onClose }) {
       ) : aiError ? (
         <div className="mb-5 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5">
           <p className="text-[11.5px] text-red-600">{aiError}</p>
-          <button type="button" onClick={fetchAiPalettes} className="mt-1 text-[11px] font-bold text-red-500 underline">다시 시도</button>
+          <button type="button" onClick={fetchAiPalettes} className="mt-1 text-[12px] font-bold text-red-500 underline">다시 시도</button>
         </div>
       ) : !aiPalettes ? (
         <button type="button" onClick={fetchAiPalettes}
@@ -434,13 +434,13 @@ function ThemePanel({ portfolio, onTheme, onClose }) {
                 </span>
                 <span className="truncate text-[11.5px] font-bold text-gray-700">{p.name}</span>
               </span>
-              {p.reason && <span className="mt-1 block text-[10.5px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{p.reason}</span>}
+              {p.reason && <span className="mt-1 block text-[11.5px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{p.reason}</span>}
             </button>
           ))}
         </div>
       )}
 
-      <p className="text-[11px] font-bold text-gray-400 mb-2">프리셋</p>
+      <p className="text-[12px] font-bold text-gray-400 mb-2">프리셋</p>
       <div className="grid grid-cols-3 gap-2 mb-5">
         {presets.map(p => (
           <button key={p.name} type="button" onClick={() => onTheme({ bg: p.bg, ink: p.ink, accent: p.accent })}
@@ -450,18 +450,18 @@ function ThemePanel({ portfolio, onTheme, onClose }) {
               <span className="flex-1" style={{ background: p.ink }} />
               <span className="flex-1" style={{ background: p.accent }} />
             </span>
-            <span className="block mt-1 text-[10.5px] font-bold text-gray-500 truncate">{p.name}</span>
+            <span className="block mt-1 text-[11.5px] font-bold text-gray-500 truncate">{p.name}</span>
           </button>
         ))}
       </div>
 
-      <p className="text-[11px] font-bold text-gray-400 mb-2">자유 색상</p>
+      <p className="text-[12px] font-bold text-gray-400 mb-2">자유 색상</p>
       <div className="space-y-2.5">
         {fields.map(([key, label]) => (
           <div key={key} className="flex items-center justify-between gap-3">
             <span className="text-[12.5px] font-bold text-gray-600">{label}</span>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-gray-400 uppercase">{th[key]}</span>
+              <span className="text-[12px] font-mono text-gray-400 uppercase">{th[key]}</span>
               <input type="color" value={th[key]} onChange={e => onTheme({ [key]: e.target.value })}
                 className="w-8 h-8 rounded-md border border-gray-200 cursor-pointer p-0.5 bg-white" />
             </div>

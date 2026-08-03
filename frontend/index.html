@@ -41,7 +41,9 @@
         crossorigin />
     </noscript>
   </head>
-  <body spellcheck="false">
+  <!-- spellcheck를 전역으로 끄면 자소서·포트폴리오를 쓰는 동안 오타를 못 잡는다.
+       브라우저 기본값(켜짐)을 쓰고, 필요한 입력에서만 개별적으로 끈다. -->
+  <body>
     <style>
       @keyframes fp-boot-spin { to { transform: rotate(360deg); } }
       @keyframes fp-boot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }

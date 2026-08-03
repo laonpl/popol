@@ -31,7 +31,7 @@ function clean(v) {
 function SectionLabel({ en, children }) {
   return (
     <div className="mb-2.5 flex items-baseline gap-2">
-      {en && <span className="font-mono text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>{en}</span>}
+      {en && <span className="font-mono text-[10.5px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>{en}</span>}
       <p className="text-[13px] font-extrabold text-bluewood-900">{children}</p>
     </div>
   );
@@ -41,7 +41,7 @@ function EditField({ label, value, onChange, multiline = true, type = 'text', pl
   const shared = 'w-full rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[12px] leading-[1.55] text-bluewood-700 outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
   return (
     <label className="block min-w-0">
-      {label && <span className="mb-1 block text-[10.5px] font-bold text-bluewood-400">{label}</span>}
+      {label && <span className="mb-1 block text-[11.5px] font-bold text-bluewood-400">{label}</span>}
       {multiline ? (
         <textarea rows={2} value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={`${shared} resize-y`} />
       ) : (
@@ -150,24 +150,24 @@ function DeliverableEditor({ items = [], onChange }) {
   };
   return (
     <EditPanel>
-      <p className="mb-2 text-[10.5px] font-black text-bluewood-600">산출물 파일 · 링크 편집</p>
+      <p className="mb-2 text-[11.5px] font-black text-bluewood-600">산출물 파일 · 링크 편집</p>
       {items.length > 0 && (
         <div className="mb-2 space-y-1.5">
           {items.map((item, index) => (
-            <div key={item.id || `${item.url}-${index}`} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[10.5px]">
+            <div key={item.id || `${item.url}-${index}`} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[11.5px]">
               <span className="min-w-0 truncate text-bluewood-600">{item.name}</span>
               <button type="button" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))} className="flex-shrink-0 font-bold text-red-400">삭제</button>
             </div>
           ))}
         </div>
       )}
-      <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-primary-200 bg-white px-2.5 py-2 text-[10.5px] font-bold text-primary-600">
+      <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-primary-200 bg-white px-2.5 py-2 text-[11.5px] font-bold text-primary-600">
         {uploading ? '업로드 중…' : '＋ 파일 추가'}
         <input type="file" multiple disabled={uploading} accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.key,.txt,.md,.zip,.jpg,.jpeg,.png,.webp" className="hidden" onChange={onPick} />
       </label>
       <div className="mt-2 flex gap-1.5">
-        <input value={linkInput} onChange={event => setLinkInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addLink(); } }} placeholder="GitHub·Notion·Figma 등 URL" className="min-w-0 flex-1 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[10.5px] outline-none focus:border-primary-300" />
-        <button type="button" onClick={addLink} className="flex-shrink-0 rounded-lg bg-primary-600 px-2.5 text-[10.5px] font-bold text-white">추가</button>
+        <input value={linkInput} onChange={event => setLinkInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addLink(); } }} placeholder="GitHub·Notion·Figma 등 URL" className="min-w-0 flex-1 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[11.5px] outline-none focus:border-primary-300" />
+        <button type="button" onClick={addLink} className="flex-shrink-0 rounded-lg bg-primary-600 px-2.5 text-[11.5px] font-bold text-white">추가</button>
       </div>
     </EditPanel>
   );
@@ -212,7 +212,7 @@ function JobCoreSidebar({ exp, sr, jobCategory, editing = false, onChange }) {
 
   return (
     <aside className="min-w-0 break-words md:sticky md:top-4 md:pr-1" style={{ overflowWrap: 'anywhere' }}>
-      <p className="text-[10.5px] font-black uppercase tracking-[0.18em]" style={{ color: meta.accent }}>{jobLabel} · {meta.kicker}</p>
+      <p className="text-[11.5px] font-black uppercase tracking-[0.18em]" style={{ color: meta.accent }}>{jobLabel} · {meta.kicker}</p>
       <h3 className="mt-3 text-[22px] font-black leading-[1.22] tracking-tight text-bluewood-900">{title}</h3>
       {summary && <p className="mt-2 whitespace-pre-line text-[12.5px] leading-[1.65] text-bluewood-500">{summary}</p>}
 
@@ -227,18 +227,18 @@ function JobCoreSidebar({ exp, sr, jobCategory, editing = false, onChange }) {
 
       {impact && (
         <div className="mt-5 border-t border-surface-200 pt-4">
-          <p className="mb-1.5 text-[10.5px] font-bold text-bluewood-400">목표 · 영향 범위</p>
+          <p className="mb-1.5 text-[11.5px] font-bold text-bluewood-400">목표 · 영향 범위</p>
           <p className="whitespace-pre-line text-[12px] leading-[1.65] text-bluewood-600">{impact}</p>
         </div>
       )}
 
       {metrics.length > 0 && (
         <div className="mt-5 border-t border-surface-200 pt-4">
-          <p className="mb-2 text-[10.5px] font-bold text-bluewood-400">핵심 지표</p>
+          <p className="mb-2 text-[11.5px] font-bold text-bluewood-400">핵심 지표</p>
           <div className="space-y-2">
             {metrics.map((item, index) => (
               <div key={`${item.label}-${index}`} className="flex min-w-0 items-baseline justify-between gap-3 rounded-lg bg-surface-50 px-2.5 py-2">
-                <span className="min-w-0 text-[11px] leading-[1.4] text-bluewood-500">{item.label || '지표'}</span>
+                <span className="min-w-0 text-[12px] leading-[1.4] text-bluewood-500">{item.label || '지표'}</span>
                 <span className="flex-shrink-0 text-[12px] font-black text-bluewood-900">{item.value || '—'}</span>
               </div>
             ))}
@@ -248,9 +248,9 @@ function JobCoreSidebar({ exp, sr, jobCategory, editing = false, onChange }) {
 
       {tags.length > 0 && (
         <div className="mt-5 border-t border-surface-200 pt-4">
-          <p className="mb-2 text-[10.5px] font-bold text-bluewood-400">기술 · 핵심 역량</p>
+          <p className="mb-2 text-[11.5px] font-bold text-bluewood-400">기술 · 핵심 역량</p>
           <div className="flex flex-wrap gap-1.5">
-            {tags.map(tag => <span key={tag} className="rounded-md bg-surface-100 px-2 py-1 text-[10.5px] font-semibold text-bluewood-600">{tag}</span>)}
+            {tags.map(tag => <span key={tag} className="rounded-md bg-surface-100 px-2 py-1 text-[11.5px] font-semibold text-bluewood-600">{tag}</span>)}
           </div>
         </div>
       )}
@@ -286,13 +286,13 @@ function ProductIntroCard({ product = {}, embedded = false, editing = false, onC
         <div className="grid gap-4 sm:grid-cols-2">
           {problem && (
             <div>
-              <p className="mb-1 text-[11px] font-bold text-bluewood-700">문제 정의</p>
+              <p className="mb-1 text-[12px] font-bold text-bluewood-700">문제 정의</p>
               <p className="whitespace-pre-line text-[13px] leading-[1.75] text-bluewood-600">{problem}</p>
             </div>
           )}
           {solution && (
             <div>
-              <p className="mb-1 text-[11px] font-bold" style={{ color: ACCENT }}>해결 방법</p>
+              <p className="mb-1 text-[12px] font-bold" style={{ color: ACCENT }}>해결 방법</p>
               <p className="whitespace-pre-line text-[13px] leading-[1.75] text-bluewood-600">{solution}</p>
             </div>
           )}
@@ -300,7 +300,7 @@ function ProductIntroCard({ product = {}, embedded = false, editing = false, onC
       )}
       {outcomes.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">주요 성과</p>
+          <p className="mb-1.5 text-[12px] font-bold text-bluewood-700">주요 성과</p>
           <div className="overflow-hidden rounded-xl border border-surface-200">
             {outcomes.map((o, i) => (
               <div key={i} className={`flex items-stretch ${i > 0 ? 'border-t border-surface-100' : ''}`}>
@@ -313,7 +313,7 @@ function ProductIntroCard({ product = {}, embedded = false, editing = false, onC
       )}
       {features.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">핵심 기능</p>
+          <p className="mb-1.5 text-[12px] font-bold text-bluewood-700">핵심 기능</p>
           <ul className="space-y-1.5">
             {features.map((f, i) => (
               <li key={i} className="flex gap-2 text-[12.5px] leading-[1.6] text-bluewood-600">
@@ -333,15 +333,15 @@ function ProductIntroCard({ product = {}, embedded = false, editing = false, onC
             <EditField label="해결 방법" value={product.solution} onChange={value => onChange({ ...product, solution: value })} />
           </div>
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">주요 성과</p><button type="button" onClick={() => onChange({ ...product, outcomes: [...(product.outcomes || []), { label: '', value: '' }] })} className="text-[11px] font-bold text-primary-600">＋ 추가</button></div>
+            <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">주요 성과</p><button type="button" onClick={() => onChange({ ...product, outcomes: [...(product.outcomes || []), { label: '', value: '' }] })} className="text-[12px] font-bold text-primary-600">＋ 추가</button></div>
             <div className="space-y-2">
-              {(product.outcomes || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><EditField value={item?.label} multiline={false} placeholder="성과명" onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, label: value } : row) })} /><EditField value={item?.value} multiline={false} placeholder="결과·수치" onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, value } : row) })} /><button type="button" onClick={() => onChange({ ...product, outcomes: product.outcomes.filter((_, i) => i !== index) })} className="px-2 text-[11px] font-bold text-red-400">삭제</button></div>)}
+              {(product.outcomes || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><EditField value={item?.label} multiline={false} placeholder="성과명" onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, label: value } : row) })} /><EditField value={item?.value} multiline={false} placeholder="결과·수치" onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, value } : row) })} /><button type="button" onClick={() => onChange({ ...product, outcomes: product.outcomes.filter((_, i) => i !== index) })} className="px-2 text-[12px] font-bold text-red-400">삭제</button></div>)}
             </div>
           </div>
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">핵심 기능</p><button type="button" onClick={() => onChange({ ...product, features: [...(product.features || []), { name: '', desc: '' }] })} className="text-[11px] font-bold text-primary-600">＋ 추가</button></div>
+            <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">핵심 기능</p><button type="button" onClick={() => onChange({ ...product, features: [...(product.features || []), { name: '', desc: '' }] })} className="text-[12px] font-bold text-primary-600">＋ 추가</button></div>
             <div className="space-y-2">
-              {(product.features || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[0.8fr_1.5fr_auto]"><EditField value={item?.name} multiline={false} placeholder="기능명" onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item?.desc} placeholder="기능 설명" onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, desc: value } : row) })} /><button type="button" onClick={() => onChange({ ...product, features: product.features.filter((_, i) => i !== index) })} className="px-2 text-[11px] font-bold text-red-400">삭제</button></div>)}
+              {(product.features || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[0.8fr_1.5fr_auto]"><EditField value={item?.name} multiline={false} placeholder="기능명" onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item?.desc} placeholder="기능 설명" onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, desc: value } : row) })} /><button type="button" onClick={() => onChange({ ...product, features: product.features.filter((_, i) => i !== index) })} className="px-2 text-[12px] font-bold text-red-400">삭제</button></div>)}
             </div>
           </div>
         </EditPanel>
@@ -380,7 +380,7 @@ function CommitActivity({ days = [] }) {
           ))}
         </div>
       </div>
-      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-bluewood-300">적음 {colors.map((item, i) => <span key={i} className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: item }} />)} 많음</div>
+      <div className="mt-2 flex items-center justify-end gap-1 text-[11.5px] text-bluewood-300">적음 {colors.map((item, i) => <span key={i} className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: item }} />)} 많음</div>
     </div>
   );
 }
@@ -409,9 +409,9 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
       <h3 className="mt-4 text-[22px] font-black leading-[1.22] tracking-tight text-bluewood-900">{title}</h3>
       <div className="mt-5 border-t border-surface-200 pt-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bluewood-400">기여도 · 영향력</p>
+          <p className="text-[12px] font-black uppercase tracking-[0.16em] text-bluewood-400">기여도 · 영향력</p>
           {stats.activePeriod?.first && (
-            <span className="text-[11px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last || ''}</span>
+            <span className="text-[12px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last || ''}</span>
           )}
         </div>
         <div className="flex flex-wrap items-end gap-x-7 gap-y-4">
@@ -422,18 +422,18 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
           {pct > 0 && (
             <div>
               <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{stats.myCommits ?? '—'}<span className="text-[13px] font-semibold text-bluewood-400"> / {stats.totalCommits || '—'}</span></p>
-              <p className="mt-1.5 text-[11px] text-bluewood-400">내 커밋 / 전체</p>
+              <p className="mt-1.5 text-[12px] text-bluewood-400">내 커밋 / 전체</p>
             </div>
           )}
           <div>
             <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{role}</p>
-            <p className="mt-1.5 text-[11px] text-bluewood-400">주 역할</p>
+            <p className="mt-1.5 text-[12px] text-bluewood-400">주 역할</p>
           </div>
         </div>
         {pct > 0 && (
           <div className="mt-4">
             <div className="h-2 w-full overflow-hidden rounded-full bg-surface-100"><div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: ACCENT }} /></div>
-            <p className="mt-1.5 text-[11px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
+            <p className="mt-1.5 text-[12px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
           </div>
         )}
         {langs.length > 0 && (
@@ -448,13 +448,13 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
         )}
         {Array.isArray(stats.dailyActivity) && stats.dailyActivity.length > 0 && (
           <div className="mt-6">
-            <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">커밋 활동</p>
+            <p className="mb-2.5 text-[12px] font-bold text-bluewood-400">커밋 활동</p>
             <CommitActivity days={stats.dailyActivity} />
           </div>
         )}
         {types.length > 0 && (
           <div className="mt-6">
-            <p className="mb-2 text-[11px] font-bold text-bluewood-400">커밋 유형</p>
+            <p className="mb-2 text-[12px] font-bold text-bluewood-400">커밋 유형</p>
             <div className="space-y-1.5">
               {types.map((type, i) => <div key={i} className="flex items-center gap-2.5 text-[11.5px]"><span className="w-16 flex-shrink-0 truncate font-mono text-bluewood-500">{type.type}</span><div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100"><div className="h-full rounded-full" style={{ width: `${Math.round(((Number(type.count) || 0) / maxType) * 100)}%`, backgroundColor: ACCENT }} /></div><span className="w-9 flex-shrink-0 text-right font-semibold tabular-nums text-bluewood-700">{type.count}</span></div>)}
             </div>
@@ -462,7 +462,7 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
         )}
         {rolePoints.length > 0 && (
           <div className="mt-6">
-            <p className="mb-2 text-[11px] font-bold text-bluewood-400">핵심 역할</p>
+            <p className="mb-2 text-[12px] font-bold text-bluewood-400">핵심 역할</p>
             <ul className="space-y-1.5">
               {rolePoints.map((point, i) => (
                 <li key={i} className="flex gap-2 text-[12px] leading-[1.5] text-bluewood-600">
@@ -475,15 +475,15 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
         )}
         {techTags.length > 0 && (
           <div className="mt-6 border-t border-surface-200 pt-4">
-            <p className="mb-2 text-[11px] font-bold text-bluewood-400">기술 스택</p>
+            <p className="mb-2 text-[12px] font-bold text-bluewood-400">기술 스택</p>
             <div className="flex flex-wrap gap-1.5">
-              {techTags.map((tag, i) => <span key={i} className="rounded-md bg-surface-100 px-2 py-0.5 text-[11px] font-semibold text-bluewood-600">{tag}</span>)}
+              {techTags.map((tag, i) => <span key={i} className="rounded-md bg-surface-100 px-2 py-0.5 text-[12px] font-semibold text-bluewood-600">{tag}</span>)}
             </div>
           </div>
         )}
         {editing && (
           <EditPanel>
-            <p className="mb-3 text-[11px] font-black text-bluewood-600">GitHub 요약</p>
+            <p className="mb-3 text-[12px] font-black text-bluewood-600">GitHub 요약</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <EditField label="내 커밋" type="number" multiline={false} value={stats.myCommits || 0} onChange={value => onChange({ ...stats, myCommits: value })} />
               <EditField label="전체 커밋" type="number" multiline={false} value={stats.totalCommits || 0} onChange={value => onChange({ ...stats, totalCommits: value })} />
@@ -493,12 +493,12 @@ function DevGitReport({ exp, stats = {}, gitExps = [], editing = false, onChange
               <EditField label="활동 종료일" multiline={false} value={stats.activePeriod?.last || ''} onChange={value => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), last: value } })} />
             </div>
             <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">언어 구성</p><button type="button" onClick={() => onChange({ ...stats, languages: [...(stats.languages || []), { name: '', pct: 0 }] })} className="text-[11px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-2">{(stats.languages || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] gap-2"><EditField value={item?.name} multiline={false} placeholder="언어" onChange={value => onChange({ ...stats, languages: stats.languages.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item?.pct || 0} type="number" multiline={false} onChange={value => onChange({ ...stats, languages: stats.languages.map((row, i) => i === index ? { ...row, pct: value } : row) })} /><button type="button" onClick={() => onChange({ ...stats, languages: stats.languages.filter((_, i) => i !== index) })} className="px-1 text-[11px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">언어 구성</p><button type="button" onClick={() => onChange({ ...stats, languages: [...(stats.languages || []), { name: '', pct: 0 }] })} className="text-[12px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(stats.languages || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] gap-2"><EditField value={item?.name} multiline={false} placeholder="언어" onChange={value => onChange({ ...stats, languages: stats.languages.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item?.pct || 0} type="number" multiline={false} onChange={value => onChange({ ...stats, languages: stats.languages.map((row, i) => i === index ? { ...row, pct: value } : row) })} /><button type="button" onClick={() => onChange({ ...stats, languages: stats.languages.filter((_, i) => i !== index) })} className="px-1 text-[12px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
             <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">커밋 유형</p><button type="button" onClick={() => onChange({ ...stats, commitTypes: [...(stats.commitTypes || []), { type: '', count: 0 }] })} className="text-[11px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-2">{(stats.commitTypes || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] gap-2"><EditField value={item?.type} multiline={false} placeholder="feat, fix 등" onChange={value => onChange({ ...stats, commitTypes: stats.commitTypes.map((row, i) => i === index ? { ...row, type: value } : row) })} /><EditField value={item?.count || 0} type="number" multiline={false} onChange={value => onChange({ ...stats, commitTypes: stats.commitTypes.map((row, i) => i === index ? { ...row, count: value } : row) })} /><button type="button" onClick={() => onChange({ ...stats, commitTypes: stats.commitTypes.filter((_, i) => i !== index) })} className="px-1 text-[11px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">커밋 유형</p><button type="button" onClick={() => onChange({ ...stats, commitTypes: [...(stats.commitTypes || []), { type: '', count: 0 }] })} className="text-[12px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(stats.commitTypes || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_90px_auto] gap-2"><EditField value={item?.type} multiline={false} placeholder="feat, fix 등" onChange={value => onChange({ ...stats, commitTypes: stats.commitTypes.map((row, i) => i === index ? { ...row, type: value } : row) })} /><EditField value={item?.count || 0} type="number" multiline={false} onChange={value => onChange({ ...stats, commitTypes: stats.commitTypes.map((row, i) => i === index ? { ...row, count: value } : row) })} /><button type="button" onClick={() => onChange({ ...stats, commitTypes: stats.commitTypes.filter((_, i) => i !== index) })} className="px-1 text-[12px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
           </EditPanel>
         )}
@@ -511,11 +511,11 @@ function EditableGitProjects({ items = [], onChange }) {
   const patch = (index, changes) => onChange(items.map((item, i) => i === index ? { ...item, ...changes } : item));
   return (
     <EditPanel>
-      <div className="mb-3 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">문제 해결 기록</p><button type="button" onClick={() => onChange([...items, { project_name: '', period: '', core_tech_stack: '', problem_definition: '', action_and_solution: '', core_impact: '', troubleshooting: '', learning: '' }])} className="text-[11px] font-bold text-primary-600">＋ 기록 추가</button></div>
+      <div className="mb-3 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">문제 해결 기록</p><button type="button" onClick={() => onChange([...items, { project_name: '', period: '', core_tech_stack: '', problem_definition: '', action_and_solution: '', core_impact: '', troubleshooting: '', learning: '' }])} className="text-[12px] font-bold text-primary-600">＋ 기록 추가</button></div>
       <div className="space-y-4">
         {items.map((item, index) => (
           <div key={index} className="rounded-xl border border-surface-200 bg-white p-3">
-            <div className="mb-2 flex justify-end"><button type="button" onClick={() => onChange(items.filter((_, i) => i !== index))} className="text-[11px] font-bold text-red-400">기록 삭제</button></div>
+            <div className="mb-2 flex justify-end"><button type="button" onClick={() => onChange(items.filter((_, i) => i !== index))} className="text-[12px] font-bold text-red-400">기록 삭제</button></div>
             <div className="grid gap-3 sm:grid-cols-2">
               <EditField label="프로젝트명" value={item.project_name} multiline={false} onChange={value => patch(index, { project_name: value })} />
               <EditField label="기간" value={item.period} multiline={false} onChange={value => patch(index, { period: value })} />
@@ -598,11 +598,11 @@ function PmDecisionLog({ keyExperiences = [] }) {
               no: '02', label: '의사결정', body: (
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <div className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'rgba(0,47,108,0.05)', borderLeft: `2px solid ${ACCENT}` }}>
-                    <p className="text-[9px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
+                    <p className="text-[10.5px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
                     <p className="mt-0.5 text-[12.5px] font-bold leading-[1.6] text-bluewood-900">{clean(jd.decision) || '—'}</p>
                   </div>
                   <div className="rounded-lg bg-surface-50 px-3 py-2.5">
-                    <p className="text-[9px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
+                    <p className="text-[10.5px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
                     <p className="mt-0.5 text-[12px] leading-[1.6] text-bluewood-500">{clean(jd.alternatives) || '—'}</p>
                   </div>
                 </div>
@@ -612,11 +612,11 @@ function PmDecisionLog({ keyExperiences = [] }) {
               no: '03', label: '어려움 돌파', body: (
                 <div className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
                   <div>
-                    <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
+                    <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
                     <p className="text-[12px] leading-[1.6] text-bluewood-600">{clean(jd.obstacle) || '—'}</p>
                   </div>
                   <div>
-                    <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
+                    <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
                     <p className="text-[12px] font-semibold leading-[1.6] text-bluewood-800">{clean(jd.resolution) || '—'}</p>
                   </div>
                 </div>
@@ -629,7 +629,7 @@ function PmDecisionLog({ keyExperiences = [] }) {
               <div className="flex items-start gap-2.5 px-5 pt-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
+                    <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
                     {quad && (
                       <span className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide" style={{ backgroundColor: quad === 'QUICK WIN' ? 'rgba(4,120,87,0.1)' : 'rgba(0,47,108,0.07)', color: quad === 'QUICK WIN' ? '#047857' : ACCENT }}>{quad}</span>
                     )}
@@ -642,7 +642,7 @@ function PmDecisionLog({ keyExperiences = [] }) {
                 <div className="divide-y divide-surface-100">
                   {stages.map(stage => (
                     <div key={stage.no} className="flex gap-3 py-2.5">
-                      <span className="w-16 flex-shrink-0 pt-0.5 font-mono text-[10px] font-black text-bluewood-300">{stage.no} <span className="font-sans text-[10.5px] font-bold text-bluewood-400">{stage.label}</span></span>
+                      <span className="w-16 flex-shrink-0 pt-0.5 font-mono text-[11.5px] font-black text-bluewood-300">{stage.no} <span className="font-sans text-[11.5px] font-bold text-bluewood-400">{stage.label}</span></span>
                       <div className="min-w-0 flex-1">{stage.body}</div>
                     </div>
                   ))}
@@ -694,7 +694,7 @@ function PmTimelineStrip({ sr = {} }) {
   return (
     <section>
       <div className="mb-4">
-        <p className="font-mono text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Product Journey</p>
+        <p className="font-mono text-[10.5px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Product Journey</p>
         <h3 className="mt-0.5 text-[15px] font-extrabold text-bluewood-900">제품 여정</h3>
         <p className="mt-1 text-[11.5px] leading-[1.6] text-bluewood-400">{timelineDescription}</p>
       </div>
@@ -702,12 +702,12 @@ function PmTimelineStrip({ sr = {} }) {
         <svg className="absolute left-0 top-0 h-[400px] w-full" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true"><path d="M 70 150 C 70 108, 105 80, 155 80 H 845 C 892 80, 915 108, 915 165 C 915 220, 886 250, 840 250 H 95" fill="none" stroke="#91a9c0" strokeWidth="1.5" strokeLinecap="round" /></svg>
         {items.map((item, i) => {
           const pos = positions[activePositions[i]];
-          return <div key={`${item.phase}-${i}`}><span className={`absolute z-[2] flex items-center justify-center rounded-full text-[7.5px] font-black text-white ${i === 0 ? 'h-[22px] w-[42px] rounded-[11px]' : 'h-[22px] w-[22px]'}`} style={{ left: pos.left, top: pos.nodeTop, transform: 'translate(-50%, -50%)', backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="absolute z-[1] w-[190px]" style={{ left: pos.cardLeft, top: pos.cardTop }}><p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p><p className="mt-0.5 text-[10.5px] font-black leading-tight text-bluewood-900">{item.label}</p><p className="mt-1.5 line-clamp-3 break-words text-[9.5px] leading-[1.5] text-bluewood-500">{item.value}</p></div></div>;
+          return <div key={`${item.phase}-${i}`}><span className={`absolute z-[2] flex items-center justify-center rounded-full text-[7.5px] font-black text-white ${i === 0 ? 'h-[22px] w-[42px] rounded-[11px]' : 'h-[22px] w-[22px]'}`} style={{ left: pos.left, top: pos.nodeTop, transform: 'translate(-50%, -50%)', backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="absolute z-[1] w-[190px]" style={{ left: pos.cardLeft, top: pos.cardTop }}><p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p><p className="mt-0.5 text-[11.5px] font-black leading-tight text-bluewood-900">{item.label}</p><p className="mt-1.5 line-clamp-3 break-words text-[9.5px] leading-[1.5] text-bluewood-500">{item.value}</p></div></div>;
         })}
       </div>
       <ol className="relative space-y-0 overflow-hidden rounded-2xl border border-[#d8e4f0] bg-white px-4 py-3 xl:hidden">
         <span className="absolute bottom-9 left-[27px] top-9 w-px bg-[#91a9c0]" />
-        {items.map((item, i) => <li key={`${item.phase}-${i}`} className="relative flex gap-3 py-3"><span className="relative z-[1] mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[7.5px] font-black text-white" style={{ backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="min-w-0"><p className="font-mono text-[8px] font-bold uppercase tracking-[0.12em] text-bluewood-300">{item.phase}</p><p className="text-[12px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-[1.6] text-bluewood-500">{item.value}</p></div></li>)}
+        {items.map((item, i) => <li key={`${item.phase}-${i}`} className="relative flex gap-3 py-3"><span className="relative z-[1] mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[7.5px] font-black text-white" style={{ backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="min-w-0"><p className="font-mono text-[8px] font-bold uppercase tracking-[0.12em] text-bluewood-300">{item.phase}</p><p className="text-[12px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-[1.6] text-bluewood-500">{item.value}</p></div></li>)}
       </ol>
     </section>
   );
@@ -774,7 +774,7 @@ function MarketerResearchBoard({ sr = {} }) {
                 {card.bars.length > 0 ? (
                   <div className="space-y-1.5">
                     {card.bars.map((bar, bi) => (
-                      <div key={bi} className="flex items-center gap-2 text-[11px]">
+                      <div key={bi} className="flex items-center gap-2 text-[12px]">
                         <span className="w-[34%] flex-shrink-0 truncate text-bluewood-500">{bar.label}</span>
                         <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100">
                           <div className="h-full rounded-full" style={{ width: `${Math.round((Math.abs(bar.value) / maxBar) * 100)}%`, backgroundColor: ACCENT }} />
@@ -790,7 +790,7 @@ function MarketerResearchBoard({ sr = {} }) {
                   </p>
                 )}
               </div>
-              {card.source && <p className="mt-2.5 text-[10px] text-bluewood-300">출처 · {card.source}</p>}
+              {card.source && <p className="mt-2.5 text-[11.5px] text-bluewood-300">출처 · {card.source}</p>}
             </div>
           );
         })}
@@ -821,7 +821,7 @@ function MarketerPositioningReport({ kit = {} }) {
           {positions.map((p, i) => (
             <div key={i} className="rounded-xl border border-surface-200 bg-surface-50/60 px-3 py-2">
               <p className="text-[12px] font-extrabold text-bluewood-900">{p.name}</p>
-              {p.reason && <p className="mt-0.5 max-w-[240px] text-[10.5px] leading-[1.5] text-bluewood-500">{p.reason}</p>}
+              {p.reason && <p className="mt-0.5 max-w-[240px] text-[11.5px] leading-[1.5] text-bluewood-500">{p.reason}</p>}
             </div>
           ))}
         </div>
@@ -830,7 +830,7 @@ function MarketerPositioningReport({ kit = {} }) {
         <div className="grid gap-4 sm:grid-cols-2">
           {strengths.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[11px] font-bold text-caribbean-700">강점</p>
+              <p className="mb-1.5 text-[12px] font-bold text-caribbean-700">강점</p>
               <ul className="space-y-1">
                 {strengths.map((line, i) => <li key={i} className="flex gap-2 text-[12px] leading-[1.6] text-bluewood-600"><span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-caribbean-500" /><span className="min-w-0">{line}</span></li>)}
               </ul>
@@ -838,7 +838,7 @@ function MarketerPositioningReport({ kit = {} }) {
           )}
           {weaknesses.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[11px] font-bold text-amber-700">보완점</p>
+              <p className="mb-1.5 text-[12px] font-bold text-amber-700">보완점</p>
               <ul className="space-y-1">
                 {weaknesses.map((line, i) => <li key={i} className="flex gap-2 text-[12px] leading-[1.6] text-bluewood-600"><span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" /><span className="min-w-0">{line}</span></li>)}
               </ul>
@@ -934,9 +934,9 @@ function LeanCanvasCard({ sr = {} }) {
       <div className="mb-4 bg-[#3d5262] px-5 py-3.5 text-center text-white">
         <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1">
           <h2 className="text-[21px] font-bold tracking-tight sm:text-[24px]">리너 캔버스</h2>
-          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
+          <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
         </div>
-        <p className="mt-1 text-[10.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
+        <p className="mt-1 text-[11.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
       </div>
       <div className="grid w-full min-w-0 gap-[4px] border-[4px] border-[#3d5262] bg-[#3d5262] sm:grid-cols-3">
         {groups.map((group, i) => <div key={i} className="grid min-w-0 gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">{group.map(cell => <Cell key={cell.label} cell={cell} />)}</div>)}
@@ -951,9 +951,9 @@ function PmCycleStrip() {
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-surface-100 pb-3">
       {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단']].map(([en, ko], i) => (
         <span key={en} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-[10px] text-bluewood-200">→</span>}
+          {i > 0 && <span className="text-[11.5px] text-bluewood-200">→</span>}
           <span className="font-mono text-[9.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en}</span>
-          <span className="text-[10.5px] font-semibold text-bluewood-400">{ko}</span>
+          <span className="text-[11.5px] font-semibold text-bluewood-400">{ko}</span>
         </span>
       ))}
     </div>
@@ -995,14 +995,14 @@ function PmAsIsToBeBoard({ sr = {} }) {
   const toRows = toBe.length ? toBe : ['개선된 목표 상태를 입력해 주세요'];
   return (
     <section className="w-full min-w-0">
-      <div className="mb-4"><p className="font-mono text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Transformation</p><h3 className="mt-0.5 text-[15px] font-extrabold text-bluewood-900">AS-IS → TO-BE</h3><p className="mt-1 text-[11.5px] leading-[1.6] text-bluewood-400">문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다.</p></div>
+      <div className="mb-4"><p className="font-mono text-[10.5px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Transformation</p><h3 className="mt-0.5 text-[15px] font-extrabold text-bluewood-900">AS-IS → TO-BE</h3><p className="mt-1 text-[11.5px] leading-[1.6] text-bluewood-400">문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다.</p></div>
       <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-surface-200 bg-white">
         {hasPanels && <div className="relative p-4 sm:p-6">
-          <div className="grid grid-cols-2"><div className="pr-3 text-center sm:pr-8"><p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p><p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p></div><div className="pl-3 text-center sm:pl-8"><p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p><p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p></div></div>
+          <div className="grid grid-cols-2"><div className="pr-3 text-center sm:pr-8"><p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p><p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p></div><div className="pl-3 text-center sm:pl-8"><p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p><p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p></div></div>
           <div className="relative mt-3 grid min-w-0 grid-cols-2 gap-x-2 border-t-2 border-bluewood-200 pt-6 sm:gap-x-6"><span className="pointer-events-none absolute -top-[2px] bottom-2 left-1/2 w-[2px] -translate-x-1/2 rounded bg-bluewood-200" /><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-3 gap-y-4 pr-1 sm:pr-4">{asRows.map((text, i) => <StickyNote key={i} text={text} idx={i} />)}</div><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-3 gap-y-4 pl-1 sm:pl-4">{toRows.map((text, i) => <StickyNote key={i} text={text} idx={i + 3} colorIdx={i} />)}</div></div>
-          {decision && <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center"><span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span><p className="text-[11px] font-semibold leading-[1.55] text-primary-800">{decision}</p></div>}
+          {decision && <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center"><span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span><p className="text-[12px] font-semibold leading-[1.55] text-primary-800">{decision}</p></div>}
         </div>}
-        {impacts.length > 0 && <div className="border-t border-surface-200 bg-surface-50/45 px-5 py-4 sm:px-6"><div className="mb-3 flex items-baseline justify-between gap-3"><h3 className="text-[12.5px] font-extrabold text-bluewood-900">변화를 증명한 핵심 수치</h3><span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Measured impact</span></div><div className={`grid overflow-hidden rounded-xl border border-surface-200 bg-white ${impacts.length === 2 ? 'sm:grid-cols-2 sm:divide-x' : impacts.length >= 3 ? 'sm:grid-cols-3 sm:divide-x' : ''} divide-surface-200`}>{impacts.map((item, i) => { const split = splitValue(item.actual); const actual = parseNum(item.actual); const before = parseNum(item.before); const max = Math.max(Math.abs(before || 0), Math.abs(actual || 0), 1); return <div key={i} className={`min-w-0 px-4 py-3.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}><p className="truncate text-[10.5px] font-bold text-bluewood-400">{item.label}</p><p className="mt-1 text-[22px] font-black leading-none tracking-tight text-bluewood-900">{split ? `${split.value.toLocaleString()}${split.unit}` : item.actual}</p>{before != null && before !== actual && <div className="mt-3 space-y-2">{[['이전', before, item.before, '#cbd5e1'], ['이후', actual, item.actual, ACCENT]].map(row => <div key={row[0]}><div className="mb-1 flex justify-between text-[8.5px] font-bold text-bluewood-300"><span>{row[0]}</span><span className="text-bluewood-500">{row[2]}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-surface-100"><span className="block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(row[1]) / max) * 100)}%`, backgroundColor: row[3] }} /></div></div>)}</div>}</div>; })}</div></div>}
+        {impacts.length > 0 && <div className="border-t border-surface-200 bg-surface-50/45 px-5 py-4 sm:px-6"><div className="mb-3 flex items-baseline justify-between gap-3"><h3 className="text-[12.5px] font-extrabold text-bluewood-900">변화를 증명한 핵심 수치</h3><span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Measured impact</span></div><div className={`grid overflow-hidden rounded-xl border border-surface-200 bg-white ${impacts.length === 2 ? 'sm:grid-cols-2 sm:divide-x' : impacts.length >= 3 ? 'sm:grid-cols-3 sm:divide-x' : ''} divide-surface-200`}>{impacts.map((item, i) => { const split = splitValue(item.actual); const actual = parseNum(item.actual); const before = parseNum(item.before); const max = Math.max(Math.abs(before || 0), Math.abs(actual || 0), 1); return <div key={i} className={`min-w-0 px-4 py-3.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}><p className="truncate text-[11.5px] font-bold text-bluewood-400">{item.label}</p><p className="mt-1 text-[22px] font-black leading-none tracking-tight text-bluewood-900">{split ? `${split.value.toLocaleString()}${split.unit}` : item.actual}</p>{before != null && before !== actual && <div className="mt-3 space-y-2">{[['이전', before, item.before, '#cbd5e1'], ['이후', actual, item.actual, ACCENT]].map(row => <div key={row[0]}><div className="mb-1 flex justify-between text-[8.5px] font-bold text-bluewood-300"><span>{row[0]}</span><span className="text-bluewood-500">{row[2]}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-surface-100"><span className="block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(row[1]) / max) * 100)}%`, backgroundColor: row[3] }} /></div></div>)}</div>}</div>; })}</div></div>}
       </div>
     </section>
   );
@@ -1027,9 +1027,9 @@ function PmMetricTiles({ sr = {} }) {
           {kpis.map((k, i) => (
             <div key={i} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white px-3.5 py-3">
               <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: ACCENT }} />
-              <p className="truncate text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.label}</p>
+              <p className="truncate text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.label}</p>
               <p className="mt-1 text-[17px] font-extrabold leading-tight text-bluewood-900">{k.value}</p>
-              {k.target && <p className="mt-0.5 truncate text-[10.5px] font-semibold text-bluewood-400">목표 {k.target}</p>}
+              {k.target && <p className="mt-0.5 truncate text-[11.5px] font-semibold text-bluewood-400">목표 {k.target}</p>}
             </div>
           ))}
         </div>
@@ -1091,20 +1091,20 @@ function PmValidationTable({ sr = {}, keyExperiences = [] }) {
         <table className="w-full min-w-[560px] border-collapse text-left">
           <thead className="text-white" style={{ backgroundColor: '#0e1526' }}>
             <tr>
-              <th className="w-9 px-3 py-2.5 font-mono text-[10px] font-black">#</th>
-              <th className="px-3 py-2.5 text-[11px] font-bold">가설</th>
-              <th className="w-[22%] px-3 py-2.5 text-[11px] font-bold">핵심 KPI</th>
-              <th className="w-[13%] px-3 py-2.5 text-right text-[11px] font-bold">목표</th>
-              <th className="w-[13%] px-3 py-2.5 text-right text-[11px] font-bold">달성</th>
+              <th className="w-9 px-3 py-2.5 font-mono text-[11.5px] font-black">#</th>
+              <th className="px-3 py-2.5 text-[12px] font-bold">가설</th>
+              <th className="w-[22%] px-3 py-2.5 text-[12px] font-bold">핵심 KPI</th>
+              <th className="w-[13%] px-3 py-2.5 text-right text-[12px] font-bold">목표</th>
+              <th className="w-[13%] px-3 py-2.5 text-right text-[12px] font-bold">달성</th>
             </tr>
           </thead>
           <tbody>
             {rows.slice(0, 8).map((row, i) => (
               <tr key={i} className={i % 2 === 1 ? 'bg-surface-50/60' : 'bg-white'}>
-                <td className="px-3 py-2.5 align-top font-mono text-[11px] font-black" style={{ color: ACCENT }}>H{i + 1}</td>
+                <td className="px-3 py-2.5 align-top font-mono text-[12px] font-black" style={{ color: ACCENT }}>H{i + 1}</td>
                 <td className="px-3 py-2.5 align-top text-[12px] leading-[1.6] text-bluewood-700">
                   {row.hypothesis || '—'}
-                  {row.note && <p className="mt-1 text-[11px] leading-[1.5] text-bluewood-400">{row.note}</p>}
+                  {row.note && <p className="mt-1 text-[12px] leading-[1.5] text-bluewood-400">{row.note}</p>}
                 </td>
                 <td className="px-3 py-2.5 align-top text-[12px] font-semibold leading-[1.5] text-bluewood-800">{row.kpi || '—'}</td>
                 <td className="px-3 py-2.5 text-right align-top text-[12px] tabular-nums text-bluewood-500">{row.target || '—'}</td>
@@ -1144,7 +1144,7 @@ function MarketerCampaignCard({ kit = {} }) {
           <div className="space-y-2.5">
             {steps.map((step, i) => (
               <div key={i} className="flex gap-3">
-                <span className="mt-0.5 w-[52px] flex-shrink-0 text-[10.5px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>{step.label}</span>
+                <span className="mt-0.5 w-[52px] flex-shrink-0 text-[11.5px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>{step.label}</span>
                 <p className="min-w-0 whitespace-pre-line text-[12.5px] leading-[1.65] text-bluewood-600">{step.text}</p>
               </div>
             ))}
@@ -1158,9 +1158,9 @@ function MarketerCampaignCard({ kit = {} }) {
             {kpis.map((k, i) => (
               <div key={i} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white px-3.5 py-3">
                 <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: ACCENT }} />
-                <p className="truncate text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.name}</p>
+                <p className="truncate text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.name}</p>
                 <p className="mt-1 text-[17px] font-extrabold leading-tight text-bluewood-900">{k.value || '—'}</p>
-                {k.status && <p className="mt-0.5 truncate text-[10.5px] font-semibold text-bluewood-400">{k.status}</p>}
+                {k.status && <p className="mt-0.5 truncate text-[11.5px] font-semibold text-bluewood-400">{k.status}</p>}
               </div>
             ))}
           </div>
@@ -1196,7 +1196,7 @@ function PmFullEditor({ sr, onChange }) {
   ];
   return (
     <EditPanel>
-      <p className="mb-3 text-[11px] font-black text-bluewood-600">서비스·린 캔버스 전체 편집</p>
+      <p className="mb-3 text-[12px] font-black text-bluewood-600">서비스·린 캔버스 전체 편집</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <EditField label="서비스명" value={product.name} multiline={false} onChange={value => patchProduct('name', value)} />
         <EditField label="한 줄 소개" value={product.tagline} multiline={false} onChange={value => patchProduct('tagline', value)} />
@@ -1205,9 +1205,9 @@ function PmFullEditor({ sr, onChange }) {
         {canvasFields.map(([key, label]) => <EditField key={key} label={label} value={canvas[key]} onChange={value => patchCanvas(key, value)} />)}
       </div>
       <div className="mt-5">
-        <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">가설 및 검증</p><button type="button" onClick={() => onChange({ ...sr, pmHypotheses: [...rows, { hypothesis: '', kpi: '', target: '', achievement: '', note: '' }], pmHypothesesSource: 'manual' })} className="text-[11px] font-bold text-primary-600">＋ 가설 추가</button></div>
+        <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">가설 및 검증</p><button type="button" onClick={() => onChange({ ...sr, pmHypotheses: [...rows, { hypothesis: '', kpi: '', target: '', achievement: '', note: '' }], pmHypothesesSource: 'manual' })} className="text-[12px] font-bold text-primary-600">＋ 가설 추가</button></div>
         <div className="space-y-3">
-          {rows.map((row, index) => <div key={index} className="rounded-xl border border-surface-200 bg-white p-3"><div className="mb-2 flex justify-end"><button type="button" onClick={() => onChange({ ...sr, pmHypotheses: rows.filter((_, i) => i !== index), pmHypothesesSource: 'manual' })} className="text-[11px] font-bold text-red-400">삭제</button></div><div className="grid gap-2 sm:grid-cols-2"><EditField label="가설" value={row.hypothesis} onChange={value => patchRow(index, { hypothesis: value })} /><EditField label="핵심 KPI" value={row.kpi} onChange={value => patchRow(index, { kpi: value })} /><EditField label="목표" value={row.target} multiline={false} onChange={value => patchRow(index, { target: value })} /><EditField label="달성" value={row.achievement || row.actual} multiline={false} onChange={value => patchRow(index, { achievement: value })} /><EditField label="비고·배움" value={row.note} onChange={value => patchRow(index, { note: value })} /></div></div>)}
+          {rows.map((row, index) => <div key={index} className="rounded-xl border border-surface-200 bg-white p-3"><div className="mb-2 flex justify-end"><button type="button" onClick={() => onChange({ ...sr, pmHypotheses: rows.filter((_, i) => i !== index), pmHypothesesSource: 'manual' })} className="text-[12px] font-bold text-red-400">삭제</button></div><div className="grid gap-2 sm:grid-cols-2"><EditField label="가설" value={row.hypothesis} onChange={value => patchRow(index, { hypothesis: value })} /><EditField label="핵심 KPI" value={row.kpi} onChange={value => patchRow(index, { kpi: value })} /><EditField label="목표" value={row.target} multiline={false} onChange={value => patchRow(index, { target: value })} /><EditField label="달성" value={row.achievement || row.actual} multiline={false} onChange={value => patchRow(index, { achievement: value })} /><EditField label="비고·배움" value={row.note} onChange={value => patchRow(index, { note: value })} /></div></div>)}
         </div>
       </div>
     </EditPanel>
@@ -1226,16 +1226,16 @@ function MarketerFullEditor({ sr, onChange }) {
   const funnelFields = [['problem', '문제'], ['goal', '목표'], ['target', '타깃'], ['strategy', '전략'], ['execution', '실행'], ['result', '성과'], ['insight', '인사이트']];
   return (
     <EditPanel>
-      <p className="mb-3 text-[11px] font-black text-bluewood-600">캠페인 전체 편집</p>
+      <p className="mb-3 text-[12px] font-black text-bluewood-600">캠페인 전체 편집</p>
       <EditField label="포지셔닝" value={kit.positioning} onChange={value => patchKit({ positioning: value })} />
       <div className="mt-3 grid gap-3 sm:grid-cols-2">{funnelFields.map(([key, label]) => <EditField key={key} label={label} value={funnel[key]} onChange={value => patchFunnel(key, value)} />)}</div>
       <div className="mt-5">
-        <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">캠페인 KPI</p><button type="button" onClick={() => patchKit({ kpis: [...kpis, { name: '', value: '', status: '' }] })} className="text-[11px] font-bold text-primary-600">＋ KPI 추가</button></div>
-        <div className="space-y-2">{kpis.map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"><EditField value={item.name} multiline={false} placeholder="KPI" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item.value} multiline={false} placeholder="수치" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, value } : row) })} /><EditField value={item.status} multiline={false} placeholder="상태" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, status: value } : row) })} /><button type="button" onClick={() => patchKit({ kpis: kpis.filter((_, i) => i !== index) })} className="px-1 text-[11px] font-bold text-red-400">삭제</button></div>)}</div>
+        <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">캠페인 KPI</p><button type="button" onClick={() => patchKit({ kpis: [...kpis, { name: '', value: '', status: '' }] })} className="text-[12px] font-bold text-primary-600">＋ KPI 추가</button></div>
+        <div className="space-y-2">{kpis.map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"><EditField value={item.name} multiline={false} placeholder="KPI" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, name: value } : row) })} /><EditField value={item.value} multiline={false} placeholder="수치" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, value } : row) })} /><EditField value={item.status} multiline={false} placeholder="상태" onChange={value => patchKit({ kpis: kpis.map((row, i) => i === index ? { ...row, status: value } : row) })} /><button type="button" onClick={() => patchKit({ kpis: kpis.filter((_, i) => i !== index) })} className="px-1 text-[12px] font-bold text-red-400">삭제</button></div>)}</div>
       </div>
       <div className="mt-5">
-        <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-black text-bluewood-600">이력서 문장</p><button type="button" onClick={() => patchKit({ resumeVariants: [...resume, { sentence: '' }] })} className="text-[11px] font-bold text-primary-600">＋ 문장 추가</button></div>
-        <div className="space-y-2">{resume.map((item, index) => <div key={index} className="grid grid-cols-[1fr_auto] gap-2"><EditField value={item.sentence} placeholder="이력서 문장" onChange={value => patchKit({ resumeVariants: resume.map((row, i) => i === index ? { ...row, sentence: value } : row) })} /><button type="button" onClick={() => patchKit({ resumeVariants: resume.filter((_, i) => i !== index) })} className="px-1 text-[11px] font-bold text-red-400">삭제</button></div>)}</div>
+        <div className="mb-2 flex items-center justify-between"><p className="text-[12px] font-black text-bluewood-600">이력서 문장</p><button type="button" onClick={() => patchKit({ resumeVariants: [...resume, { sentence: '' }] })} className="text-[12px] font-bold text-primary-600">＋ 문장 추가</button></div>
+        <div className="space-y-2">{resume.map((item, index) => <div key={index} className="grid grid-cols-[1fr_auto] gap-2"><EditField value={item.sentence} placeholder="이력서 문장" onChange={value => patchKit({ resumeVariants: resume.map((row, i) => i === index ? { ...row, sentence: value } : row) })} /><button type="button" onClick={() => patchKit({ resumeVariants: resume.filter((_, i) => i !== index) })} className="px-1 text-[12px] font-bold text-red-400">삭제</button></div>)}</div>
       </div>
     </EditPanel>
   );
@@ -1277,11 +1277,11 @@ function KeyExperiencesEditor({ sr, onChange, jobCategory }) {
   return (
     <details className="rounded-xl border border-surface-200 bg-white p-3.5">
       <summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">핵심 경험 · 성과 · 판단 근거 ({rows.length})</summary>
-      <div className="mt-3 flex justify-end"><button type="button" onClick={() => onChange({ ...sr, keyExperiences: [...rows, { title: '', context: '', action: '', result: '', learning: '', metricLabel: '', metric: '', jobData: {} }] })} className="text-[11px] font-bold text-primary-600">＋ 핵심 경험 추가</button></div>
+      <div className="mt-3 flex justify-end"><button type="button" onClick={() => onChange({ ...sr, keyExperiences: [...rows, { title: '', context: '', action: '', result: '', learning: '', metricLabel: '', metric: '', jobData: {} }] })} className="text-[12px] font-bold text-primary-600">＋ 핵심 경험 추가</button></div>
       <div className="mt-2 space-y-3">
         {rows.map((row, index) => (
           <div key={row.id || index} className="rounded-xl border border-surface-200 bg-surface-50/40 p-3">
-            <div className="mb-2 flex items-center justify-between"><b className="text-[11px] text-bluewood-600">경험 {index + 1}</b><button type="button" onClick={() => onChange({ ...sr, keyExperiences: rows.filter((_, i) => i !== index) })} className="text-[10.5px] font-bold text-red-400">삭제</button></div>
+            <div className="mb-2 flex items-center justify-between"><b className="text-[12px] text-bluewood-600">경험 {index + 1}</b><button type="button" onClick={() => onChange({ ...sr, keyExperiences: rows.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div>
             <div className="grid gap-2 sm:grid-cols-2">
               <EditField label="제목" value={row.title || ''} multiline={false} onChange={value => patch(index, { title: value })} />
               <EditField label="지표명" value={row.metricLabel || ''} multiline={false} onChange={value => patch(index, { metricLabel: value })} />
@@ -1318,10 +1318,10 @@ function DiagramDataEditor({ sr, onChange }) {
     return (
       <details className="rounded-xl border border-surface-200 bg-white p-3.5">
         <summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">{label} · 노드/연결선</summary>
-        <div className="mt-3 flex justify-end"><button type="button" onClick={() => patchDiagram({ nodes: [...nodes, { id: `node-${Date.now()}`, label: '', tech: '', tier: 0 }] })} className="text-[11px] font-bold text-primary-600">＋ 노드 추가</button></div>
-        <div className="mt-2 space-y-2">{nodes.map((node, index) => <div key={node.id || index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[1fr_1.2fr_1.2fr_70px_auto]"><EditField label="ID" value={node.id || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, id: value } : item) })} /><EditField label="노드명" value={node.label || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, label: value } : item) })} /><EditField label="기술·설명" value={node.tech || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, tech: value } : item) })} /><EditField label="단계" value={node.tier || 0} type="number" multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, tier: value } : item) })} /><button type="button" onClick={() => patchDiagram({ nodes: nodes.filter((_, i) => i !== index), edges: edges.filter(edge => edge.from !== node.id && edge.to !== node.id) })} className="self-end py-2 text-[10.5px] font-bold text-red-400">삭제</button></div>)}</div>
-        <div className="mt-4 flex justify-end"><button type="button" onClick={() => patchDiagram({ edges: [...edges, { from: nodes[0]?.id || '', to: nodes[1]?.id || '', label: '' }] })} className="text-[11px] font-bold text-primary-600">＋ 연결선 추가</button></div>
-        <div className="mt-2 space-y-2">{edges.map((edge, index) => <div key={index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]"><EditField label="출발 ID" value={edge.from || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, from: value } : item) })} /><EditField label="도착 ID" value={edge.to || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, to: value } : item) })} /><EditField label="연결 설명" value={edge.label || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, label: value } : item) })} /><button type="button" onClick={() => patchDiagram({ edges: edges.filter((_, i) => i !== index) })} className="self-end py-2 text-[10.5px] font-bold text-red-400">삭제</button></div>)}</div>
+        <div className="mt-3 flex justify-end"><button type="button" onClick={() => patchDiagram({ nodes: [...nodes, { id: `node-${Date.now()}`, label: '', tech: '', tier: 0 }] })} className="text-[12px] font-bold text-primary-600">＋ 노드 추가</button></div>
+        <div className="mt-2 space-y-2">{nodes.map((node, index) => <div key={node.id || index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[1fr_1.2fr_1.2fr_70px_auto]"><EditField label="ID" value={node.id || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, id: value } : item) })} /><EditField label="노드명" value={node.label || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, label: value } : item) })} /><EditField label="기술·설명" value={node.tech || ''} multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, tech: value } : item) })} /><EditField label="단계" value={node.tier || 0} type="number" multiline={false} onChange={value => patchDiagram({ nodes: nodes.map((item, i) => i === index ? { ...item, tier: value } : item) })} /><button type="button" onClick={() => patchDiagram({ nodes: nodes.filter((_, i) => i !== index), edges: edges.filter(edge => edge.from !== node.id && edge.to !== node.id) })} className="self-end py-2 text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
+        <div className="mt-4 flex justify-end"><button type="button" onClick={() => patchDiagram({ edges: [...edges, { from: nodes[0]?.id || '', to: nodes[1]?.id || '', label: '' }] })} className="text-[12px] font-bold text-primary-600">＋ 연결선 추가</button></div>
+        <div className="mt-2 space-y-2">{edges.map((edge, index) => <div key={index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]"><EditField label="출발 ID" value={edge.from || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, from: value } : item) })} /><EditField label="도착 ID" value={edge.to || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, to: value } : item) })} /><EditField label="연결 설명" value={edge.label || ''} multiline={false} onChange={value => patchDiagram({ edges: edges.map((item, i) => i === index ? { ...item, label: value } : item) })} /><button type="button" onClick={() => patchDiagram({ edges: edges.filter((_, i) => i !== index) })} className="self-end py-2 text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
       </details>
     );
   };
@@ -1332,7 +1332,7 @@ function PmTimelineEditor({ sr, onChange }) {
   const timeline = sr.pmTimeline || {};
   const rows = Array.isArray(timeline.items) ? timeline.items : [];
   const patch = changes => onChange({ ...sr, pmTimeline: { ...timeline, ...changes } });
-  return <details className="rounded-xl border border-surface-200 bg-white p-3.5"><summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">서비스 타임라인</summary><div className="mt-3"><EditField label="타임라인 설명" value={timeline.description || ''} onChange={value => patch({ description: value })} /></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ items: [...rows, { phase: '', label: '', value: '', color: ACCENT }] })} className="text-[11px] font-bold text-primary-600">＋ 단계 추가</button></div><div className="mt-2 space-y-2">{rows.map((row, index) => <div key={index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[.8fr_1fr_2fr_90px_auto]"><EditField label="영문 단계" value={row.phase || ''} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, phase: value } : item) })} /><EditField label="단계명" value={row.label || ''} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, label: value } : item) })} /><EditField label="내용" value={row.value || ''} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, value } : item) })} /><EditField label="색상" value={row.color || ACCENT} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, color: value } : item) })} /><button type="button" onClick={() => patch({ items: rows.filter((_, i) => i !== index) })} className="self-end py-2 text-[10.5px] font-bold text-red-400">삭제</button></div>)}</div></details>;
+  return <details className="rounded-xl border border-surface-200 bg-white p-3.5"><summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">서비스 타임라인</summary><div className="mt-3"><EditField label="타임라인 설명" value={timeline.description || ''} onChange={value => patch({ description: value })} /></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ items: [...rows, { phase: '', label: '', value: '', color: ACCENT }] })} className="text-[12px] font-bold text-primary-600">＋ 단계 추가</button></div><div className="mt-2 space-y-2">{rows.map((row, index) => <div key={index} className="grid gap-2 rounded-lg bg-surface-50 p-2 sm:grid-cols-[.8fr_1fr_2fr_90px_auto]"><EditField label="영문 단계" value={row.phase || ''} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, phase: value } : item) })} /><EditField label="단계명" value={row.label || ''} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, label: value } : item) })} /><EditField label="내용" value={row.value || ''} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, value } : item) })} /><EditField label="색상" value={row.color || ACCENT} multiline={false} onChange={value => patch({ items: rows.map((item, i) => i === index ? { ...item, color: value } : item) })} /><button type="button" onClick={() => patch({ items: rows.filter((_, i) => i !== index) })} className="self-end py-2 text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div></details>;
 }
 
 function MarketerResearchEditor({ sr, onChange }) {
@@ -1344,8 +1344,8 @@ function MarketerResearchEditor({ sr, onChange }) {
     <details className="rounded-xl border border-surface-200 bg-white p-3.5">
       <summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">시장 리서치 카드</summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2"><EditField label="리서치 제목" value={current.title || ''} multiline={false} onChange={value => patch({ title: value })} /><EditField label="부제" value={current.subtitle || ''} onChange={value => patch({ subtitle: value })} /><EditField label="종합 결론" value={current.conclusion || ''} onChange={value => patch({ conclusion: value })} /></div>
-      <div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ cards: [...cards, { question: '', finding: '', value: '', unit: '%', valueLabel: '', sourcePublisher: '', sourceTitle: '', bars: [] }] })} className="text-[11px] font-bold text-primary-600">＋ 리서치 카드 추가</button></div>
-      <div className="mt-2 space-y-3">{cards.map((card, index) => { const bars = Array.isArray(card.bars) ? card.bars : []; return <div key={index} className="rounded-xl border border-surface-200 bg-surface-50/40 p-3"><div className="mb-2 flex justify-end"><button type="button" onClick={() => patch({ cards: cards.filter((_, i) => i !== index) })} className="text-[10.5px] font-bold text-red-400">삭제</button></div><div className="grid gap-2 sm:grid-cols-2"><EditField label="질문·카드 제목" value={card.question || ''} onChange={value => patchCard(index, { question: value })} /><EditField label="핵심 발견" value={card.finding || ''} onChange={value => patchCard(index, { finding: value })} /><EditField label="대표 수치" value={card.value ?? ''} multiline={false} onChange={value => patchCard(index, { value })} /><EditField label="단위" value={card.unit || ''} multiline={false} onChange={value => patchCard(index, { unit: value })} /><EditField label="수치 설명" value={card.valueLabel || ''} multiline={false} onChange={value => patchCard(index, { valueLabel: value })} /><EditField label="출처 기관" value={card.sourcePublisher || ''} multiline={false} onChange={value => patchCard(index, { sourcePublisher: value })} /><EditField label="출처 자료명" value={card.sourceTitle || ''} multiline={false} onChange={value => patchCard(index, { sourceTitle: value })} /></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => patchCard(index, { bars: [...bars, { label: '', value: 0, unit: card.unit || '%' }] })} className="text-[10.5px] font-bold text-primary-600">＋ 비교 막대 추가</button></div><div className="mt-2 space-y-2">{bars.map((bar, barIndex) => <div key={barIndex} className="grid gap-2 sm:grid-cols-[1fr_100px_80px_auto]"><EditField label="항목" value={bar.label || ''} multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, label: value } : item) })} /><EditField label="값" value={bar.value ?? 0} type="number" multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, value } : item) })} /><EditField label="단위" value={bar.unit || ''} multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, unit: value } : item) })} /><button type="button" onClick={() => patchCard(index, { bars: bars.filter((_, i) => i !== barIndex) })} className="self-end py-2 text-[10.5px] font-bold text-red-400">삭제</button></div>)}</div></div>; })}</div>
+      <div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ cards: [...cards, { question: '', finding: '', value: '', unit: '%', valueLabel: '', sourcePublisher: '', sourceTitle: '', bars: [] }] })} className="text-[12px] font-bold text-primary-600">＋ 리서치 카드 추가</button></div>
+      <div className="mt-2 space-y-3">{cards.map((card, index) => { const bars = Array.isArray(card.bars) ? card.bars : []; return <div key={index} className="rounded-xl border border-surface-200 bg-surface-50/40 p-3"><div className="mb-2 flex justify-end"><button type="button" onClick={() => patch({ cards: cards.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div><div className="grid gap-2 sm:grid-cols-2"><EditField label="질문·카드 제목" value={card.question || ''} onChange={value => patchCard(index, { question: value })} /><EditField label="핵심 발견" value={card.finding || ''} onChange={value => patchCard(index, { finding: value })} /><EditField label="대표 수치" value={card.value ?? ''} multiline={false} onChange={value => patchCard(index, { value })} /><EditField label="단위" value={card.unit || ''} multiline={false} onChange={value => patchCard(index, { unit: value })} /><EditField label="수치 설명" value={card.valueLabel || ''} multiline={false} onChange={value => patchCard(index, { valueLabel: value })} /><EditField label="출처 기관" value={card.sourcePublisher || ''} multiline={false} onChange={value => patchCard(index, { sourcePublisher: value })} /><EditField label="출처 자료명" value={card.sourceTitle || ''} multiline={false} onChange={value => patchCard(index, { sourceTitle: value })} /></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => patchCard(index, { bars: [...bars, { label: '', value: 0, unit: card.unit || '%' }] })} className="text-[11.5px] font-bold text-primary-600">＋ 비교 막대 추가</button></div><div className="mt-2 space-y-2">{bars.map((bar, barIndex) => <div key={barIndex} className="grid gap-2 sm:grid-cols-[1fr_100px_80px_auto]"><EditField label="항목" value={bar.label || ''} multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, label: value } : item) })} /><EditField label="값" value={bar.value ?? 0} type="number" multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, value } : item) })} /><EditField label="단위" value={bar.unit || ''} multiline={false} onChange={value => patchCard(index, { bars: bars.map((item, i) => i === barIndex ? { ...item, unit: value } : item) })} /><button type="button" onClick={() => patchCard(index, { bars: bars.filter((_, i) => i !== barIndex) })} className="self-end py-2 text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div></div>; })}</div>
     </details>
   );
 }
@@ -1360,8 +1360,8 @@ function MarketerPositioningEditor({ sr, onChange }) {
     <details className="rounded-xl border border-surface-200 bg-white p-3.5">
       <summary className="cursor-pointer text-[11.5px] font-black text-bluewood-700">포지셔닝 리포트</summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2"><EditField label="강점 (한 줄에 하나)" value={listText(report.strengths)} onChange={value => patch({ strengths: value.split('\n').map(text => text.trim()).filter(Boolean) })} /><EditField label="보완점 (한 줄에 하나)" value={listText(report.weaknesses)} onChange={value => patch({ weaknesses: value.split('\n').map(text => text.trim()).filter(Boolean) })} /><EditField label="추천 문장" value={report.recommendation || ''} onChange={value => patch({ recommendation: value })} /></div>
-      <div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ recommendedPositions: [...positions, { name: '', reason: '' }] })} className="text-[11px] font-bold text-primary-600">＋ 추천 포지션 추가</button></div>
-      <div className="mt-2 space-y-2">{positions.map((position, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]"><EditField label="포지션" value={typeof position === 'string' ? position : position.name || ''} multiline={false} onChange={value => patch({ recommendedPositions: positions.map((item, i) => i === index ? { ...(typeof item === 'object' ? item : {}), name: value } : item) })} /><EditField label="추천 이유" value={typeof position === 'object' ? position.reason || position.why || position.desc || '' : ''} onChange={value => patch({ recommendedPositions: positions.map((item, i) => i === index ? { ...(typeof item === 'object' ? item : { name: item }), reason: value } : item) })} /><button type="button" onClick={() => patch({ recommendedPositions: positions.filter((_, i) => i !== index) })} className="self-end py-2 text-[10.5px] font-bold text-red-400">삭제</button></div>)}</div>
+      <div className="mt-3 flex justify-end"><button type="button" onClick={() => patch({ recommendedPositions: [...positions, { name: '', reason: '' }] })} className="text-[12px] font-bold text-primary-600">＋ 추천 포지션 추가</button></div>
+      <div className="mt-2 space-y-2">{positions.map((position, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]"><EditField label="포지션" value={typeof position === 'string' ? position : position.name || ''} multiline={false} onChange={value => patch({ recommendedPositions: positions.map((item, i) => i === index ? { ...(typeof item === 'object' ? item : {}), name: value } : item) })} /><EditField label="추천 이유" value={typeof position === 'object' ? position.reason || position.why || position.desc || '' : ''} onChange={value => patch({ recommendedPositions: positions.map((item, i) => i === index ? { ...(typeof item === 'object' ? item : { name: item }), reason: value } : item) })} /><button type="button" onClick={() => patch({ recommendedPositions: positions.filter((_, i) => i !== index) })} className="self-end py-2 text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
     </details>
   );
 }
@@ -1369,7 +1369,7 @@ function MarketerPositioningEditor({ sr, onChange }) {
 function CompleteCoreEditor({ exp, sr, jobCategory, onChange, onExperienceChange }) {
   return (
     <EditPanel>
-      <div className="mb-3"><p className="text-[12px] font-black text-bluewood-800">직군 핵심 경험 전체 편집</p><p className="mt-1 text-[10.5px] text-bluewood-400">여기서 바꾼 내용은 원본 핵심 경험과 내보내기 화면에 함께 반영됩니다.</p></div>
+      <div className="mb-3"><p className="text-[12px] font-black text-bluewood-800">직군 핵심 경험 전체 편집</p><p className="mt-1 text-[11.5px] text-bluewood-400">여기서 바꾼 내용은 원본 핵심 경험과 내보내기 화면에 함께 반영됩니다.</p></div>
       <div className="space-y-3">
         <CoreOverviewEditor exp={exp} sr={sr} onChange={onChange} onExperienceChange={onExperienceChange} />
         <KeyExperiencesEditor sr={sr} onChange={onChange} jobCategory={jobCategory} />
@@ -1412,14 +1412,14 @@ function GenericVisualEditor({ visuals = {}, onChange }) {
         return (
           <div key={config.key} className="rounded-xl border border-surface-200 bg-white p-3">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-[11px] font-black text-bluewood-600">{config.label}</p>
-              <button type="button" onClick={() => onChange(writeVisualRows(visuals, config, [...rows, Object.fromEntries(config.fields.map(([key]) => [key, '']))]))} className="text-[11px] font-bold text-primary-600">＋ 추가</button>
+              <p className="text-[12px] font-black text-bluewood-600">{config.label}</p>
+              <button type="button" onClick={() => onChange(writeVisualRows(visuals, config, [...rows, Object.fromEntries(config.fields.map(([key]) => [key, '']))]))} className="text-[12px] font-bold text-primary-600">＋ 추가</button>
             </div>
             <div className="space-y-2">
               {rows.map((row, index) => (
                 <div key={index} className="grid gap-2 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
                   {config.fields.map(([key, label]) => <EditField key={key} label={label} value={row?.[key] ?? ''} multiline={key === 'desc' || key === 'note'} onChange={value => onChange(writeVisualRows(visuals, config, rows.map((item, i) => i === index ? { ...item, [key]: value } : item)))} />)}
-                  <button type="button" onClick={() => onChange(writeVisualRows(visuals, config, rows.filter((_, i) => i !== index)))} className="self-end px-1 py-2 text-[11px] font-bold text-red-400">삭제</button>
+                  <button type="button" onClick={() => onChange(writeVisualRows(visuals, config, rows.filter((_, i) => i !== index)))} className="self-end px-1 py-2 text-[12px] font-bold text-red-400">삭제</button>
                 </div>
               ))}
             </div>
@@ -1476,7 +1476,7 @@ function GenericJobCore({ exp, sr, jobCategory, editing, onChange }) {
           {visibleSections.map(field => (
             <section key={field.key} className="rounded-2xl border border-surface-200 bg-white p-4">
               <p className="text-[12.5px] font-extrabold text-bluewood-900">{field.label}</p>
-              {field.subtitle && <p className="mt-0.5 text-[10.5px] font-medium text-bluewood-300">{field.subtitle}</p>}
+              {field.subtitle && <p className="mt-0.5 text-[11.5px] font-medium text-bluewood-300">{field.subtitle}</p>}
               <p className="mt-2.5 whitespace-pre-line text-[12.5px] leading-[1.7] text-bluewood-600">{clean(jobSpecific[field.key])}</p>
             </section>
           ))}
@@ -1485,7 +1485,7 @@ function GenericJobCore({ exp, sr, jobCategory, editing, onChange }) {
 
       {editing && (
         <EditPanel>
-          <p className="mb-3 text-[11px] font-black text-bluewood-600">{jobLabel} 핵심 경험 전체 편집</p>
+          <p className="mb-3 text-[12px] font-black text-bluewood-600">{jobLabel} 핵심 경험 전체 편집</p>
           <div className="space-y-3">
             {jobFields.map(field => <EditField key={field.key} label={field.label} value={jobSpecific[field.key] || ''} placeholder={field.placeholder} onChange={value => patchJob(field.key, value)} />)}
           </div>

@@ -2,8 +2,10 @@
 import { X, Loader2, Sparkles, Link as LinkIcon, Info, Trash2, CheckCircle2, UploadCloud } from 'lucide-react';
 import { importFileUpload, importFromUrl, structureImportedData } from '../services/importAI';
 import toast from 'react-hot-toast';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 export default function ImportModal({ targetType, onClose, onImport }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const [files, setFiles] = useState([]);
   const [url, setUrl] = useState('');
   const [urlType, setUrlType] = useState('notion');
@@ -200,8 +202,15 @@ export default function ImportModal({ targetType, onClose, onImport }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" {...backdropProps}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="자료 가져오기"
+        tabIndex={-1}
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] outline-none"
+      >
 
         {/* ── Header ── */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
@@ -278,7 +287,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                     return (
                       <div key={f.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl bg-white shadow-sm">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${icon.color}`}>
-                          <span className="text-white text-[11px] font-bold tracking-wide">{icon.label}</span>
+                          <span className="text-white text-[12px] font-bold tracking-wide">{icon.label}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>

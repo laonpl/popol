@@ -48,7 +48,7 @@ function TechAnalysisCard({ label, subtitle, icon: Icon, text, accent = ACCENT }
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: accent }}><Icon size={15} /></span>
         <div className="min-w-0">
           <h3 className="text-[14px] font-extrabold leading-tight text-bluewood-900">{label}</h3>
-          {subtitle && <p className="truncate text-[11px] text-bluewood-400">{subtitle}</p>}
+          {subtitle && <p className="truncate text-[12px] text-bluewood-400">{subtitle}</p>}
         </div>
       </div>
       <div className="flex flex-1 flex-col px-4 py-3.5">
@@ -414,7 +414,7 @@ export default function DeveloperPortfolio() {
               : <X size={14} className="text-bluewood-300 mt-[1px] flex-shrink-0" />}
             <span className={c.ok ? 'text-bluewood-600' : 'text-bluewood-400'}>
               {c.label}
-              {!c.ok && <span className="block text-[11px] text-amber-600/90">{c.hint}</span>}
+              {!c.ok && <span className="block text-[12px] text-amber-600/90">{c.hint}</span>}
             </span>
           </div>
         ))}
@@ -466,7 +466,7 @@ export default function DeveloperPortfolio() {
             {/* aiml·devops는 히어로 안에서 스택을 보여줌 */}
             {techList.length > 0 && !['aiml', 'devops'].includes(jobCategory) && (
               <div className="mt-5 flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300"><Cpu size={12} /> Tools</span>
+                <span className="mr-1 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300"><Cpu size={12} /> Tools</span>
                 {techList.slice(0, 10).map((t, i) => (
                   <span key={i} className="rounded-md bg-surface-100 px-2 py-0.5 text-[11.5px] font-semibold text-bluewood-600">{t}</span>
                 ))}
@@ -475,7 +475,7 @@ export default function DeveloperPortfolio() {
           </>
         ) : (
           <header>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em]" style={{ color: pmeta.accent }}>{jobLabel} · {pmeta.kicker}</p>
+            <p className="text-[12px] font-black uppercase tracking-[0.22em]" style={{ color: pmeta.accent }}>{jobLabel} · {pmeta.kicker}</p>
             <h1 className="mt-3 text-[28px] sm:text-[38px] font-black leading-[1.12] tracking-tight text-bluewood-900">{clean(data.title) || '프로젝트'}</h1>
             {headline && <p className="mt-3.5 max-w-2xl text-[15px] sm:text-[16px] leading-relaxed text-bluewood-500">{headline}</p>}
 
@@ -496,7 +496,7 @@ export default function DeveloperPortfolio() {
 
             {techList.length > 0 && (
               <div className="mt-6 border-t border-surface-200 pt-5">
-                <p className="mb-2.5 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">
+                <p className="mb-2.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">
                   <Cpu size={12} /> Tech Stack
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -614,7 +614,7 @@ export default function DeveloperPortfolio() {
           {/* 편집 안내 툴바 */}
           {editDiagram && (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-500">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-primary-500">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" /> 상단 손잡이로 이동 · 모서리로 크기 조절 · 파란 점을 다른 박스로 끌어 연결 · 글자는 바로 수정
               </p>
               <button onClick={addNode} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-primary-300 px-3 py-1.5 text-[12px] font-semibold text-primary-600 hover:bg-primary-50 transition-colors"><Plus size={13} /> 박스 추가</button>
@@ -659,7 +659,7 @@ export default function DeveloperPortfolio() {
           {editDiagram && (
             <div className="mt-4 rounded-2xl border border-surface-200 bg-surface-50/40 p-4 sm:p-5">
               <div>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-bluewood-400">연결 (화살표)</p>
+                <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.14em] text-bluewood-400">연결 (화살표)</p>
                 <div className="space-y-2">
                   {diagramDraft.edges.map((e, i) => (
                     <div key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-surface-200 bg-white p-2.5">
@@ -746,7 +746,7 @@ export default function DeveloperPortfolio() {
                   <div key={i} className="rounded-2xl border border-surface-200 p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2.5 min-w-0">
-                        <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: pmeta.accent }}>{i + 1}</span>
+                        <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[11.5px] font-black text-white" style={{ backgroundColor: pmeta.accent }}>{i + 1}</span>
                         <h3 className="text-[15px] font-extrabold leading-snug text-bluewood-900">{clean(k.title) || `프로젝트 ${i + 1}`}</h3>
                       </div>
                       {metric && <span className="flex-shrink-0 rounded-md bg-emerald-50 px-2 py-0.5 text-[11.5px] font-bold text-emerald-600">{metric}</span>}
@@ -755,7 +755,7 @@ export default function DeveloperPortfolio() {
                     {tags.length > 0 && (
                       <div className="mt-2.5 flex flex-wrap gap-1.5 pl-[30px]">
                         {tags.slice(0, 6).map((t, ti) => (
-                          <span key={ti} className="rounded bg-surface-100 px-1.5 py-0.5 text-[10.5px] font-medium text-bluewood-500">#{t}</span>
+                          <span key={ti} className="rounded bg-surface-100 px-1.5 py-0.5 text-[11.5px] font-medium text-bluewood-500">#{t}</span>
                         ))}
                       </div>
                     )}
@@ -763,13 +763,13 @@ export default function DeveloperPortfolio() {
                     <div className="mt-3.5 space-y-2 pl-[30px]">
                       {KE_ROWS.map(r => rows[r.key] && (
                         <div key={r.key} className="flex gap-2.5">
-                          <span className="w-9 flex-shrink-0 pt-[1px] text-[11px] font-black" style={{ color: r.color }}>{r.label}</span>
+                          <span className="w-9 flex-shrink-0 pt-[1px] text-[12px] font-black" style={{ color: r.color }}>{r.label}</span>
                           <p className={`flex-1 text-[13px] leading-[1.6] ${r.strong ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`}>{rows[r.key]}</p>
                         </div>
                       ))}
                       {learning && (
                         <div className="flex gap-2.5 pt-1">
-                          <span className="w-9 flex-shrink-0 pt-[1px] text-[11px] font-bold text-bluewood-300">배운 점</span>
+                          <span className="w-9 flex-shrink-0 pt-[1px] text-[12px] font-bold text-bluewood-300">배운 점</span>
                           <p className="flex-1 text-[12.5px] italic leading-[1.55] text-bluewood-400">{learning}</p>
                         </div>
                       )}

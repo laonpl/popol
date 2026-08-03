@@ -151,6 +151,8 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
           structuredResult: analysis,
           keywords: analysis.keywords || [],
           highlights: analysis.highlights || [],
+          lifecycleStatus: 'needs_confirmation',
+          confirmedAt: null,
           updatedAt: new Date(),
         });
         return res.json(analysis);
@@ -198,6 +200,8 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
       structuredResult: analysis,
       keywords: analysis.keywords || [],
       highlights: analysis.highlights || [],
+      lifecycleStatus: 'needs_confirmation',
+      confirmedAt: null,
       updatedAt: new Date(),
     });
 
@@ -476,6 +480,8 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
           keywords: analysis.keywords || [],
           highlights: analysis.highlights || [],
           followupAnswers: answered,
+          lifecycleStatus: 'needs_confirmation',
+          confirmedAt: null,
           updatedAt: new Date(),
         });
         return res.json(analysis);
@@ -491,6 +497,8 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
       keywords: analysis.keywords || [],
       highlights: analysis.highlights || [],
       followupAnswers: answered,
+      lifecycleStatus: 'needs_confirmation',
+      confirmedAt: null,
       updatedAt: new Date(),
     });
     res.json(analysis);

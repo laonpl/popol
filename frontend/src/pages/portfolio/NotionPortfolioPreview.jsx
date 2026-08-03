@@ -457,7 +457,7 @@ export default function NotionPortfolioPreview() {
         </div>
 
         {/* Quick Menu - 템플릿별 차별화 */}
-        <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto">
+        <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto scrollbar-none">
           {(() => {
             const hiddenSections = p.hiddenSections || [];
             const menuDefs = p.templateId === 'ashley'
@@ -641,31 +641,31 @@ export default function NotionPortfolioPreview() {
                     <div className="p-3 flex-1 flex flex-col">
                       <h4 className="text-sm font-bold text-gray-800 leading-snug mb-1">{e.title || '(제목 없음)'}</h4>
                       {cardRole && (
-                        <p className="text-[11px] text-primary-600 font-medium mb-1">{cardRole}</p>
+                        <p className="text-[12px] text-primary-600 font-medium mb-1">{cardRole}</p>
                       )}
                       {cardSummary && (
-                        <p className="text-[11px] text-gray-500 leading-relaxed mb-1.5">{cardSummary}</p>
+                        <p className="text-[12px] text-gray-500 leading-relaxed mb-1.5">{cardSummary}</p>
                       )}
                       {cardTech.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
                           {cardTech.slice(0, 3).map((t, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium border border-green-100">
+                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[11.5px] font-medium border border-green-100">
                               {typeof t === 'string' ? t : t?.name || ''}
                             </span>
                           ))}
-                          {cardTech.length > 3 && <span className="text-[10px] text-gray-400">+{cardTech.length - 3}</span>}
+                          {cardTech.length > 3 && <span className="text-[11.5px] text-gray-400">+{cardTech.length - 3}</span>}
                         </div>
                       )}
                       {topAchievement && (
                         <div className="mt-auto pt-1.5 border-t border-surface-100">
-                          <p className="text-[10px] text-emerald-600 font-semibold">🏆 {topAchievement.title}</p>
-                          {topAchievement.metric && <p className="text-[10px] text-emerald-500">{topAchievement.metric}</p>}
+                          <p className="text-[11.5px] text-emerald-600 font-semibold">🏆 {topAchievement.title}</p>
+                          {topAchievement.metric && <p className="text-[11.5px] text-emerald-500">{topAchievement.metric}</p>}
                         </div>
                       )}
                       {false && !topAchievement && (e.classify || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-auto pt-1">
                           {e.classify.slice(0, 3).map((tag, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[10px]">{tag}</span>
+                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[11.5px]">{tag}</span>
                           ))}
                         </div>
                       )}
@@ -984,7 +984,7 @@ function LinkExportModal({ portfolioId, isPublic, togglingPublic, customSlug, on
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-surface-100">
@@ -1130,7 +1130,7 @@ function RichTextPreview({ value, className = '' }) {
         }
         if (block.type === 'Blockquote') return <blockquote key={block.id || index} className="border-l-4 border-gray-300 pl-4 text-sm italic leading-relaxed text-gray-600">{text}</blockquote>;
         if (block.type === 'Callout') return <div key={block.id || index} className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">{text}</div>;
-        if (block.type === 'Code') return <pre key={block.id || index} className="overflow-x-auto rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{text}</code></pre>;
+        if (block.type === 'Code') return <pre key={block.id || index} className="overflow-x-auto scrollbar-on-dark rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{text}</code></pre>;
         return <p key={block.id || index} className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{text}</p>;
       })}
     </div>
@@ -1183,7 +1183,7 @@ function renderCustomBlockSegments(block, textClassName) {
     }
     if (variant === 'quote') return <blockquote key={index} className={`${textClassName} border-l-4 border-gray-300 pl-4 italic text-gray-600`}>{seg.content}</blockquote>;
     if (variant === 'callout') return <div key={index} className={`${textClassName} rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-amber-900`}>{seg.content}</div>;
-    if (variant === 'code') return <pre key={index} className="overflow-x-auto rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{seg.content}</code></pre>;
+    if (variant === 'code') return <pre key={index} className="overflow-x-auto scrollbar-on-dark rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{seg.content}</code></pre>;
     return <p key={index} className={textClassName}>{seg.content}</p>;
   });
 }
@@ -1289,7 +1289,7 @@ function AcademicLayout({ p, setSelectedExp }) {
           </div>
         </div>
         {/* Quick Nav */}
-        <div className="flex gap-2 px-10 pb-4 overflow-x-auto">
+        <div className="flex gap-2 px-10 pb-4 overflow-x-auto scrollbar-none">
           {['소개','학력','경험','기술','수상','교과','비교과','목표'].map(m => (
             <a key={m} href={`#acad-${m}`} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs text-white/80 font-medium whitespace-nowrap transition-colors">{m}</a>
           ))}
@@ -1436,12 +1436,12 @@ function AcademicLayout({ p, setSelectedExp }) {
                     <div className="p-3 flex-1 flex flex-col">
                       <VHtml as="h4" className="text-sm font-bold text-gray-800 mb-1" value={e.title || '(제목 없음)'} />
                       {false && <p className="text-xs text-gray-400">{e.date || ''}</p>}
-                      {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1">{cardRole}</p>}
-                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed mt-1">{cardSummary}</p>}
+                      {cardRole && <p className="text-[12px] text-violet-600 font-medium mt-1">{cardRole}</p>}
+                      {cardSummary && <p className="text-[12px] text-gray-500 leading-relaxed mt-1">{cardSummary}</p>}
                       {cardTech.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {cardTech.slice(0, 3).map((t, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
+                            <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[11.5px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
                           ))}
                         </div>
                       )}
@@ -1712,11 +1712,11 @@ function AshleyLayout({ p, setSelectedExp }) {
                   <div className="p-3 flex-1 flex flex-col">
                     <VHtml as="h4" className="text-sm font-bold text-[#2d2a26] mb-1" value={e.title || '(제목 없음)'} />
                     {false && <p className="text-xs text-[#8a8578]">{e.date || ''}</p>}
-                    {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1">{cardRole}</p>}
-                    {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed mt-1">{cardSummary}</p>}
+                    {cardRole && <p className="text-[12px] text-[#c4a882] font-medium mt-1">{cardRole}</p>}
+                    {cardSummary && <p className="text-[12px] text-[#8a8578] leading-relaxed mt-1">{cardSummary}</p>}
                     {false && (e.classify || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
-                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
+                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[11.5px]">{t}</span>
                       ))}</div>
                     )}
                   </div>
@@ -1886,7 +1886,7 @@ function TimelineLayout({ p, setSelectedExp }) {
 
       <div className="bg-white rounded-b-2xl border border-t-0 border-surface-200 shadow-sm">
         {/* Quick nav */}
-        <div className="px-8 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto">
+        <div className="px-8 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto scrollbar-none">
           {['학기별 수업', '활동 기록', '스터디 계획', '기술', '수상'].map(menu => (
             <a key={menu} href={`#section-${menu}`} className="px-4 py-2 bg-surface-50 hover:bg-surface-100 rounded-lg text-sm text-gray-600 font-medium whitespace-nowrap transition-colors">{menu}</a>
           ))}
@@ -1940,7 +1940,7 @@ function TimelineLayout({ p, setSelectedExp }) {
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
                         <p className="text-xs text-gray-400">{exp.period || exp.date || ''} {cardRole ? `· ${cardRole}` : ''}</p>
-                        {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{cardSummary}</p>}
+                        {cardSummary && <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">{cardSummary}</p>}
                       </div>
                       {exp.framework && <span className="px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500 flex-shrink-0">{exp.framework}</span>}
                     </div>

@@ -924,7 +924,7 @@ export function WebTemplate2({ portfolio }) {
         <div data-reveal className={`${tile} col-span-2 md:col-span-6 md:row-span-1 p-6 flex items-center justify-between !bg-indigo-600 !border-indigo-500 text-white`}>
           <div>
             <p className="text-[12.8px] md:text-[14.4px] font-black" style={{ wordBreak: 'keep-all' }}>함께 일해보고 싶다면?</p>
-            <p className="text-[10px] text-white/70 font-semibold mt-1">{data.email || '이메일을 등록해 주세요'}</p>
+            <p className="text-[11.5px] text-white/70 font-semibold mt-1">{data.email || '이메일을 등록해 주세요'}</p>
           </div>
           {data.email && (
             <a href={`mailto:${data.email}`} className="shrink-0 w-11 h-11 rounded-full bg-white text-indigo-600 flex items-center justify-center hover:scale-110 transition-transform">
@@ -1045,7 +1045,7 @@ const W3_MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 
 function W3SectionLabel({ index, children, accent, ink }) {
   return (
-    <p className="text-[10px] font-bold mb-6 flex items-center gap-3" style={{ fontFamily: W3_MONO, color: accent }}>
+    <p className="text-[11.5px] font-bold mb-6 flex items-center gap-3" style={{ fontFamily: W3_MONO, color: accent }}>
       <span style={{ color: alphaHex(ink, 0.25) }}>{'//'}</span> {String(index).padStart(2, '0')}. {children}
       <span className="flex-1 h-px" style={{ background: alphaHex(ink, 0.1) }} />
     </p>
@@ -1103,7 +1103,7 @@ function LegacyWebTemplate3({ portfolio, edit, onOpenProject, stickyTop = 0 }) {
             {/* 앵커 내비게이션 */}
             <nav className="hidden lg:block mt-12 space-y-1.5">
               {[['about', 'ABOUT'], ['experience', 'EXPERIENCE'], ['projects', 'PROJECTS'], ['skills', 'SKILLS']].map(([id, label], i) => (
-                <a key={id} href={edit ? undefined : `#w3-${id}`} onClick={event => { if (edit) event.preventDefault(); }} className="group flex items-center gap-3 py-1.5 text-[10px] font-bold transition-colors" style={{ fontFamily: W3_MONO, color: ink(0.45) }}>
+                <a key={id} href={edit ? undefined : `#w3-${id}`} onClick={event => { if (edit) event.preventDefault(); }} className="group flex items-center gap-3 py-1.5 text-[11.5px] font-bold transition-colors" style={{ fontFamily: W3_MONO, color: ink(0.45) }}>
                   <span style={{ color: ink(0.2) }}>{String(i + 1).padStart(2, '0')}</span>
                   <span className="h-px w-8 group-hover:w-14 transition-all" style={{ background: ink(0.35) }} />
                   <WCopy portfolio={portfolio} edit={edit} copyKey={`w3Nav${id[0].toUpperCase()}${id.slice(1)}`} defaultValue={label} />
@@ -1216,7 +1216,7 @@ function LegacyWebTemplate3({ portfolio, edit, onOpenProject, stickyTop = 0 }) {
                         <h3 className="mt-2 text-[13.6px] font-black leading-snug" style={{ wordBreak: 'keep-all', color: th.ink }}>
                           <WT edit={edit} value={edit ? (proj.company || proj.title || '') : proj.name} onChange={v => edit?.updateItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" />
                         </h3>
-                        <div className="mt-1.5 text-[10px] leading-relaxed" style={{ wordBreak: 'keep-all', color: ink(0.6) }}>
+                        <div className="mt-1.5 text-[11.5px] leading-relaxed" style={{ wordBreak: 'keep-all', color: ink(0.6) }}>
                           <WTArea edit={edit} value={edit ? (proj.description || '') : proj.desc} onChange={v => edit?.updateItem('experiences', idx, { description: v })} placeholder="설명" className={edit ? '' : 'line-clamp-2'} />
                         </div>
                         {(tech.length > 0) && (
@@ -1243,7 +1243,7 @@ function LegacyWebTemplate3({ portfolio, edit, onOpenProject, stickyTop = 0 }) {
               <W3SectionLabel index={4} accent={th.accent} ink={th.ink}><WCopy portfolio={portfolio} edit={edit} copyKey="w3SkillsLabel" defaultValue="SKILLS" /></W3SectionLabel>
               <div className="flex flex-wrap gap-2">
                 {skills.map((s, i) => (
-                  <span key={`${s.cat}-${s.idx}-${i}`} className="relative group text-[10px] font-bold px-3.5 py-1.5 rounded-lg border cursor-default" style={{ fontFamily: W3_MONO, borderColor: ink(0.1), background: ink(0.04), color: ink(0.75) }}>
+                  <span key={`${s.cat}-${s.idx}-${i}`} className="relative group text-[11.5px] font-bold px-3.5 py-1.5 rounded-lg border cursor-default" style={{ fontFamily: W3_MONO, borderColor: ink(0.1), background: ink(0.04), color: ink(0.75) }}>
                     <WRm edit={edit} onClick={() => edit.removeSkill(s.cat, s.idx)} />
                     {edit
                       ? <EditText value={s.name} onChange={v => edit.updateSkill(s.cat, s.idx, inlineHtmlToPlainText(v))} placeholder="스킬" />
@@ -1251,7 +1251,7 @@ function LegacyWebTemplate3({ portfolio, edit, onOpenProject, stickyTop = 0 }) {
                   </span>
                 ))}
                 {edit && (
-                  <button type="button" onClick={() => edit.addSkill()} className="text-[10px] font-bold px-3.5 py-1.5 rounded-lg border border-dashed opacity-60 hover:opacity-100" style={{ borderColor: ink(0.3), color: ink(0.6) }}>
+                  <button type="button" onClick={() => edit.addSkill()} className="text-[11.5px] font-bold px-3.5 py-1.5 rounded-lg border border-dashed opacity-60 hover:opacity-100" style={{ borderColor: ink(0.3), color: ink(0.6) }}>
                     <Plus size={9.6} className="inline" /> 스킬
                   </button>
                 )}
@@ -1270,7 +1270,7 @@ function LegacyWebTemplate3({ portfolio, edit, onOpenProject, stickyTop = 0 }) {
                     <p className="text-[11.6px] font-black" style={{ color: th.ink }}>
                       <WT edit={edit} value={edit ? (edu.name || edu.school || '') : edu.school} onChange={v => edit?.updateItem('education', i, { name: v })} placeholder="학교명" />
                     </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: ink(0.6) }}>
+                    <p className="text-[11.5px] mt-0.5" style={{ color: ink(0.6) }}>
                       <WT edit={edit} value={edit ? (edu.degree || edu.major || '') : edu.major} onChange={v => edit?.updateItem('education', i, { degree: v })} placeholder="전공/학위" />
                     </p>
                     <p className="text-[8.8px] mt-0.5" style={{ fontFamily: W3_MONO, color: ink(0.4) }}>
@@ -1668,7 +1668,7 @@ function W4Ticket({ name, fromCaption = 'from', toCaption = 'to', fromLabel, toL
             {rows.map(([label, val], i) => (
               <div key={i} className="flex items-baseline justify-between gap-4">
                 <span className="text-[11.2px] font-black" style={{ wordBreak: 'keep-all' }}><VHtml value={label} /></span>
-                <span className="text-[10px] font-bold text-neutral-400 shrink-0">{val}</span>
+                <span className="text-[11.5px] font-bold text-neutral-400 shrink-0">{val}</span>
               </div>
             ))}
           </div>
@@ -1765,7 +1765,7 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
                   <h3 className="text-[12px] font-black tracking-[0.12em] mt-12 mb-5" style={{ color: acc }}><WCopy portfolio={portfolio} edit={edit} copyKey="w4KeywordLabel" defaultValue="KEYWORD" /></h3>
                   <div className="flex flex-wrap gap-2.5">
                     {keywords.map((kw, i) => (
-                      <span key={`${kw.cat}-${kw.idx}-${i}`} className="relative group px-5 py-2 border text-[10px] font-bold" style={{ borderColor: acc, color: acc, borderRadius: '50% / 45%' }}>
+                      <span key={`${kw.cat}-${kw.idx}-${i}`} className="relative group px-5 py-2 border text-[11.5px] font-bold" style={{ borderColor: acc, color: acc, borderRadius: '50% / 45%' }}>
                         <WRm edit={edit} onClick={() => edit.removeSkill(kw.cat, kw.idx)} />
                         {edit
                           ? <EditText value={kw.name} onChange={v => edit.updateSkill(kw.cat, kw.idx, inlineHtmlToPlainText(v))} placeholder="키워드" />
@@ -1773,7 +1773,7 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
                       </span>
                     ))}
                     {edit && (
-                      <button type="button" onClick={() => edit.addSkill()} className="px-4 py-2 border border-dashed text-[10px] font-bold opacity-60 hover:opacity-100" style={{ borderColor: acc, color: acc, borderRadius: '50% / 45%' }}>
+                      <button type="button" onClick={() => edit.addSkill()} className="px-4 py-2 border border-dashed text-[11.5px] font-bold opacity-60 hover:opacity-100" style={{ borderColor: acc, color: acc, borderRadius: '50% / 45%' }}>
                         <Plus size={9.6} className="inline" /> 추가
                       </button>
                     )}
@@ -1935,11 +1935,11 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
               )}
               <div data-reveal className="min-w-0">
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-black ${dark ? 'border-white/35 text-white' : 'border-current'}`} style={!dark ? { color: acc } : undefined}>
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[11.5px] font-black ${dark ? 'border-white/35 text-white' : 'border-current'}`} style={!dark ? { color: acc } : undefined}>
                     {String(idx + 1).padStart(2, '0')}
                   </span>
                   <span className={`h-px w-9 ${dark ? 'bg-white/35' : 'bg-neutral-300'}`} />
-                  <span className={`min-w-0 truncate text-[10px] font-black uppercase tracking-[0.2em] ${dark ? 'text-white/72' : 'text-neutral-500'}`}>
+                  <span className={`min-w-0 truncate text-[11.5px] font-black uppercase tracking-[0.2em] ${dark ? 'text-white/72' : 'text-neutral-500'}`}>
                     {edit
                       ? <EditText value={proj.wordmark || wordSrc} onChange={value => edit.updateItem('experiences', idx, { wordmark: inlineHtmlToPlainText(value) })} placeholder="프로젝트 라벨" />
                       : projectLabel}
@@ -1950,7 +1950,7 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
                   <WT edit={edit} value={projectTitle} onChange={v => edit?.updateItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" />
                 </h3>
 
-                <div className={`mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10.5px] font-bold ${dark ? 'text-white/62' : 'text-neutral-500'}`}>
+                <div className={`mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11.5px] font-bold ${dark ? 'text-white/62' : 'text-neutral-500'}`}>
                   <span><WT edit={edit} value={proj.period || 'PROJECT'} onChange={v => edit?.updateItem('experiences', idx, { period: inlineHtmlToPlainText(v) })} placeholder="기간" /></span>
                   {(proj.role || edit) && <><span className="opacity-45">/</span><span><WT edit={edit} value={proj.role || ''} onChange={v => edit?.updateItem('experiences', idx, { role: inlineHtmlToPlainText(v) })} placeholder="역할" /></span></>}
                 </div>
@@ -1979,8 +1979,8 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
                     {!hasVisual && (
                       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-7 text-neutral-900 md:p-9">
                         <div className="flex items-center justify-between gap-4">
-                          <span className="text-[9px] font-black uppercase tracking-[0.22em] opacity-55">Project visual</span>
-                          <span className="text-[11px] font-black opacity-35">{String(idx + 1).padStart(2, '0')}</span>
+                          <span className="text-[10.5px] font-black uppercase tracking-[0.22em] opacity-55">Project visual</span>
+                          <span className="text-[12px] font-black opacity-35">{String(idx + 1).padStart(2, '0')}</span>
                         </div>
                         <p className="max-w-[82%] text-[clamp(20px,2.6vw,32px)] font-black leading-[1.12] tracking-[-0.04em]" style={{ wordBreak: 'keep-all' }}>{inlineHtmlToPlainText(projectTitle) || `Project ${idx + 1}`}</p>
                       </div>
@@ -2066,7 +2066,7 @@ export function WebTemplate5({ portfolio }) {
             {/* 기본 정보 */}
             <section>
               <W5SectionTitle ko="기본 정보" en="Basic Info" />
-              <div className="space-y-3 text-[10px] font-medium text-neutral-600">
+              <div className="space-y-3 text-[11.5px] font-medium text-neutral-600">
                 {data.location && <p className="flex items-center gap-3"><MapPin size={11.2} className="text-neutral-900 shrink-0" />{data.location}</p>}
                 {data.phone && <p className="flex items-center gap-3"><Phone size={11.2} className="text-neutral-900 shrink-0" />{data.phone}</p>}
                 {data.email && <p className="flex items-center gap-3"><Mail size={11.2} className="text-neutral-900 shrink-0" />{data.email}</p>}
@@ -2162,7 +2162,7 @@ export function WebTemplate5({ portfolio }) {
                 <div className="space-y-3">
                   {data.education.map((edu, i) => (
                     <div key={i} className="flex items-baseline justify-between gap-3">
-                      <p className="text-[10px] font-black">{edu.school} <span className="font-semibold text-neutral-400">— {edu.major}</span></p>
+                      <p className="text-[11.5px] font-black">{edu.school} <span className="font-semibold text-neutral-400">— {edu.major}</span></p>
                       <span className="text-[8.4px] font-bold text-neutral-400 shrink-0">{edu.period}</span>
                     </div>
                   ))}
@@ -2177,7 +2177,7 @@ export function WebTemplate5({ portfolio }) {
                 <div className="space-y-3">
                   {data.awards.map((a, i) => (
                     <div key={i} className="flex items-baseline justify-between gap-3">
-                      <p className="text-[10px] font-black" style={{ wordBreak: 'keep-all' }}>{a.title}</p>
+                      <p className="text-[11.5px] font-black" style={{ wordBreak: 'keep-all' }}>{a.title}</p>
                       <span className="text-[8.4px] font-bold text-neutral-400 shrink-0">{a.date}</span>
                     </div>
                   ))}

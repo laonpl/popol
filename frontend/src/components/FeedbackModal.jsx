@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Star, X, Gift } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 const RATING_LABELS = {
   1: '많이 아쉬워요',
@@ -41,6 +42,7 @@ export default function FeedbackModal({
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const { ref: panelRef, backdropProps } = useModalBehavior(open, () => onClose?.());
 
   useEffect(() => {
     if (!open) return;
@@ -85,8 +87,15 @@ export default function FeedbackModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-bluewood-950/35 px-4 backdrop-blur-sm">
-      <form onSubmit={submit} className="w-full max-w-lg rounded-lg border border-surface-200 bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-bluewood-950/35 px-4 backdrop-blur-sm" {...backdropProps}>
+      <form
+        ref={panelRef}
+        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-label="피드백 보내기"
+        className="w-full max-w-lg rounded-lg border border-surface-200 bg-white p-5 shadow-2xl outline-none"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-500">Feedback</p>

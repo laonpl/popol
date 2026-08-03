@@ -79,7 +79,7 @@ export function PriorityMatrix({ items, accent }) {
             </g>
           ))}
         </svg>
-        <p className="mt-2 text-center text-[10.5px] text-bluewood-300">번호는 아래 핵심 의사결정 카드 순서와 같습니다</p>
+        <p className="mt-2 text-center text-[11.5px] text-bluewood-300">번호는 아래 핵심 의사결정 카드 순서와 같습니다</p>
       </div>
     </SectionShell>
   );
@@ -102,7 +102,7 @@ export function MetricLeaderboard({ title, rows, accent, note }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-bold text-bluewood-800" title={r.name}>{r.name}</p>
                 {r.before && r.after && (
-                  <p className="mt-0.5 text-[11px] text-bluewood-400">
+                  <p className="mt-0.5 text-[12px] text-bluewood-400">
                     {r.before} <span className="text-bluewood-300">→</span> <span className="font-bold" style={{ color: accent }}>{r.after}</span>
                   </p>
                 )}
@@ -111,7 +111,7 @@ export function MetricLeaderboard({ title, rows, accent, note }) {
             </div>
           ))}
         </div>
-        {note && <p className="border-t border-surface-100 bg-surface-50/60 px-4 py-2 text-[10.5px] text-bluewood-400 sm:px-5">{note}</p>}
+        {note && <p className="border-t border-surface-100 bg-surface-50/60 px-4 py-2 text-[11.5px] text-bluewood-400 sm:px-5">{note}</p>}
       </div>
     </SectionShell>
   );
@@ -153,10 +153,10 @@ export function DoubleDiamond({ steps, accent }) {
                 <div key={ci} className="space-y-1.5">
                   {col.map((st, si) => (
                     <div key={si} className="rounded-lg bg-surface-50 px-2 py-1.5" title={st.desc || ''}>
-                      <p className="text-[11px] font-bold leading-snug text-bluewood-800">
+                      <p className="text-[12px] font-bold leading-snug text-bluewood-800">
                         <span className="mr-1 font-black" style={{ color: accent }}>{String(st.n).padStart(2, '0')}</span>{st.label}
                       </p>
-                      {st.desc && <p className="mt-0.5 text-[10px] leading-[1.5] text-bluewood-400">{st.desc.length > 42 ? `${st.desc.slice(0, 41)}…` : st.desc}</p>}
+                      {st.desc && <p className="mt-0.5 text-[11.5px] leading-[1.5] text-bluewood-400">{st.desc.length > 42 ? `${st.desc.slice(0, 41)}…` : st.desc}</p>}
                     </div>
                   ))}
                 </div>
@@ -179,7 +179,7 @@ export function ImageShowcase({ images, accent }) {
         {list.map((im, i) => (
           <figure key={i} className="overflow-hidden rounded-2xl border border-surface-200 bg-surface-50">
             <img src={im.url} alt={im.name || `작업물 ${i + 1}`} loading="lazy" className="h-44 w-full object-cover transition-transform duration-300 hover:scale-[1.03]" />
-            {im.name && <figcaption className="truncate px-3 py-2 text-[11px] font-medium text-bluewood-500">{im.name}</figcaption>}
+            {im.name && <figcaption className="truncate px-3 py-2 text-[12px] font-medium text-bluewood-500">{im.name}</figcaption>}
           </figure>
         ))}
       </div>
@@ -208,17 +208,17 @@ export function PairedBars({ title, rows, aLabel, bLabel, accent, icon = FlaskCo
               <div key={i} className="flex items-start gap-3">
                 <div className="w-[120px] flex-shrink-0 pt-0.5">
                   <p className="truncate text-[12px] font-semibold text-bluewood-700" title={r.label}>{r.label}</p>
-                  {r.note && <span className="mt-1 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">{r.note}</span>}
+                  {r.note && <span className="mt-1 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[11.5px] font-bold text-emerald-600">{r.note}</span>}
                 </div>
                 <div className="flex-1 space-y-[3px]">
                   <div className="flex items-center gap-2">
                     <div className="h-[13px] rounded-r-[4px]" style={{ width: `${wA * 0.82}%`, backgroundColor: PAIR_A }} />
-                    <span className="text-[11px] font-semibold text-bluewood-400">{r.a}</span>
+                    <span className="text-[12px] font-semibold text-bluewood-400">{r.a}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="h-[13px] rounded-r-[4px]" style={{ width: `${wB * 0.82}%`, backgroundColor: accent }} />
                     <span className="text-[11.5px] font-black text-bluewood-800">{r.b}</span>
-                    <span className={`text-[10.5px] font-bold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    <span className={`text-[11.5px] font-bold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
                       {r.an !== 0 ? `${up ? '+' : ''}${Math.round(((r.bn - r.an) / Math.abs(r.an)) * 1000) / 10}%` : ''}
                     </span>
                   </div>
@@ -312,7 +312,7 @@ export function CampaignFlow({ campaigns, accent }) {
             </g>
           ))}
         </svg>
-        <p className="mt-2 text-center text-[10.5px] text-bluewood-300">핵심 캠페인의 타겟 · 집행 채널 · 대표 성과를 연결한 전략 구조입니다</p>
+        <p className="mt-2 text-center text-[11.5px] text-bluewood-300">핵심 캠페인의 타겟 · 집행 채널 · 대표 성과를 연결한 전략 구조입니다</p>
       </div>
     </SectionShell>
   );
@@ -340,7 +340,7 @@ export function TopDealsChart({ deals, accent }) {
                 <p className="flex items-center gap-1.5 truncate text-[12px] font-bold text-bluewood-800" title={d.client || d.title}>
                   <Building2 size={12} className="flex-shrink-0" style={{ color: accent }} /> {d.client || d.title}
                 </p>
-                {d.client && d.title && <p className="mt-0.5 truncate pl-[18px] text-[10.5px] text-bluewood-400" title={d.title}>{d.title}</p>}
+                {d.client && d.title && <p className="mt-0.5 truncate pl-[18px] text-[11.5px] text-bluewood-400" title={d.title}>{d.title}</p>}
               </div>
               <div className="relative h-[22px] flex-1">
                 <div className="absolute inset-y-0 left-0 rounded-r-[4px]" style={{ width: `${Math.max(5, (d.won / max) * 82)}%`, backgroundColor: i === 0 ? accent : tint(accent, 0.45) }} />
@@ -349,7 +349,7 @@ export function TopDealsChart({ deals, accent }) {
             </div>
           ))}
         </div>
-        <p className="mt-3.5 border-t border-surface-100 pt-2.5 text-[10.5px] text-bluewood-400">핵심 딜의 계약 규모(ARR·MRR·계약 금액) 비교 — 아래 딜 카드 상세와 연결됩니다</p>
+        <p className="mt-3.5 border-t border-surface-100 pt-2.5 text-[11.5px] text-bluewood-400">핵심 딜의 계약 규모(ARR·MRR·계약 금액) 비교 — 아래 딜 카드 상세와 연결됩니다</p>
       </div>
     </SectionShell>
   );
@@ -393,8 +393,8 @@ function CompareSlider({ before, after, accent }) {
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
         <img src={before.url} alt="개선 전" className="block h-64 w-full object-cover sm:h-80" draggable="false" />
       </div>
-      <span className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white" style={{ opacity: pos > 12 ? 1 : 0 }}>BEFORE</span>
-      <span className="pointer-events-none absolute right-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: accent, opacity: pos < 88 ? 1 : 0 }}>AFTER</span>
+      <span className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-[12px] font-bold text-white" style={{ opacity: pos > 12 ? 1 : 0 }}>BEFORE</span>
+      <span className="pointer-events-none absolute right-3 top-3 rounded-md px-2 py-0.5 text-[12px] font-bold text-white" style={{ backgroundColor: accent, opacity: pos < 88 ? 1 : 0 }}>AFTER</span>
       <div className="absolute inset-y-0" style={{ left: `${pos}%` }}>
         <div className="absolute inset-y-0 -ml-px w-0.5" style={{ backgroundColor: '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,.15)' }} />
         <button type="button" onPointerDown={onDown} aria-label="드래그해서 비교"
@@ -419,7 +419,7 @@ export function BeforeAfterShowcase({ pairs, accent }) {
           </figure>
         ))}
       </div>
-      <p className="mt-2 text-center text-[10.5px] text-bluewood-300">가운데 핸들을 드래그하면 개선 전/후가 겹쳐 비교됩니다</p>
+      <p className="mt-2 text-center text-[11.5px] text-bluewood-300">가운데 핸들을 드래그하면 개선 전/후가 겹쳐 비교됩니다</p>
     </SectionShell>
   );
 }
@@ -442,7 +442,7 @@ export function RoadmapGantt({ phases, accent }) {
           {/* 눈금 */}
           <div className="relative mb-2 ml-[132px] h-4">
             {Array.from({ length: ticks + 1 }).map((_, i) => (
-              <span key={i} className="absolute top-0 -translate-x-1/2 text-[10px] font-medium text-bluewood-300" style={{ left: `${(i / ticks) * 100}%` }}>
+              <span key={i} className="absolute top-0 -translate-x-1/2 text-[11.5px] font-medium text-bluewood-300" style={{ left: `${(i / ticks) * 100}%` }}>
                 {hasNum ? `${Math.round(start0 + (total * i) / ticks)}` : ''}
               </span>
             ))}
@@ -455,7 +455,7 @@ export function RoadmapGantt({ phases, accent }) {
                 <div key={i} className="flex items-center gap-3">
                   <span className="w-[120px] flex-shrink-0 truncate text-right text-[12px] font-semibold text-bluewood-700" title={r.label}>{r.label}</span>
                   <div className="relative h-7 flex-1 rounded-md bg-surface-50">
-                    <div className="absolute inset-y-1 flex items-center rounded-md px-2 text-[11px] font-bold text-white"
+                    <div className="absolute inset-y-1 flex items-center rounded-md px-2 text-[12px] font-bold text-white"
                       style={{ left: `${left}%`, width: `${w}%`, backgroundColor: tint(accent, 0.15 * (i % 3)) }} title={r.desc || r.label}>
                       <span className="truncate">{r.desc ? '' : r.label}</span>
                     </div>
@@ -464,7 +464,7 @@ export function RoadmapGantt({ phases, accent }) {
               );
             })}
           </div>
-          {hasNum && <p className="mt-3 text-center text-[10.5px] text-bluewood-300">가로축은 진행 기간(주·월 등 상대 단위)입니다</p>}
+          {hasNum && <p className="mt-3 text-center text-[11.5px] text-bluewood-300">가로축은 진행 기간(주·월 등 상대 단위)입니다</p>}
         </div>
       </div>
     </SectionShell>
@@ -499,13 +499,13 @@ export function PipelineKanban({ deals, accent }) {
             <div key={ci} className="flex-1" style={{ minWidth: 140 }}>
               <div className="mb-2 flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ backgroundColor: tint(accent, 0.9) }}>
                 <span className="text-[11.5px] font-extrabold" style={{ color: accent }}>{c.st}</span>
-                <span className="font-mono text-[11px] font-bold text-bluewood-400">{c.items.length}</span>
+                <span className="font-mono text-[12px] font-bold text-bluewood-400">{c.items.length}</span>
               </div>
               <div className="space-y-2">
                 {c.items.slice(0, 5).map((d, i) => (
                   <div key={i} className="rounded-lg border border-surface-200 bg-white p-2.5">
                     <p className="truncate text-[12px] font-bold text-bluewood-800" title={d.client || d.label}>{d.client || d.label}</p>
-                    {d.client && <p className="mt-0.5 truncate text-[10.5px] text-bluewood-400" title={d.label}>{d.label}</p>}
+                    {d.client && <p className="mt-0.5 truncate text-[11.5px] text-bluewood-400" title={d.label}>{d.label}</p>}
                     {d.size && <p className="mt-1 text-[12px] font-black" style={{ color: accent }}>{d.size}</p>}
                   </div>
                 ))}

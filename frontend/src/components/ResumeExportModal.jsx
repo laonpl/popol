@@ -5,7 +5,9 @@ import toast from 'react-hot-toast';
 
 // 이력서 내보내기 모달 — 포트폴리오 내용에서 인적사항·학력·경력·기술·어학·수상만
 // 추려 채용용 이력서로 변환한다. PDF(A4 문서) 또는 텍스트(.txt)로 다운로드한다.
+import useModalBehavior from '../hooks/useModalBehavior';
 export default function ResumeExportModal({ portfolio, onClose }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const [fileType, setFileType] = useState('pdf');
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
@@ -87,8 +89,8 @@ export default function ResumeExportModal({ portfolio, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[520px] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="이력서 내보내기" tabIndex={-1} className="bg-white rounded-2xl shadow-2xl w-full max-w-[520px] flex flex-col overflow-hidden">
 
         <div className="px-7 pt-6 pb-5">
           <div className="flex items-start justify-between gap-4">

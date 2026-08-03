@@ -235,7 +235,7 @@ export default function AnalysisResult() {
                 strokeLinecap="round" transform="rotate(-90 36 36)" />
               <text x="36" y="40" textAnchor="middle" fill="white" fontSize="15" fontWeight="800">{completionPct}%</text>
             </svg>
-            <span className="text-white/70 text-[11px] font-medium">{filledCount}/6 완성</span>
+            <span className="text-white/70 text-[12px] font-medium">{filledCount}/6 완성</span>
           </div>
         </div>
 
@@ -244,7 +244,7 @@ export default function AnalysisResult() {
           <div className="relative border-t border-white/10 px-7 py-4 flex items-stretch divide-x divide-white/10">
             {overviewMeta.map((m, i) => (
               <div key={i} className={`flex flex-col gap-0.5 ${i === 0 ? 'pr-7' : 'px-7'} min-w-0`}>
-                <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] whitespace-nowrap">{m.label}</span>
+                <span className="text-[10.5px] font-black text-white/40 uppercase tracking-[0.2em] whitespace-nowrap">{m.label}</span>
                 <span className="text-[13px] text-white font-bold leading-snug">{m.value}</span>
               </div>
             ))}
@@ -261,7 +261,7 @@ export default function AnalysisResult() {
         <div className="px-1 mb-4 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Sparkles size={13} className="text-primary-500" />
-            <span className="text-[11px] font-black text-bluewood-500 uppercase tracking-[0.12em]">역량 키워드</span>
+            <span className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.12em]">역량 키워드</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {keywords.map((k, i) => (
@@ -337,7 +337,7 @@ export default function AnalysisResult() {
                 {/* 번호 + 라벨 + 설명 */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-black tabular-nums tracking-[0.15em] uppercase" style={{ color: meta.accent }}>
+                    <span className="text-[11.5px] font-black tabular-nums tracking-[0.15em] uppercase" style={{ color: meta.accent }}>
                       {meta.num}
                     </span>
                     <span className="text-[16px] font-extrabold text-bluewood-900 leading-tight">{meta.label}</span>
@@ -350,12 +350,12 @@ export default function AnalysisResult() {
                 {/* 상태 배지 + 토글 */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {isEmpty ? (
-                    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-[11px] font-semibold">
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-[12px] font-semibold">
                       <AlertCircle size={10} /> 미작성
                     </span>
                   ) : (
                     <>
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-semibold"
                         style={{ backgroundColor: `${meta.accent}15`, color: meta.accent }}>
                         <CheckCircle2 size={10} /> 작성됨
                       </span>
@@ -429,7 +429,7 @@ export default function AnalysisResult() {
               return (
                 <div key={i} className="rounded-xl border border-surface-200 bg-surface-50/50 p-3.5">
                   <div className="flex items-start gap-2.5 mb-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-600 text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-600 text-[12px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
                     <p className="text-[13px] font-medium text-bluewood-700 leading-relaxed">{label}</p>
                   </div>
                   <textarea

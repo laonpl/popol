@@ -10,8 +10,10 @@
 import { useMemo, useState } from 'react';
 import { X, Check, Loader2, PencilLine } from 'lucide-react';
 import { collectMissingFields, groupMissingFields, applyFilledFields, criticalMissingFields } from '../utils/missingFields';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 export default function MissingFieldsPanel({ exp, onApply, onClose }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const fields = useMemo(() => collectMissingFields(exp), [exp]);
   const groups = useMemo(() => groupMissingFields(fields), [fields]);
   const [filled, setFilled] = useState({});
@@ -32,8 +34,8 @@ export default function MissingFieldsPanel({ exp, onApply, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/40 p-4" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="누락 항목 채우기" tabIndex={-1} className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()}>
 
         <header className="flex items-start justify-between gap-3 border-b border-surface-200 px-6 py-4">
           <div className="min-w-0">
@@ -63,7 +65,7 @@ export default function MissingFieldsPanel({ exp, onApply, onClose }) {
             <div className="space-y-6">
               {groups.map(({ group, items }) => (
                 <section key={group}>
-                  <p className="mb-2.5 border-b border-surface-100 pb-1.5 text-[11px] font-black uppercase tracking-wider text-bluewood-400">
+                  <p className="mb-2.5 border-b border-surface-100 pb-1.5 text-[12px] font-black uppercase tracking-wider text-bluewood-400">
                     {group}
                   </p>
                   <div className="space-y-3.5">
@@ -75,10 +77,10 @@ export default function MissingFieldsPanel({ exp, onApply, onClose }) {
                             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9.5px] font-black text-amber-800">먼저</span>
                           )}
                           {String(filled[f.path] ?? '').trim() && (
-                            <span className="text-[10px] font-black text-caribbean-700">입력됨</span>
+                            <span className="text-[11.5px] font-black text-caribbean-700">입력됨</span>
                           )}
                         </label>
-                        {f.hint && <p className="mt-0.5 text-[11px] leading-snug text-bluewood-400">{f.hint}</p>}
+                        {f.hint && <p className="mt-0.5 text-[12px] leading-snug text-bluewood-400">{f.hint}</p>}
                         <textarea
                           rows={2}
                           value={filled[f.path] ?? ''}

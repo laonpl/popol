@@ -26,8 +26,8 @@ export function PipelineDiagram({ diagram, accent = '#002F6C' }) {
             <div className="flex-1">
               {/* 단계 헤더 */}
               <div className="mb-2 flex items-center gap-1.5">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10.5px] font-black text-white" style={{ backgroundColor: accent }}>{ci + 1}</span>
-                <span className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: accent }}>
+                <span className="flex h-5 w-5 items-center justify-center rounded-full text-[11.5px] font-black text-white" style={{ backgroundColor: accent }}>{ci + 1}</span>
+                <span className="text-[11.5px] font-bold uppercase tracking-[0.1em]" style={{ color: accent }}>
                   {clean(col[0]?.stage) || AIML_STAGE_HINT[ci] || `STAGE ${ci + 1}`}
                 </span>
               </div>
@@ -38,7 +38,7 @@ export function PipelineDiagram({ diagram, accent = '#002F6C' }) {
                       {ci === 0 ? <Database size={12} style={{ color: accent }} /> : ci >= cols.length - 1 ? null : <Cpu size={12} style={{ color: accent }} />}
                       {clean(n.label)}
                     </p>
-                    {clean(n.tech) && <p className="mt-1 font-mono text-[11px] leading-[1.5] text-bluewood-500">{clean(n.tech)}</p>}
+                    {clean(n.tech) && <p className="mt-1 font-mono text-[12px] leading-[1.5] text-bluewood-500">{clean(n.tech)}</p>}
                   </div>
                 ))}
               </div>
@@ -58,7 +58,7 @@ export function TopologyDiagram({ diagram, accent = '#002F6C' }) {
   if (!lanes.length) return null;
   const idToLabel = Object.fromEntries((diagram?.nodes || []).map(n => [n.id, clean(n.label)]));
   return (
-    <div className="overflow-x-auto rounded-2xl border border-surface-200 bg-[#0e1626] p-4 sm:p-5">
+    <div className="overflow-x-auto scrollbar-on-dark rounded-2xl border border-surface-200 bg-[#0e1626] p-4 sm:p-5">
       <div className="space-y-2" style={{ minWidth: 460 }}>
         {lanes.map((lane, li) => {
           const shade = tint(accent, 0.15 + 0.12 * li);
@@ -67,7 +67,7 @@ export function TopologyDiagram({ diagram, accent = '#002F6C' }) {
               {/* 존 라벨 */}
               <div className="flex w-[92px] flex-shrink-0 flex-col justify-center border-r border-white/10 pr-2">
                 <span className="font-mono text-[9.5px] font-bold uppercase tracking-wide" style={{ color: shade }}>ZONE {li}</span>
-                <span className="mt-0.5 text-[10.5px] font-semibold leading-tight text-white/70">{clean(lane[0]?.zone) || DEVOPS_ZONE_HINT[li] || `계층 ${li}`}</span>
+                <span className="mt-0.5 text-[11.5px] font-semibold leading-tight text-white/70">{clean(lane[0]?.zone) || DEVOPS_ZONE_HINT[li] || `계층 ${li}`}</span>
               </div>
               {/* 레인 내 노드 */}
               <div className="flex flex-1 flex-wrap items-center gap-2">
@@ -78,7 +78,7 @@ export function TopologyDiagram({ diagram, accent = '#002F6C' }) {
                       <p className="flex items-center gap-1.5 font-mono text-[12px] font-bold text-white">
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tint(accent, 0.5) }} />{clean(n.label)}
                       </p>
-                      {clean(n.tech) && <p className="mt-0.5 font-mono text-[10px] text-white/45">{clean(n.tech)}</p>}
+                      {clean(n.tech) && <p className="mt-0.5 font-mono text-[11.5px] text-white/45">{clean(n.tech)}</p>}
                       {outs.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {outs.slice(0, 3).map((e, ei) => (

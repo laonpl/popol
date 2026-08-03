@@ -141,7 +141,7 @@ function PortfolioBlockViewer({ blocks = [] }) {
         if (block.type === 'slide') {
           return (
             <div key={block.id || index} className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{block.kicker || block.label || 'SLIDE'}</p>
+              <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-gray-400">{block.kicker || block.label || 'SLIDE'}</p>
               <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{block.title || block.label}</h3>
               {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{block.subtitle}</p>}
               {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{block.content}</p>}
@@ -149,7 +149,7 @@ function PortfolioBlockViewer({ blocks = [] }) {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {block.cards.slice(0, 2).map((card, cardIndex) => (
                     <div key={cardIndex} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+                      <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
                       <p className="mt-1 text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
                       {card.body && <p className="mt-1 text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
                     </div>
@@ -177,14 +177,14 @@ function PortfolioSlideDeck({ blocks = [] }) {
     <div className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{slide.kicker || slide.label || 'SLIDE'}</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-gray-400">{slide.kicker || slide.label || 'SLIDE'}</p>
           <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{slide.title || slide.label}</h3>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <button type="button" onClick={() => go(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="이전 슬라이드">
             <ChevronLeft size={15} />
           </button>
-          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{safeIdx + 1}/{slides.length}</span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[12px] font-black text-blue-600 ring-1 ring-blue-100">{safeIdx + 1}/{slides.length}</span>
           <button type="button" onClick={() => go(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="다음 슬라이드">
             <ChevronRight size={15} />
           </button>
@@ -196,7 +196,7 @@ function PortfolioSlideDeck({ blocks = [] }) {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {slide.cards.slice(0, 3).map((card, index) => (
             <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+              <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
               <p className="mt-1 break-words text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
               {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
             </div>
@@ -315,7 +315,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           onClick={handleClick}
           disabled={loading}
           type="button"
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all border ${
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[12px] font-medium transition-all border ${
             show
               ? 'bg-primary-600 text-white border-primary-600'
               : 'bg-white text-primary-600 border-primary-200 hover:bg-primary-50'
@@ -332,14 +332,14 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
             <div className="min-w-0">
               <p className="text-[13px] font-bold text-bluewood-800">AI 내용 추천</p>
-              <p className="text-[11px] text-bluewood-300">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용</p>
+              <p className="text-[12px] text-bluewood-300">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {data && !loading && (
                 <button
                   type="button"
                   onClick={fetchRecommendations}
-                  className="text-[11px] text-bluewood-400 hover:text-bluewood-700 px-2 py-1 rounded hover:bg-surface-100 transition-colors"
+                  className="text-[12px] text-bluewood-400 hover:text-bluewood-700 px-2 py-1 rounded hover:bg-surface-100 transition-colors"
                 >
                   다시 추천
                 </button>
@@ -357,7 +357,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           {/* 기업 정보 */}
           {jobAnalysis?.company && (
             <div className="px-4 pt-3">
-              <p className="text-[11px] text-bluewood-300">
+              <p className="text-[12px] text-bluewood-300">
                 <span className="font-semibold text-bluewood-600">{jobAnalysis.company}</span>
                 {jobAnalysis.position && <span> · {jobAnalysis.position}</span>}
               </p>
@@ -371,14 +371,14 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
               <div className="flex flex-col items-center py-8">
                 <Loader2 size={20} className="animate-spin text-primary-400 mb-3" />
                 <p className="text-[13px] text-bluewood-600 mb-1">AI가 맞춤 내용을 생성 중입니다</p>
-                <p className="text-[11px] text-bluewood-300">기업 분석을 바탕으로 최적의 내용을 추천합니다</p>
+                <p className="text-[12px] text-bluewood-300">기업 분석을 바탕으로 최적의 내용을 추천합니다</p>
               </div>
             ) : data?.recommendations ? (
               /* ── 추천 결과 ── */
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-semibold text-bluewood-400">기업 맞춤 추천안</p>
-                  <span className="text-[11px] text-bluewood-300">{data.recommendations.length}개</span>
+                  <p className="text-[12px] font-semibold text-bluewood-400">기업 맞춤 추천안</p>
+                  <span className="text-[12px] text-bluewood-300">{data.recommendations.length}개</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {data.recommendations.map((rec, i) => (
@@ -392,7 +392,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
                     >
                       {/* 카드 헤더 */}
                       <div className="flex items-start gap-2 px-3 pt-3 pb-2">
-                        <span className="flex-shrink-0 text-[10px] font-bold text-bluewood-300 w-4 pt-px">{i + 1}.</span>
+                        <span className="flex-shrink-0 text-[11.5px] font-bold text-bluewood-300 w-4 pt-px">{i + 1}.</span>
                         <p className="text-[12px] font-semibold text-bluewood-800 flex-1 leading-snug">{rec.title}</p>
                         <button
                           type="button"
@@ -405,12 +405,12 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
                       </div>
                       {/* 카드 본문 */}
                       <div className="px-3 pb-3">
-                        <p className="text-[11px] text-bluewood-500 leading-relaxed mb-2.5">{rec.content}</p>
+                        <p className="text-[12px] text-bluewood-500 leading-relaxed mb-2.5">{rec.content}</p>
                         <button
                           type="button"
                           onClick={() => applyRecommendation(rec, i)}
                           disabled={appliedRecommendations[i]}
-                          className={`w-full py-1.5 rounded text-[11px] font-medium transition-colors ${
+                          className={`w-full py-1.5 rounded text-[12px] font-medium transition-colors ${
                             appliedRecommendations[i]
                               ? 'bg-surface-100 text-bluewood-400 cursor-default'
                               : 'bg-primary-600 text-white hover:bg-primary-700'
@@ -424,7 +424,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-bluewood-300 text-center py-4">추천을 불러올 수 없습니다</p>
+              <p className="text-[12px] text-bluewood-300 text-center py-4">추천을 불러올 수 없습니다</p>
             )}
           </div>
         </div>,
@@ -521,7 +521,7 @@ function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badg
               <div className={`w-full h-1.5 rounded-full ${dark ? 'bg-[#3A3A3A]' : 'bg-gray-200'} overflow-hidden`}>
                 <div className={`h-full rounded-full ${dark ? 'bg-[#5C7CFA]' : 'bg-primary-500'} transition-all`} style={{ width: `${pct}%` }} />
               </div>
-              <div className={`text-[11px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'}`}>{pct}%</div>
+              <div className={`text-[12px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'}`}>{pct}%</div>
             </div>
           )}
           {ec?.updateSkillLevel && (
@@ -532,10 +532,10 @@ function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badg
                     onChange={e => ec.updateSkillLevel(skill.name, parseInt(e.target.value))}
                     className="w-16 h-1.5 accent-indigo-500 cursor-pointer"
                   />
-                  <button type="button" onClick={() => setEditing(false)} className={`text-[11px] ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>✓</button>
+                  <button type="button" onClick={() => setEditing(false)} className={`text-[12px] ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>✓</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setEditing(true)} className={`text-[11px] hover:underline ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>레벨 조절</button>
+                <button type="button" onClick={() => setEditing(true)} className={`text-[12px] hover:underline ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>레벨 조절</button>
               )}
             </div>
           )}
@@ -1236,7 +1236,7 @@ function EH({ ec, value, sectionKey, className = '' }) {
       <button
         type="button"
         onMouseDown={event => { event.preventDefault(); saveSelection(); applyTitlePatch({ bold: true }, 'bold'); }}
-        className="h-6 min-w-6 rounded border border-gray-200 bg-white px-1 text-[11px] font-bold text-gray-600 opacity-0 shadow-sm transition-opacity hover:bg-gray-50 group-hover/title:opacity-100 focus:opacity-100"
+        className="h-6 min-w-6 rounded border border-gray-200 bg-white px-1 text-[12px] font-bold text-gray-600 opacity-0 shadow-sm transition-opacity hover:bg-gray-50 group-hover/title:opacity-100 focus:opacity-100"
         title="글자 굵게 (선택 또는 제목 전체)"
       >
         B
@@ -1247,7 +1247,7 @@ function EH({ ec, value, sectionKey, className = '' }) {
           applyFontSize(event.target.value);
           event.target.value = '';
         }}
-        className="h-6 rounded border border-gray-200 bg-white px-1 text-[11px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title:opacity-100 focus:opacity-100"
+        className="h-6 rounded border border-gray-200 bg-white px-1 text-[12px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title:opacity-100 focus:opacity-100"
         title="글자 크기 (선택 또는 제목 전체)"
         aria-label="글자 크기"
       >
@@ -1336,7 +1336,7 @@ function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, cl
             style={{ left: pos?.left, top: pos?.top }}
             onClick={e => e.stopPropagation()}
           >
-            <p className="text-[11px] font-bold text-gray-400 mb-1.5">이모지</p>
+            <p className="text-[12px] font-bold text-gray-400 mb-1.5">이모지</p>
             <div className="grid grid-cols-10 gap-0.5 mb-2.5 max-h-[120px] overflow-y-auto">
               {SECTION_ICON_EMOJIS.map(em => (
                 <button key={em} type="button" onClick={() => setIcon(em)}
@@ -1345,7 +1345,7 @@ function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, cl
                 </button>
               ))}
             </div>
-            <p className="text-[11px] font-bold text-gray-400 mb-1.5">아이콘</p>
+            <p className="text-[12px] font-bold text-gray-400 mb-1.5">아이콘</p>
             <div className="grid grid-cols-10 gap-0.5">
               {Object.entries(SECTION_ICON_LUCIDE).map(([name, Icon]) => (
                 <button key={name} type="button" onClick={() => setIcon(name)}
@@ -1355,7 +1355,7 @@ function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, cl
               ))}
             </div>
             <button type="button" onClick={() => setIcon('')}
-              className="mt-2 w-full text-[11px] text-gray-400 hover:text-red-500 py-1 border-t border-gray-100 pt-2">
+              className="mt-2 w-full text-[12px] text-gray-400 hover:text-red-500 py-1 border-t border-gray-100 pt-2">
               아이콘 없음
             </button>
           </div>
@@ -1431,7 +1431,7 @@ function ExpControls({ ec, dark = false }) {
                   {(rec.matchedKeywords || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {rec.matchedKeywords.map((mk, mi) => (
-                        <span key={mi} className={`px-1 py-0.5 rounded text-[11px] font-medium ${dark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{mk}</span>
+                        <span key={mi} className={`px-1 py-0.5 rounded text-[12px] font-medium ${dark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{mk}</span>
                       ))}
                     </div>
                   )}
@@ -4509,7 +4509,7 @@ export const VisualTemplate11 = ({ portfolio, ec, onOpenExpDetail }) => {
                       <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
                     </div>
                     <div className="px-5 py-4">
-                      <span className="inline-flex rounded-full bg-neutral-100 text-neutral-500 px-2.5 py-0.5 text-[11px] font-bold">{proj.tag || 'Project'}</span>
+                      <span className="inline-flex rounded-full bg-neutral-100 text-neutral-500 px-2.5 py-0.5 text-[12px] font-bold">{proj.tag || 'Project'}</span>
                       <h3 className="mt-2 text-[17px] font-extrabold leading-snug" style={{ wordBreak: 'keep-all' }}>
                         {ec
                           ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" className="text-[17px] font-extrabold" />
@@ -4644,7 +4644,7 @@ export const VisualTemplate11 = ({ portfolio, ec, onOpenExpDetail }) => {
 
 // ── 템플릿 12: 매거진 에디토리얼형 (세리프 헤드라인 + 피처 기사 레이아웃) ──
 const T12Kicker = ({ children }) => (
-  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-red-700">{children}</p>
+  <p className="text-[12px] font-bold uppercase tracking-[0.3em] text-red-700">{children}</p>
 );
 
 const T12SectionHead = ({ ec, portfolio, gp, sectionKey, kicker, title, recommendKey }) => (
@@ -4692,7 +4692,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
               <p className="mt-4 font-serif italic text-[17px] md:text-[19px] text-neutral-500" style={{ wordBreak: 'keep-all' }}>
                 {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개 — 표지 부제처럼" className="font-serif italic text-[17px] md:text-[19px] text-neutral-500" /> : <VHtml value={data.title} />}
               </p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400 border-t border-b border-neutral-200 py-2.5">
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[12px] font-bold uppercase tracking-[0.18em] text-neutral-400 border-t border-b border-neutral-200 py-2.5">
                 {(portfolio.location || data.location) && <span>{portfolio.location || data.location}</span>}
                 {contact.email && <span>{contact.email}</span>}
                 <span>Since {year}</span>
@@ -4715,7 +4715,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
                 <span className="font-serif italic text-neutral-400 text-sm">Cover Photograph</span>
               </div>
             </ImageUploadSlot>
-            <p className="mt-2 text-right text-[11px] uppercase tracking-[0.18em] text-neutral-300">Fig 01. — The Cover</p>
+            <p className="mt-2 text-right text-[12px] uppercase tracking-[0.18em] text-neutral-300">Fig 01. — The Cover</p>
           </div>
         )}
 
@@ -4789,7 +4789,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
                     <div className={`md:col-span-7 min-w-0 ${idx % 2 === 1 ? 'md:order-1' : ''}`}>
                       <div className="flex items-baseline gap-4">
                         <span className="font-serif text-[44px] leading-none text-neutral-200 font-bold shrink-0">{String(idx + 1).padStart(2, '0')}</span>
-                        <span className="text-[11px] font-bold uppercase tracking-[0.24em] text-red-700">{proj.tag || 'Project'}</span>
+                        <span className="text-[12px] font-bold uppercase tracking-[0.24em] text-red-700">{proj.tag || 'Project'}</span>
                       </div>
                       <h3 className="mt-3 font-serif text-[24px] md:text-[28px] font-bold leading-tight" style={{ wordBreak: 'keep-all' }}>
                         {ec
@@ -4805,7 +4805,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
                       {((proj.techStack || proj.skills || []).length > 0) && (
                         <div className="mt-4 flex flex-wrap gap-1.5">
                           {(proj.techStack || proj.skills || []).slice(0, 5).map((t, ti) => (
-                            <span key={ti} className="border border-neutral-900 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.12em]">{typeof t === 'string' ? t : t?.name}</span>
+                            <span key={ti} className="border border-neutral-900 px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-[0.12em]">{typeof t === 'string' ? t : t?.name}</span>
                           ))}
                         </div>
                       )}
@@ -4935,7 +4935,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
           ) : (
             <>
               {data.email && <p className="mt-4 font-serif text-[26px] md:text-[30px] font-bold">{data.email}</p>}
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-[12px] font-bold uppercase tracking-[0.18em] text-neutral-400">
                 {data.phone && <span>{data.phone}</span>}
                 {contact.github && <span>{contact.github}</span>}
                 {contact.website && <span>{contact.website}</span>}
@@ -4944,7 +4944,7 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
           )}
           <div className="mt-10 border-t border-neutral-900 pt-1">
             <div className="border-t-[3px] border-neutral-900 pt-3 pb-2 flex items-center justify-center">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-neutral-400">© {year} <VHtml value={ec ? portfolio.userName : data.name} /> — All Rights Reserved</p>
+              <p className="text-[11.5px] font-bold uppercase tracking-[0.24em] text-neutral-400">© {year} <VHtml value={ec ? portfolio.userName : data.name} /> — All Rights Reserved</p>
             </div>
           </div>
         </footer>

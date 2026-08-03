@@ -51,14 +51,14 @@ export default function RecipeArtifactCover({ recipe, visuals }) {
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           {recipe.kicker && (
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: tone.accent }}>
+            <p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em]" style={{ color: tone.accent }}>
               {recipe.kicker}
             </p>
           )}
           {recipe.title && <p className="mt-1 text-[21px] font-black text-bluewood-900">{recipe.title}</p>}
         </div>
         {recipe.badge && (
-          <span className="flex-shrink-0 rounded-full px-3 py-1 text-[9px] font-black text-white" style={{ backgroundColor: tone.accent }}>
+          <span className="flex-shrink-0 rounded-full px-3 py-1 text-[10.5px] font-black text-white" style={{ backgroundColor: tone.accent }}>
             {recipe.badge}
           </span>
         )}

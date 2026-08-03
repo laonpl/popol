@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 import useExperienceStore from '../stores/experienceStore';
+import toast from 'react-hot-toast';
 
 /* ================================================================
    KeyExperienceSlider
@@ -82,7 +83,7 @@ function DecisionRecordRead({ exp, accent = PRIMARY }) {
 
   return (
     <details className="mb-4 rounded-xl border border-surface-200 bg-surface-50/70 px-4 py-3">
-      <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: accent }}>
+      <summary className="cursor-pointer list-none text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: accent }}>
         판단 지도 · 실제 말 · 증거
       </summary>
       <div className="mt-3 space-y-3">
@@ -90,7 +91,7 @@ function DecisionRecordRead({ exp, accent = PRIMARY }) {
           <div className="grid gap-2 sm:grid-cols-2">
             {steps.map(([label, value]) => (
               <div key={label} className="rounded-lg bg-white p-3">
-                <p className="text-[10px] font-black text-bluewood-400">{label}</p>
+                <p className="text-[11.5px] font-black text-bluewood-400">{label}</p>
                 <p className="mt-1 text-[12.5px] leading-[1.65] text-bluewood-600">{value}</p>
               </div>
             ))}
@@ -98,20 +99,20 @@ function DecisionRecordRead({ exp, accent = PRIMARY }) {
         )}
         {(alternatives.length > 0 || criteria.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2">
-            {alternatives.length > 0 && <div><p className="mb-1 text-[10px] font-black text-bluewood-400">검토한 대안</p>{alternatives.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
-            {criteria.length > 0 && <div><p className="mb-1 text-[10px] font-black text-bluewood-400">선택 기준</p>{criteria.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
+            {alternatives.length > 0 && <div><p className="mb-1 text-[11.5px] font-black text-bluewood-400">검토한 대안</p>{alternatives.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
+            {criteria.length > 0 && <div><p className="mb-1 text-[11.5px] font-black text-bluewood-400">선택 기준</p>{criteria.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
           </div>
         )}
         {clean(voice.originalQuote) && (
           <blockquote className="rounded-lg border-l-[3px] bg-white px-3.5 py-3" style={{ borderColor: accent }}>
             <p className="text-[13px] leading-[1.65] text-bluewood-700">“{clean(voice.originalQuote)}”</p>
             {clean(voice.polished) && clean(voice.polished) !== clean(voice.originalQuote) && <p className="mt-1.5 text-[11.5px] text-bluewood-500">최소 교정 · {clean(voice.polished)}</p>}
-            {clean(voice.aiMeaning) && <p className="mt-1 text-[11px] text-bluewood-400">AI 해석 · {clean(voice.aiMeaning)}</p>}
+            {clean(voice.aiMeaning) && <p className="mt-1 text-[12px] text-bluewood-400">AI 해석 · {clean(voice.aiMeaning)}</p>}
           </blockquote>
         )}
         {evidence.length > 0 && (
           <div>
-            <p className="mb-1 text-[10px] font-black text-bluewood-400">연결된 증거</p>
+            <p className="mb-1 text-[11.5px] font-black text-bluewood-400">연결된 증거</p>
             {evidence.map((item, index) => (
               <p key={index} className="text-[11.5px] leading-[1.6] text-bluewood-600">
                 <span className="font-bold">{clean(item.sourceRef) || clean(item.type) || `근거 ${index + 1}`}</span>
@@ -163,7 +164,7 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
           </span>
           <div className="flex-1 min-w-0">
             {label && (
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] block mb-1" style={{ color: accent }}>{label}</span>
+              <span className="text-[11.5px] font-black uppercase tracking-[0.18em] block mb-1" style={{ color: accent }}>{label}</span>
             )}
             <h3 className="text-[21px] sm:text-[25px] font-extrabold text-bluewood-900 leading-[1.24]">
               {stripMd(exp.title) || '—'}
@@ -183,7 +184,7 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
         <div className={`grid gap-4 mb-4 items-stretch ${result && hasChart ? 'lg:grid-cols-[1.25fr_0.75fr]' : 'grid-cols-1'}`}>
           {result && (
             <div className="rounded-2xl p-5 flex flex-col justify-center" style={{ backgroundColor: `${accent}0f`, border: `1px solid ${accent}2e` }}>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em] mb-2" style={{ color: accent }}>
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-black uppercase tracking-[0.12em] mb-2" style={{ color: accent }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accent }} /> 핵심 성과
               </span>
               <p className="text-[17px] font-bold text-bluewood-900 leading-[1.6]">{result}</p>
@@ -203,7 +204,7 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 mb-4">
           {contextItems.map(item => (
             <div key={item.label}>
-              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-bluewood-400 block mb-1">{item.label}</span>
+              <span className="text-[11.5px] font-black uppercase tracking-[0.12em] text-bluewood-400 block mb-1">{item.label}</span>
               <p className="text-[13.5px] text-bluewood-600 leading-[1.7]">{item.value}</p>
             </div>
           ))}
@@ -216,13 +217,13 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
       <div className="flex flex-col gap-3">
         {learning && (
           <div className="rounded-xl bg-surface-50 border-l-[3px] px-4 py-3" style={{ borderColor: accent }}>
-            <span className="text-[10px] font-black uppercase tracking-[0.12em] block mb-1 text-bluewood-500">배운 점</span>
+            <span className="text-[11.5px] font-black uppercase tracking-[0.12em] block mb-1 text-bluewood-500">배운 점</span>
             <p className="text-[14px] text-bluewood-700 leading-[1.7]">{learning}</p>
           </div>
         )}
         {keywords.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-bluewood-400 mr-1">보유 스킬</span>
+            <span className="text-[11.5px] font-black uppercase tracking-[0.12em] text-bluewood-400 mr-1">보유 스킬</span>
             {keywords.map((k, ki) => (
               <span key={ki} className="px-3 py-1 text-[12px] font-semibold rounded-full"
                 style={{ backgroundColor: `${accent}12`, color: accent }}>{k}</span>
@@ -273,21 +274,21 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
               return (
                 <div key={_i} className="px-5 py-4 hover:bg-surface-50/60 transition-colors">
                   {exp.metricLabel && (
-                    <p className="text-[11px] text-bluewood-400 mb-1">{stripMd(exp.metricLabel)}</p>
+                    <p className="text-[12px] text-bluewood-400 mb-1">{stripMd(exp.metricLabel)}</p>
                   )}
                   <p className="text-[26px] font-black leading-none mb-1.5" style={{ color: PRIMARY }}>
                     {stripMd(exp.metric)}
                   </p>
                   {hasBoth && (
                     <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[11px] bg-surface-100 text-bluewood-400 px-1.5 py-0.5 rounded">{exp.beforeMetric}</span>
-                      <span className="text-[11px] text-bluewood-300">→</span>
-                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                      <span className="text-[12px] bg-surface-100 text-bluewood-400 px-1.5 py-0.5 rounded">{exp.beforeMetric}</span>
+                      <span className="text-[12px] text-bluewood-300">→</span>
+                      <span className="text-[12px] font-bold px-1.5 py-0.5 rounded"
                         style={{ backgroundColor: `${PRIMARY}12`, color: PRIMARY }}>{exp.afterMetric}</span>
                     </div>
                   )}
                   {exp.title && (
-                    <p className="text-[11px] text-bluewood-300 mt-1.5">{stripMd(exp.title)}</p>
+                    <p className="text-[12px] text-bluewood-300 mt-1.5">{stripMd(exp.title)}</p>
                   )}
                 </div>
               );
@@ -300,7 +301,7 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
           <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em]">핵심 경험</p>
-          <span className="text-[11px] text-bluewood-300 font-medium">{keyExperiences.length}개</span>
+          <span className="text-[12px] text-bluewood-300 font-medium">{keyExperiences.length}개</span>
         </div>
         <div className="divide-y divide-surface-200 border border-surface-200 rounded-xl overflow-hidden">
           {keyExperiences.map((exp, i) => (
@@ -316,7 +317,7 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
           <div className="px-1 space-y-4">
             {allKeywords.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">역량 스택</p>
+                <p className="text-[11.5px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">역량 스택</p>
                 <div className="flex flex-wrap gap-1.5">
                   {allKeywords.map((k, i) => (
                     <span key={i} className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-surface-50 border border-surface-200 text-bluewood-600">{k}</span>
@@ -326,7 +327,7 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
             )}
             {allLearnings.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">핵심 인사이트</p>
+                <p className="text-[11.5px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">핵심 인사이트</p>
                 <div className="space-y-2">
                   {allLearnings.map((text, i) => (
                     <div key={i} className="flex gap-2.5">
@@ -758,7 +759,7 @@ function ChartProgressCircle({ beforeLabel, afterLabel, beforePct, afterPct, acc
             className="transition-all duration-[1200ms]" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[11px] text-gray-400">개선 전</span>
+          <span className="text-[12px] text-gray-400">개선 전</span>
           <span className="text-[15px] font-bold text-gray-500">{beforeLabel}</span>
         </div>
       </div>
@@ -771,7 +772,7 @@ function ChartProgressCircle({ beforeLabel, afterLabel, beforePct, afterPct, acc
             className="transition-all duration-[1200ms]" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[11px] font-bold" style={{ color: accent }}>개선 후</span>
+          <span className="text-[12px] font-bold" style={{ color: accent }}>개선 후</span>
           <span className="text-[15px] font-black" style={{ color: accent }}>{afterLabel}</span>
         </div>
       </div>
@@ -874,16 +875,16 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
       <div className="flex items-start justify-between gap-4 mb-5">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {isEditing ? (
-            <span className="flex-shrink-0 px-2.5 py-0.5 rounded-md bg-primary-50 text-primary-600 text-[10px] font-black border border-primary-100 uppercase tracking-wider mt-1.5 shadow-sm">
+            <span className="flex-shrink-0 px-2.5 py-0.5 rounded-md bg-primary-50 text-primary-600 text-[11.5px] font-black border border-primary-100 uppercase tracking-wider mt-1.5 shadow-sm">
               편집 중
             </span>
           ) : (
-            <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-[11px] font-black flex items-center justify-center mt-1" style={{ backgroundColor: theme.accent || PRIMARY }}>
+            <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-[12px] font-black flex items-center justify-center mt-1" style={{ backgroundColor: theme.accent || PRIMARY }}>
               ★
             </span>
           )}
           <div className="flex-1 min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500 block mb-1">
+            <span className="text-[11.5px] font-black uppercase tracking-[0.18em] text-bluewood-500 block mb-1">
               {theme.label}
             </span>
             <EditableText
@@ -897,7 +898,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           {isEditing ? (
             <div className="flex flex-col gap-1 items-end">
-              <span className="text-[10px] font-bold text-bluewood-400">성과 지표</span>
+              <span className="text-[11.5px] font-bold text-bluewood-400">성과 지표</span>
               <input
                 value={isHint(exp.metric) ? '' : (exp.metric || '')}
                 onChange={e => onChange('metric', e.target.value)}
@@ -924,12 +925,12 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         <div className="space-y-4">
           {/* C 상황 */}
           <div className="flex gap-2.5 items-start">
-            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[11.5px] font-black text-white flex items-center justify-center mt-1.5"
               style={{ backgroundColor: theme.accent || PRIMARY }}>
               C
             </span>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">상황 (Situation)</span>
+              <span className="text-[11.5px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">상황 (Situation)</span>
               <EditableArea
                 value={exp.situation || exp.context} field="situation" placeholder="상황을 입력하세요"
                 rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
@@ -939,12 +940,12 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
           {/* A 행동 */}
           <div className="flex gap-2.5 items-start">
-            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[11.5px] font-black text-white flex items-center justify-center mt-1.5"
               style={{ backgroundColor: theme.accent || PRIMARY }}>
               A
             </span>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">행동 (Action)</span>
+              <span className="text-[11.5px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">행동 (Action)</span>
               <EditableArea
                 value={exp.action} field="action" placeholder="행동을 입력하세요"
                 rows={isEditing ? 4 : 3} editing={isEditing} onChange={onChange}
@@ -954,12 +955,12 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
           {/* R 결과 */}
           <div className="flex gap-2.5 items-start">
-            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[11.5px] font-black text-white flex items-center justify-center mt-1.5"
               style={{ backgroundColor: theme.accent || PRIMARY }}>
               R
             </span>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">결과 (Result)</span>
+              <span className="text-[11.5px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">결과 (Result)</span>
               <EditableArea
                 value={exp.result} field="result" placeholder="결과를 입력하세요"
                 rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
@@ -969,12 +970,12 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
           {/* L 학습 */}
           <div className="flex gap-2.5 items-start">
-            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[11.5px] font-black text-white flex items-center justify-center mt-1.5"
               style={{ backgroundColor: theme.accent || PRIMARY }}>
               L
             </span>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">학습 (Learning)</span>
+              <span className="text-[11.5px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">학습 (Learning)</span>
               <EditableArea
                 value={exp.learning} field="learning" placeholder="배운 점을 입력하세요"
                 rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
@@ -986,7 +987,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           <div className="pt-2">
             {isEditing ? (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold text-bluewood-400">키워드 (쉼표로 구분)</span>
+                <span className="text-[11.5px] font-bold text-bluewood-400">키워드 (쉼표로 구분)</span>
                 <input
                   value={(exp.keywords || []).join(', ')}
                   onChange={e => onChange('keywords', e.target.value.split(',').map(k => k.trim()).filter(Boolean))}
@@ -999,7 +1000,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
               (exp.keywords || []).length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {exp.keywords.map((k, ki) => (
-                    <span key={ki} className="px-2.5 py-1 text-[11px] font-medium bg-surface-50 border border-surface-200 text-bluewood-500 rounded-full">
+                    <span key={ki} className="px-2.5 py-1 text-[12px] font-medium bg-surface-50 border border-surface-200 text-bluewood-500 rounded-full">
                       {k}
                     </span>
                   ))}
@@ -1014,7 +1015,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           <div className="space-y-2">
             {isEditing ? (
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-bluewood-400">지표 설명</span>
+                <span className="text-[11.5px] font-bold text-bluewood-400">지표 설명</span>
                 <input
                   value={exp.metricLabel || ''}
                   onChange={e => onChange('metricLabel', e.target.value)}
@@ -1046,10 +1047,10 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           {isEditing && (
             <div className="border-t border-surface-200 mt-2 pt-3 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-bluewood-400">비교 수치 설정</span>
+                <span className="text-[12px] font-bold text-bluewood-400">비교 수치 설정</span>
                 <button
                   onClick={() => setChartOpen(o => !o)}
-                  className="text-[11px] font-bold text-primary-600 hover:underline"
+                  className="text-[12px] font-bold text-primary-600 hover:underline"
                 >
                   {chartOpen ? '설정 닫기 ▲' : '설정 열기 ▼'}
                 </button>
@@ -1059,7 +1060,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[9px] font-bold text-bluewood-400">개선 전 (Before)</span>
+                      <span className="text-[10.5px] font-bold text-bluewood-400">개선 전 (Before)</span>
                       <input
                         value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
                         onChange={e => onChange('beforeMetric', e.target.value)}
@@ -1068,7 +1069,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="text-[9px] font-bold text-bluewood-400">개선 후 (After)</span>
+                      <span className="text-[10.5px] font-bold text-bluewood-400">개선 후 (After)</span>
                       <input
                         value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
                         onChange={e => onChange('afterMetric', e.target.value)}
@@ -1083,7 +1084,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                     {CHART_TYPES.map(ct => (
                       <button key={ct.id}
                         onClick={() => onChange('chartType', ct.id)}
-                        className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition-all ${
+                        className={`px-2 py-0.5 rounded-md border text-[12px] font-medium transition-all ${
                           (exp.chartType || 'horizontalBar') === ct.id
                             ? 'border-primary-200 bg-primary-50 text-primary-700 font-semibold'
                             : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300'
@@ -1136,7 +1137,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       setLocalExp(prev => ({ ...prev, ...refined }));
       setFreeFormText('');
     } catch (err) {
-      alert(err.message || 'AI 보강에 실패했습니다.');
+      toast.error(err.message || 'AI 보강에 실패했습니다.');
     } finally {
       setIsRefining(false);
     }
@@ -1214,7 +1215,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
         onUpdate(keyExperiences.map((e, i) => (i === index ? { ...e, ...refined } : e)));
         setListRefine(prev => ({ ...prev, [index]: '' }));
       } catch (err) {
-        alert(err.message || 'AI 보강에 실패했습니다.');
+        toast.error(err.message || 'AI 보강에 실패했습니다.');
       } finally {
         setListRefiningIdx(null);
       }
@@ -1274,12 +1275,12 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
                     >
                       <ChevronDown size={13} className={`transition-transform ${memoOpenIdx[i] ? 'rotate-180' : ''}`} />
                       자유 보강 메모
-                      {listRefine[i]?.trim() && !memoOpenIdx[i] && <span className="text-[11px] font-medium text-primary-500">· 작성됨</span>}
+                      {listRefine[i]?.trim() && !memoOpenIdx[i] && <span className="text-[12px] font-medium text-primary-500">· 작성됨</span>}
                     </button>
                     {memoOpenIdx[i] && (
                       <div className="mt-2.5 rounded-xl border border-surface-200 bg-surface-50 p-3.5">
                         <div className="mb-2 flex items-start justify-between gap-3">
-                          <p className="min-w-0 text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적고 ‘보강하기’를 누르면 위 상황·행동·결과·지표에 자동 정리됩니다.</p>
+                          <p className="min-w-0 text-[12px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적고 ‘보강하기’를 누르면 위 상황·행동·결과·지표에 자동 정리됩니다.</p>
                           <button onClick={() => refineCard(i)} disabled={!listRefine[i]?.trim() || listRefiningIdx === i}
                             className="flex-shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50">
                             {listRefiningIdx === i ? '정리 중...' : '보강하기'}
@@ -1504,7 +1505,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
           <div className="mb-2 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[13px] font-bold text-bluewood-700">자유 보강 메모</p>
-              <p className="text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적으면 아래 항목이 자동으로 정리됩니다.</p>
+              <p className="text-[12px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적으면 아래 항목이 자동으로 정리됩니다.</p>
             </div>
             <button
               onClick={handleRefine}
@@ -1556,7 +1557,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
                     : 'border-transparent bg-surface-50 hover:bg-surface-100 opacity-50 hover:opacity-70'
                 }`}
                 style={active ? { borderColor: t.color } : {}}>
-                <span className="text-[11px] font-bold uppercase tracking-widest block mb-0.5"
+                <span className="text-[12px] font-bold uppercase tracking-widest block mb-0.5"
                   style={{ color: t.color }}>
                   {t.label}
                 </span>

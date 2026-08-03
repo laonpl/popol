@@ -339,7 +339,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
             className={`${fieldClassName} ${detectedSite ? 'pr-28' : ''}`}
           />
           {detectedSite && (
-            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11.5px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
               {detectedSite.name}
             </span>
           )}
@@ -355,7 +355,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
             rows={8}
             className={`${fieldClassName} resize-y min-h-[160px] leading-relaxed`}
           />
-          <p className="text-[11px] text-bluewood-300">공고 원문을 그대로 붙여넣으면 자유 양식·제출 조건 등 실제 내용을 정확히 분석합니다.</p>
+          <p className="text-[12px] text-bluewood-300">공고 원문을 그대로 붙여넣으면 자유 양식·제출 조건 등 실제 내용을 정확히 분석합니다.</p>
         </div>
       )}
 
@@ -394,7 +394,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
           <div className="grid grid-cols-4 gap-2 text-center">
             {STAGES.slice(0, 4).map((s, i) => (
               <div key={i} className={`text-[12px] font-medium transition-colors ${progress >= s.at ? 'text-primary-600' : 'text-bluewood-200'}`}>
-                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[11px] font-bold ${progress >= s.at ? 'bg-primary-600 text-white' : 'bg-surface-200 text-bluewood-300'}`}>
+                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[12px] font-bold ${progress >= s.at ? 'bg-primary-600 text-white' : 'bg-surface-200 text-bluewood-300'}`}>
                   {progress >= (STAGES[i + 1]?.at || 100) ? '✓' : i + 1}
                 </div>
                 {s.label.replace(' 중...', '')}

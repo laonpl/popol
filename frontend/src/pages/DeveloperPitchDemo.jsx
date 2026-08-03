@@ -297,9 +297,9 @@ function AttentionScreen() {
 
       <header className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-black text-[#0b0f0e]">FP</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[11.5px] font-black text-[#0b0f0e]">FP</span>
           <div>
-            <p className="text-[11px] font-black tracking-[-0.02em]">FitPoly</p>
+            <p className="text-[12px] font-black tracking-[-0.02em]">FitPoly</p>
             <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/[0.45]">for developers</p>
           </div>
         </div>
@@ -307,7 +307,7 @@ function AttentionScreen() {
       </header>
 
       <div className="relative z-10 mt-[72px]">
-        <div className="inline-flex items-center gap-2 rounded-full bg-[#c7ff4a] px-3 py-1.5 text-[10px] font-black text-[#10150e]">
+        <div className="inline-flex items-center gap-2 rounded-full bg-[#c7ff4a] px-3 py-1.5 text-[11.5px] font-black text-[#10150e]">
           취준 개발자라면 잠깐
         </div>
         <h1 className="mt-5 text-[45px] font-black leading-[1.06] tracking-[-0.065em] sm:text-[51px]">
@@ -321,9 +321,9 @@ function AttentionScreen() {
       <div className="relative z-10 mt-8 rounded-[26px] border border-white/10 bg-white/[0.055] p-3.5 shadow-[0_30px_80px_rgba(0,0,0,0.34)] backdrop-blur-sm">
         <div className="grid grid-cols-[1fr_34px_1fr] items-stretch gap-2">
           <div className="rounded-[18px] border border-white/[0.08] bg-[#111816] p-4">
-            <div className="flex items-center gap-2 text-[9px] font-extrabold text-white/[0.55]"><Github size={13} /> GITHUB RECORD</div>
+            <div className="flex items-center gap-2 text-[10.5px] font-extrabold text-white/[0.55]"><Github size={13} /> GITHUB RECORD</div>
             <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">345</p>
-            <p className="mt-2 text-[9px] font-bold text-white/40">commits · 127 files</p>
+            <p className="mt-2 text-[10.5px] font-bold text-white/40">commits · 127 files</p>
             <div className="mt-5 flex h-8 items-end gap-1">
               {[40, 72, 48, 88, 58, 100, 70, 92, 50, 78].map((height, index) => <span key={index} className="flex-1 rounded-[2px] bg-white/[0.15]" style={{ height: `${height}%` }} />)}
             </div>
@@ -334,9 +334,9 @@ function AttentionScreen() {
           </div>
 
           <div className="rounded-[18px] bg-[#f4f7f2] p-4 text-[#121713]">
-            <div className="flex items-center justify-between text-[9px] font-extrabold"><span>FITPOLY RESULT</span><CheckCircle2 size={13} className="text-emerald-600" /></div>
+            <div className="flex items-center justify-between text-[10.5px] font-extrabold"><span>FITPOLY RESULT</span><CheckCircle2 size={13} className="text-emerald-600" /></div>
             <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">51.9%</p>
-            <p className="mt-2 text-[9px] font-bold text-black/[0.45]">실제 기여 비중</p>
+            <p className="mt-2 text-[10.5px] font-bold text-black/[0.45]">실제 기여 비중</p>
             <div className="mt-5 space-y-1.5">
               <span className="block h-1.5 w-full rounded-full bg-black/[0.08]"><span className="block h-full w-[78%] rounded-full bg-[#155eef]" /></span>
               <div className="flex gap-1.5"><span className="rounded-full bg-[#dce8ff] px-2 py-1 text-[7px] font-black text-[#155eef]">핵심 경험 3</span><span className="rounded-full bg-[#e5f5d1] px-2 py-1 text-[7px] font-black text-[#3e6416]">구조도 완성</span></div>
@@ -346,8 +346,8 @@ function AttentionScreen() {
       </div>
 
       <div className="relative z-10 mt-auto flex items-center justify-between border-t border-white/10 pt-5">
-        <p className="text-[10px] font-bold leading-[1.5] text-white/[0.48]">3초 뒤,<br /><span className="text-white/80">만드는 과정 공개</span></p>
-        <span className="flex items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 text-[10px] font-black text-[#101310] shadow-[0_10px_35px_rgba(0,0,0,0.2)]">과정 보기 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c7ff4a]"><Play size={12} fill="currentColor" /></span></span>
+        <p className="text-[11.5px] font-bold leading-[1.5] text-white/[0.48]">3초 뒤,<br /><span className="text-white/80">만드는 과정 공개</span></p>
+        <span className="flex items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 text-[11.5px] font-black text-[#101310] shadow-[0_10px_35px_rgba(0,0,0,0.2)]">과정 보기 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c7ff4a]"><Play size={12} fill="currentColor" /></span></span>
       </div>
     </div>
   );
@@ -360,17 +360,17 @@ function GitHubPainScreen({ progress }) {
       <div className="mx-auto h-full max-w-[1280px] overflow-hidden rounded-xl border border-[#afb8c1] bg-white shadow-[0_24px_70px_rgba(31,35,40,0.28)]">
         <div className="flex h-9 items-center gap-2 border-b border-[#30363d] bg-[#161b22] px-3 text-white">
           <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" /><span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" /><span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-          <div className="mx-auto flex h-6 w-[54%] items-center rounded-md bg-[#0d1117] px-3 font-mono text-[10px] text-[#8b949e]">github.com/minseo-dev/flowdesk-web/commits/main</div>
+          <div className="mx-auto flex h-6 w-[54%] items-center rounded-md bg-[#0d1117] px-3 font-mono text-[11.5px] text-[#8b949e]">github.com/minseo-dev/flowdesk-web/commits/main</div>
         </div>
         <div className="flex h-12 items-center gap-4 bg-[#24292f] px-5 text-white">
           <Github size={25} fill="currentColor" />
           <div className="flex h-8 min-w-0 flex-1 max-w-[340px] items-center gap-2 rounded-md border border-[#57606a] bg-[#24292f] px-3 text-[12px] text-[#c9d1d9]"><Search size={13} /> Type / to search</div>
-          <span className="ml-auto text-[11px] font-semibold">Pull requests</span><span className="hidden text-[11px] font-semibold sm:inline">Issues</span><span className="hidden text-[11px] font-semibold sm:inline">Marketplace</span>
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#6e7681] text-[9px] font-bold">M</span>
+          <span className="ml-auto text-[12px] font-semibold">Pull requests</span><span className="hidden text-[12px] font-semibold sm:inline">Issues</span><span className="hidden text-[12px] font-semibold sm:inline">Marketplace</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#6e7681] text-[10.5px] font-bold">M</span>
         </div>
         <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-5 pt-4">
-          <div className="flex items-center gap-2 text-[15px] text-[#0969da]"><Github size={16} /><span>minseo-dev</span><span className="text-[#57606a]">/</span><b>flowdesk-web</b><span className="rounded-full border border-[#d0d7de] px-2 py-0.5 text-[9px] font-semibold text-[#57606a]">Public</span></div>
-          <div className="mt-4 flex gap-1 overflow-hidden text-[11px] text-[#24292f]">
+          <div className="flex items-center gap-2 text-[15px] text-[#0969da]"><Github size={16} /><span>minseo-dev</span><span className="text-[#57606a]">/</span><b>flowdesk-web</b><span className="rounded-full border border-[#d0d7de] px-2 py-0.5 text-[10.5px] font-semibold text-[#57606a]">Public</span></div>
+          <div className="mt-4 flex gap-1 overflow-hidden text-[12px] text-[#24292f]">
             {['Code', 'Issues 12', 'Pull requests 4', 'Actions', 'Projects', 'Security', 'Insights'].map((tab, i) => <span key={tab} className={cx('whitespace-nowrap border-b-2 px-3 pb-2 font-semibold', i === 0 ? 'border-[#fd8c73]' : 'border-transparent')}>{tab}</span>)}
           </div>
         </div>
@@ -378,23 +378,23 @@ function GitHubPainScreen({ progress }) {
           <div className="absolute left-0 right-0 px-5 py-5 transition-transform duration-100" style={{ transform: `translateY(-${scrollY}px)` }}>
             <div className="mx-auto max-w-[980px]">
               <div className="mb-4 flex items-center justify-between">
-                <div><h1 className="text-[21px] font-semibold text-[#1f2328]">Commits</h1><p className="mt-1 text-[11px] text-[#656d76]">Branch <b>main</b> · 276 commits</p></div>
-                <button className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] px-3 py-1.5 text-[11px] font-semibold text-[#24292f]">main⌄</button>
+                <div><h1 className="text-[21px] font-semibold text-[#1f2328]">Commits</h1><p className="mt-1 text-[12px] text-[#656d76]">Branch <b>main</b> · 276 commits</p></div>
+                <button className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] px-3 py-1.5 text-[12px] font-semibold text-[#24292f]">main⌄</button>
               </div>
               {['Jun 28, 2025', 'Jun 19, 2025', 'May 30, 2025'].map((date, groupIndex) => (
                 <div key={date} className="mb-5 overflow-hidden rounded-md border border-[#d0d7de]">
-                  <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-2 text-[11px] font-semibold text-[#57606a]">Commits on {date}</div>
+                  <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-2 text-[12px] font-semibold text-[#57606a]">Commits on {date}</div>
                   {GITHUB_COMMITS.slice(groupIndex * 3, groupIndex * 3 + 4).map(([hash, title, author, ago]) => (
                     <div key={hash} className="grid grid-cols-[1fr_auto] gap-3 border-b border-[#d8dee4] px-4 py-3 last:border-0">
-                      <div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[#1f2328]">{title}</p><p className="mt-1 text-[10px] text-[#656d76]"><b>{author}</b> committed {ago}</p></div>
-                      <div className="flex items-center gap-2"><code className="text-[10px] text-[#0969da]">{hash}</code><button className="rounded border border-[#d0d7de] p-1 text-[#57606a]"><FileCode2 size={12} /></button></div>
+                      <div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[#1f2328]">{title}</p><p className="mt-1 text-[11.5px] text-[#656d76]"><b>{author}</b> committed {ago}</p></div>
+                      <div className="flex items-center gap-2"><code className="text-[11.5px] text-[#0969da]">{hash}</code><button className="rounded border border-[#d0d7de] p-1 text-[#57606a]"><FileCode2 size={12} /></button></div>
                     </div>
                   ))}
                 </div>
               ))}
             </div>
           </div>
-          <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[10px] font-bold text-white shadow-lg">스크롤 중 · 커밋 127개</div>
+          <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[11.5px] font-bold text-white shadow-lg">스크롤 중 · 커밋 127개</div>
         </div>
       </div>
     </div>
@@ -427,31 +427,31 @@ function FilesPainScreen({ progress }) {
     <div className="relative h-full overflow-hidden bg-[#dfe7ef] p-3 sm:p-5">
       <div className="mx-auto flex h-full max-w-[1280px] flex-col overflow-hidden rounded-xl border border-[#aeb8c2] bg-white shadow-[0_24px_70px_rgba(30,41,59,0.28)]">
         <div className="flex h-10 items-center bg-[#f3f3f3] px-3">
-          <div className="flex h-8 min-w-[210px] items-center gap-2 rounded-t-lg bg-white px-3 text-[11px] text-[#202020]"><Folder size={14} fill="#f7c948" className="text-[#e7aa18]" /> 포트폴리오 자료 <X size={12} className="ml-auto" /></div>
+          <div className="flex h-8 min-w-[210px] items-center gap-2 rounded-t-lg bg-white px-3 text-[12px] text-[#202020]"><Folder size={14} fill="#f7c948" className="text-[#e7aa18]" /> 포트폴리오 자료 <X size={12} className="ml-auto" /></div>
           <span className="ml-2 text-[18px] text-[#555]">+</span><MoreHorizontal size={15} className="ml-auto" />
         </div>
         <div className="flex h-12 items-center gap-2 border-b border-[#ddd] px-3 text-[#3b3b3b]">
           <ArrowLeft size={16} /><ArrowRight size={16} className="text-[#aaa]" /><ArrowUp size={16} />
-          <div className="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-md border border-[#d5d5d5] bg-[#fafafa] px-3 text-[11px]"><span>내 PC</span><ChevronRight size={12} /><span>문서</span><ChevronRight size={12} /><span className="font-semibold">포트폴리오 자료</span></div>
-          <div className="flex h-8 w-[26%] min-w-[160px] items-center gap-2 rounded-md border border-[#d5d5d5] px-3 text-[11px] text-[#777]"><Search size={13} /> 포트폴리오 자료 검색</div>
+          <div className="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-md border border-[#d5d5d5] bg-[#fafafa] px-3 text-[12px]"><span>내 PC</span><ChevronRight size={12} /><span>문서</span><ChevronRight size={12} /><span className="font-semibold">포트폴리오 자료</span></div>
+          <div className="flex h-8 w-[26%] min-w-[160px] items-center gap-2 rounded-md border border-[#d5d5d5] px-3 text-[12px] text-[#777]"><Search size={13} /> 포트폴리오 자료 검색</div>
         </div>
-        <div className="flex h-11 items-center gap-5 border-b border-[#e7e7e7] px-4 text-[11px]"><span className="font-semibold">새로 만들기⌄</span><span>✂</span><span>복사</span><span>붙여넣기</span><span className="hidden sm:inline">이름 바꾸기</span><span className="hidden sm:inline">정렬⌄</span><MoreHorizontal size={15} /></div>
+        <div className="flex h-11 items-center gap-5 border-b border-[#e7e7e7] px-4 text-[12px]"><span className="font-semibold">새로 만들기⌄</span><span>✂</span><span>복사</span><span>붙여넣기</span><span className="hidden sm:inline">이름 바꾸기</span><span className="hidden sm:inline">정렬⌄</span><MoreHorizontal size={15} /></div>
         <div className="flex min-h-0 flex-1">
           <aside className="hidden w-[190px] flex-shrink-0 border-r border-[#eee] bg-[#fafafa] px-3 py-3 sm:block">
-            {[[Star, '홈'], [PanelLeft, '갤러리'], [Clock3, '최근 항목'], [Folder, '바탕 화면'], [Folder, '다운로드'], [Folder, '문서'], [Folder, '사진'], [Github, 'GitHub']].map(([Icon, label], i) => <div key={label} className={cx('mb-0.5 flex items-center gap-3 rounded-md px-3 py-2 text-[11px]', i === 5 ? 'bg-[#e8e8e8] font-semibold' : 'text-[#333]')}><Icon size={14} />{label}</div>)}
+            {[[Star, '홈'], [PanelLeft, '갤러리'], [Clock3, '최근 항목'], [Folder, '바탕 화면'], [Folder, '다운로드'], [Folder, '문서'], [Folder, '사진'], [Github, 'GitHub']].map(([Icon, label], i) => <div key={label} className={cx('mb-0.5 flex items-center gap-3 rounded-md px-3 py-2 text-[12px]', i === 5 ? 'bg-[#e8e8e8] font-semibold' : 'text-[#333]')}><Icon size={14} />{label}</div>)}
           </aside>
           <div className="min-w-0 flex-1 overflow-hidden px-3 py-2">
-            <div className="grid grid-cols-[minmax(240px,1.4fr)_1fr_1fr_90px] border-b border-[#e5e5e5] px-2 py-1.5 text-[10.5px] text-[#555]"><span>이름</span><span>수정한 날짜</span><span>유형</span><span>크기</span></div>
+            <div className="grid grid-cols-[minmax(240px,1.4fr)_1fr_1fr_90px] border-b border-[#e5e5e5] px-2 py-1.5 text-[11.5px] text-[#555]"><span>이름</span><span>수정한 날짜</span><span>유형</span><span>크기</span></div>
             <div className="transition-transform duration-150" style={{ transform: `translateY(-${Math.max(0, activeRow - 6) * 34}px)` }}>
               {EXPLORER_FILES.map(([type, name, date, kind, size], index) => (
-                <div key={name} className={cx('grid h-[34px] grid-cols-[minmax(240px,1.4fr)_1fr_1fr_90px] items-center rounded px-2 text-[10.5px]', index === activeRow ? 'bg-[#cce8ff] ring-1 ring-inset ring-[#99d1ff]' : 'hover:bg-[#f2f2f2]')}>
+                <div key={name} className={cx('grid h-[34px] grid-cols-[minmax(240px,1.4fr)_1fr_1fr_90px] items-center rounded px-2 text-[11.5px]', index === activeRow ? 'bg-[#cce8ff] ring-1 ring-inset ring-[#99d1ff]' : 'hover:bg-[#f2f2f2]')}>
                   <span className="flex min-w-0 items-center gap-2"><ExplorerFileIcon type={type} /><span className="truncate">{name}</span></span><span className="truncate text-[#555]">{date}</span><span className="truncate text-[#555]">{kind}</span><span className="text-[#555]">{size}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="h-7 border-t border-[#e5e5e5] px-4 py-1 text-[10px] text-[#666]">10개 항목 · 파일을 찾는 중…</div>
+        <div className="h-7 border-t border-[#e5e5e5] px-4 py-1 text-[11.5px] text-[#666]">10개 항목 · 파일을 찾는 중…</div>
       </div>
     </div>
   );
@@ -463,10 +463,10 @@ function ProductHeader() {
       <div className="grid h-full grid-cols-[52px_1fr_52px] items-center px-3">
         <img src="/logo.png" alt="FitPoly" className="h-7 w-7 object-contain" />
         <nav className="mx-auto flex items-center rounded-full bg-surface-100 p-0.5 shadow-inner">
-          <span className="whitespace-nowrap rounded-full bg-primary-600 px-4 py-1.5 text-[11px] font-extrabold text-white shadow-sm">경험 정리</span>
-          <span className="whitespace-nowrap px-4 py-1.5 text-[11px] font-bold text-bluewood-400">포트폴리오</span>
+          <span className="whitespace-nowrap rounded-full bg-primary-600 px-4 py-1.5 text-[12px] font-extrabold text-white shadow-sm">경험 정리</span>
+          <span className="whitespace-nowrap px-4 py-1.5 text-[12px] font-bold text-bluewood-400">포트폴리오</span>
         </nav>
-        <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500 text-[11px] font-black text-white ring-2 ring-surface-100">ㅇ</span>
+        <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500 text-[12px] font-black text-white ring-2 ring-surface-100">ㅇ</span>
       </div>
     </header>
   );
@@ -502,7 +502,7 @@ function EmptyExperienceScreen({ active }) {
           ['2024. 11', '디자인 시스템 구축', '프로덕트 디자인', '78%'],
         ].map(row => (
           <div key={row[1]} className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between"><span className="text-[12px] font-bold text-primary-600">{row[0]}</span><span className="text-[11px] font-bold text-bluewood-300">{row[3]}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[12px] font-bold text-primary-600">{row[0]}</span><span className="text-[12px] font-bold text-bluewood-300">{row[3]}</span></div>
             <p className="mt-4 text-[15px] font-bold leading-snug text-gray-900">{row[1]}</p>
             <p className="mt-1 text-[12.5px] text-gray-400">{row[2]}</p>
           </div>
@@ -530,15 +530,15 @@ function RoleSelectionScreen({ active }) {
 
       <div className="rounded-2xl border border-primary-100 bg-white px-5 shadow-sm">
         <div className="grid gap-2 border-b border-surface-100 py-5 md:grid-cols-[200px_1fr]">
-          <div className="flex items-start gap-2"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">01</span><div><p className="text-[11px] font-semibold text-bluewood-700">프로젝트명 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[11px] text-bluewood-300">경험을 대표하는 이름</p></div></div>
+          <div className="flex items-start gap-2"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">01</span><div><p className="text-[12px] font-semibold text-bluewood-700">프로젝트명 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[12px] text-bluewood-300">경험을 대표하는 이름</p></div></div>
           <div className="border-b-2 border-primary-300 py-1.5 text-[15px] font-semibold text-primary-600">FlowDesk 온보딩 구조 개선</div>
         </div>
         <div className="grid gap-2 border-b border-surface-100 py-5 md:grid-cols-[200px_1fr]">
-          <div className="flex items-start gap-2"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">02</span><div><p className="text-[11px] font-semibold text-bluewood-700">진행 기간 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[11px] text-bluewood-300">시작일과 종료일</p></div></div>
+          <div className="flex items-start gap-2"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">02</span><div><p className="text-[12px] font-semibold text-bluewood-700">진행 기간 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[12px] text-bluewood-300">시작일과 종료일</p></div></div>
           <div className="flex max-w-sm gap-3 text-[14px] font-semibold text-primary-600"><span className="flex-1 border-b-2 border-surface-200 py-1.5">2025년 3월</span><span className="py-1.5 text-bluewood-200">—</span><span className="flex-1 border-b-2 border-surface-200 py-1.5">2025년 6월</span></div>
         </div>
         <div className="grid gap-2 py-6 md:grid-cols-[200px_1fr]">
-          <div className="flex items-start gap-2 pt-0.5"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">03</span><div><p className="text-[11px] font-semibold text-bluewood-700">직군 선택 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[11px] text-bluewood-300">1개 선택</p></div></div>
+          <div className="flex items-start gap-2 pt-0.5"><span className="mt-0.5 text-[15px] font-bold text-bluewood-200">03</span><div><p className="text-[12px] font-semibold text-bluewood-700">직군 선택 <span className="text-red-400">*</span></p><p className="mt-0.5 text-[12px] text-bluewood-300">1개 선택</p></div></div>
           <div className="divide-y divide-surface-50">
             {roles.map(({ key, label, detail }) => (
               <Spotlight key={key} active={active && key === 'dev'} pointer={key === 'dev'} className="rounded-lg">
@@ -546,7 +546,7 @@ function RoleSelectionScreen({ active }) {
                   <span className={cx('flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-full border-2 transition-all', key === 'dev' ? 'border-primary-600 bg-primary-600' : 'border-surface-300')}>
                     {key === 'dev' && <span className="h-[7px] w-[7px] rounded-full bg-white" />}
                   </span>
-                  <span className="min-w-0 flex-1"><span className={cx('block text-[13px] font-semibold leading-tight', key === 'dev' ? 'text-primary-600' : 'text-bluewood-600')}>{label}</span><span className="mt-0.5 block text-[11px] leading-snug text-bluewood-300">{detail}</span></span>
+                  <span className="min-w-0 flex-1"><span className={cx('block text-[13px] font-semibold leading-tight', key === 'dev' ? 'text-primary-600' : 'text-bluewood-600')}>{label}</span><span className="mt-0.5 block text-[12px] leading-snug text-bluewood-300">{detail}</span></span>
                 </button>
               </Spotlight>
             ))}
@@ -571,7 +571,7 @@ function SourceInputScreen({ active }) {
           <div className="grid gap-5 rounded-2xl border border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/40 p-5 shadow-sm md:grid-cols-[200px_1fr]">
             <div className="flex items-start gap-3 pt-0.5">
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm"><Github size={15} /></span>
-              <div><p className="text-[14px] font-extrabold text-bluewood-950">GitHub 연동 <span className="align-middle text-[10px] font-bold text-sky-600">추천</span></p><p className="mt-1 text-[12px] text-bluewood-500">커밋 자동 분석 → 초안 생성</p></div>
+              <div><p className="text-[14px] font-extrabold text-bluewood-950">GitHub 연동 <span className="align-middle text-[11.5px] font-bold text-sky-600">추천</span></p><p className="mt-1 text-[12px] text-bluewood-500">커밋 자동 분석 → 초안 생성</p></div>
             </div>
             <div className="space-y-3">
               <div className="eng-demo-field-focus flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2.5"><Github size={13} className="flex-shrink-0 text-sky-500" /><span className="flex-1 text-[14px] text-bluewood-900">https://github.com/minseo-dev/flowdesk-web</span></div>
@@ -589,7 +589,7 @@ function SourceInputScreen({ active }) {
                 <UploadCloud size={18} className="text-primary-500" />
                 <p className="text-[13px] font-bold">클릭하거나 파일을 여기에 끌어오세요</p><p className="text-[12px] text-bluewood-400">PDF, JPG, PNG, WEBP · 최대 25MB</p>
               </div>
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2"><CheckCircle2 size={12} className="flex-shrink-0 text-emerald-500" /><p className="flex-1 truncate text-[12px] font-semibold text-bluewood-800">온보딩_개선_회고.pdf</p><span className="text-[11px] text-bluewood-500">2.4 MB</span></div>
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2"><CheckCircle2 size={12} className="flex-shrink-0 text-emerald-500" /><p className="flex-1 truncate text-[12px] font-semibold text-bluewood-800">온보딩_개선_회고.pdf</p><span className="text-[12px] text-bluewood-500">2.4 MB</span></div>
             </div>
           </div>
         </Spotlight>
@@ -614,7 +614,7 @@ function PipelineScreen({ progress }) {
       </div>
       <div className="mb-9 h-[3px] w-full overflow-hidden bg-surface-100"><div className="h-full bg-primary-600 transition-all duration-700 ease-out" style={{ width: `${percentage}%` }} /></div>
 
-      <div className="mb-6 flex items-center gap-2"><span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-bluewood-200 border-t-bluewood-500" /><span className="text-[11px] font-semibold text-bluewood-700">{PIPELINE_ITEMS[activeIndex]?.label}</span></div>
+      <div className="mb-6 flex items-center gap-2"><span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-bluewood-200 border-t-bluewood-500" /><span className="text-[12px] font-semibold text-bluewood-700">{PIPELINE_ITEMS[activeIndex]?.label}</span></div>
 
       <div className="divide-y divide-surface-100">
         {PIPELINE_ITEMS.map(({ label, detail, Icon }, index) => {
@@ -626,14 +626,14 @@ function PipelineScreen({ progress }) {
               className="flex items-center gap-2 py-2 transition-all duration-300"
             >
               <span className="flex w-5 flex-shrink-0 items-center justify-center">{done ? <Check size={11} className="text-emerald-500" strokeWidth={2.5} /> : current ? <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-bluewood-200 border-t-bluewood-500" /> : <span className="h-2 w-2 rounded-full bg-surface-300" />}</span>
-              <span className={cx('text-[11px] transition-all', current ? 'font-semibold text-primary-600' : done ? 'text-bluewood-400 line-through decoration-surface-300' : 'text-bluewood-200')}>{label}</span>
-              <span className={cx('hidden text-[10px] sm:inline', current ? 'text-bluewood-400' : 'text-bluewood-200')}>· {detail}</span>
-              {done && <span className="ml-auto text-[11px] font-bold text-emerald-500">완료</span>}
+              <span className={cx('text-[12px] transition-all', current ? 'font-semibold text-primary-600' : done ? 'text-bluewood-400 line-through decoration-surface-300' : 'text-bluewood-200')}>{label}</span>
+              <span className={cx('hidden text-[11.5px] sm:inline', current ? 'text-bluewood-400' : 'text-bluewood-200')}>· {detail}</span>
+              {done && <span className="ml-auto text-[12px] font-bold text-emerald-500">완료</span>}
             </div>
           );
         })}
       </div>
-      <p className="mt-9 text-[11px] leading-relaxed text-bluewood-200">자료량에 따라 최대 5분 소요 · 페이지 이탈 시 분석이 중단됩니다</p>
+      <p className="mt-9 text-[12px] leading-relaxed text-bluewood-200">자료량에 따라 최대 5분 소요 · 페이지 이탈 시 분석이 중단됩니다</p>
     </div>
   );
 }
@@ -648,7 +648,7 @@ function DemoCommitGrass({ days }) {
     <div>
       <div className="flex pl-[26px] text-[9.5px] text-bluewood-300"><span className="w-[52px]">4월</span><span className="w-[52px]">5월</span><span className="w-[52px]">6월</span><span>7월</span></div>
       <div className="mt-1.5 flex gap-[3px]">
-        <div className="flex w-[23px] flex-col gap-[3px]">{['', '월', '', '수', '', '금', ''].map((label, index) => <span key={index} className="h-[10px] text-right text-[9px] leading-[10px] text-bluewood-300">{label}</span>)}</div>
+        <div className="flex w-[23px] flex-col gap-[3px]">{['', '월', '', '수', '', '금', ''].map((label, index) => <span key={index} className="h-[10px] text-right text-[10.5px] leading-[10px] text-bluewood-300">{label}</span>)}</div>
         {weeks.map((week, weekIndex) => (
           <div key={weekIndex} className="flex flex-col gap-[3px]">
             {Array.from({ length: 7 }, (_, dayIndex) => {
@@ -659,7 +659,7 @@ function DemoCommitGrass({ days }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10.5px] text-bluewood-300">분석된 최근 커밋 150개 기준</span><span className="flex items-center gap-1 text-[10px] text-bluewood-300">적음 {DEMO_GRASS_COLORS.map(color => <span key={color} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: color }} />)} 많음</span></div>
+      <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[11.5px] text-bluewood-300">분석된 최근 커밋 150개 기준</span><span className="flex items-center gap-1 text-[11.5px] text-bluewood-300">적음 {DEMO_GRASS_COLORS.map(color => <span key={color} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: color }} />)} 많음</span></div>
     </div>
   );
 }
@@ -669,16 +669,16 @@ function DemoGitHeroCard() {
   const languageColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
   return (
     <div>
-      <div className="mb-3 flex items-baseline justify-between gap-3"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">기여도 · 영향력</h3><span className="text-[11px] tabular-nums text-bluewood-300">2026-04-16 ~ 2026-07-16</span></div>
+      <div className="mb-3 flex items-baseline justify-between gap-3"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">기여도 · 영향력</h3><span className="text-[12px] tabular-nums text-bluewood-300">2026-04-16 ~ 2026-07-16</span></div>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
         <div><p className="text-[34px] font-black leading-none tracking-tight text-primary-700">51.9%</p><p className="mt-1.5 text-[11.5px] font-semibold text-bluewood-400">커밋 기여 비중</p></div>
-        <div><p className="text-[20px] font-extrabold leading-none text-bluewood-900">179<span className="text-[13px] font-semibold text-bluewood-400"> / 345</span></p><p className="mt-1.5 text-[11px] text-bluewood-400">내 커밋 / 전체</p></div>
-        <div><p className="text-[20px] font-extrabold leading-none text-bluewood-900">풀스택</p><p className="mt-1.5 text-[11px] text-bluewood-400">주 역할</p></div>
+        <div><p className="text-[20px] font-extrabold leading-none text-bluewood-900">179<span className="text-[13px] font-semibold text-bluewood-400"> / 345</span></p><p className="mt-1.5 text-[12px] text-bluewood-400">내 커밋 / 전체</p></div>
+        <div><p className="text-[20px] font-extrabold leading-none text-bluewood-900">풀스택</p><p className="mt-1.5 text-[12px] text-bluewood-400">주 역할</p></div>
       </div>
-      <div className="mt-4"><div className="h-2 w-full overflow-hidden rounded-full bg-surface-100"><div className="h-full w-[51.9%] rounded-full bg-primary-700" /></div><p className="mt-1.5 text-[11px] text-bluewood-300">내 커밋 179 / 전체 345 · GitHub 기여자 통계(기본 브랜치) 기준</p></div>
+      <div className="mt-4"><div className="h-2 w-full overflow-hidden rounded-full bg-surface-100"><div className="h-full w-[51.9%] rounded-full bg-primary-700" /></div><p className="mt-1.5 text-[12px] text-bluewood-300">내 커밋 179 / 전체 345 · GitHub 기여자 통계(기본 브랜치) 기준</p></div>
       <div className="mt-5"><div className="flex h-2 w-full gap-[2px] overflow-hidden rounded-full">{DEMO_RESULT_STATS.languages.map((item, index) => <span key={item.name} className="rounded-full" style={{ width: `${item.pct}%`, backgroundColor: languageColors[index] }} />)}</div><div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1">{DEMO_RESULT_STATS.languages.map((item, index) => <span key={item.name} className="inline-flex items-center gap-1.5 text-[11.5px] text-bluewood-500"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: languageColors[index] }} />{item.name} <span className="text-bluewood-300">{item.pct}%</span></span>)}</div></div>
-      <div className="mt-6"><p className="mb-2.5 text-[11px] font-bold text-bluewood-400">커밋 활동</p><DemoCommitGrass days={DEMO_RESULT_STATS.dailyActivity} /></div>
-      <div className="mt-6"><p className="mb-2 text-[11px] font-bold text-bluewood-400">커밋 유형</p><div className="space-y-1.5">{DEMO_RESULT_STATS.commitTypes.map(item => <div key={item.type} className="flex items-center gap-2.5 text-[11.5px]"><span className="w-16 flex-shrink-0 font-mono text-bluewood-500">{item.type}</span><div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100"><div className="h-full rounded-full bg-primary-700" style={{ width: `${(item.count / maxType) * 100}%` }} /></div><span className="w-9 text-right font-semibold text-bluewood-700">{item.count}</span></div>)}</div></div>
+      <div className="mt-6"><p className="mb-2.5 text-[12px] font-bold text-bluewood-400">커밋 활동</p><DemoCommitGrass days={DEMO_RESULT_STATS.dailyActivity} /></div>
+      <div className="mt-6"><p className="mb-2 text-[12px] font-bold text-bluewood-400">커밋 유형</p><div className="space-y-1.5">{DEMO_RESULT_STATS.commitTypes.map(item => <div key={item.type} className="flex items-center gap-2.5 text-[11.5px]"><span className="w-16 flex-shrink-0 font-mono text-bluewood-500">{item.type}</span><div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100"><div className="h-full rounded-full bg-primary-700" style={{ width: `${(item.count / maxType) * 100}%` }} /></div><span className="w-9 text-right font-semibold text-bluewood-700">{item.count}</span></div>)}</div></div>
     </div>
   );
 }
@@ -699,7 +699,7 @@ function PitchArchitectureMap() {
     };
     return (
       <div className={cx('rounded-xl border-2 px-5 py-3.5 text-center shadow-sm', tones[tone], wide && 'mx-auto w-[76%]')}>
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">{eyebrow}</p>
+        <p className="text-[11.5px] font-black uppercase tracking-[0.16em] opacity-55">{eyebrow}</p>
         <p className="mt-1 text-[18px] font-black leading-tight">{title}</p>
         <p className="mt-1 text-[11.5px] font-semibold opacity-60">{detail}</p>
       </div>
@@ -711,12 +711,12 @@ function PitchArchitectureMap() {
       <Node eyebrow="사용자 화면" title="React Client" detail="경험 입력 · 결과 확인" tone="blue" wide />
       <div className="mx-auto flex h-10 w-px items-center justify-center bg-primary-200"><span className="rounded-full bg-white px-2 py-0.5 text-[12px] font-black text-primary-500 shadow-sm">↓</span></div>
       <Node eyebrow="API GATEWAY" title="Express API" detail="인증 · 요청 분기 · 데이터 검증" tone="slate" wide />
-      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↙ <span className="mx-5 rounded-full bg-primary-600 px-3 py-1 text-[10px] tracking-wide text-white">AI + GIT 교차 분석</span> ↘</div>
+      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↙ <span className="mx-5 rounded-full bg-primary-600 px-3 py-1 text-[11.5px] tracking-wide text-white">AI + GIT 교차 분석</span> ↘</div>
       <div className="grid grid-cols-2 gap-4">
         <Node eyebrow="경험 맥락" title="Experience Engine" detail="문서 · 답변 구조화" tone="cyan" />
         <Node eyebrow="코드 근거" title="GitHub Analyzer" detail="커밋 · 변경 파일 분석" tone="violet" />
       </div>
-      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↘ <span className="mx-5 rounded-full bg-white px-3 py-1 text-[10px] tracking-wide text-bluewood-400 shadow-sm">검증된 결과 저장</span> ↙</div>
+      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↘ <span className="mx-5 rounded-full bg-white px-3 py-1 text-[11.5px] tracking-wide text-bluewood-400 shadow-sm">검증된 결과 저장</span> ↙</div>
       <Node eyebrow="SINGLE SOURCE" title="Firebase" detail="경험 · 근거 · 포트폴리오 데이터" tone="blue" wide />
     </div>
   );
@@ -727,8 +727,8 @@ function ArchitectureFocusScreen() {
     <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_85%_5%,#dbeafe_0%,transparent_30%),linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 pb-24 pt-28">
       <div className="mx-auto w-full max-w-[500px]">
         <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full bg-primary-600 px-3 py-1.5 text-[10px] font-black tracking-[0.14em] text-white">REPOSITORY → SYSTEM MAP</span>
-          <span className="text-[10px] font-extrabold text-primary-500">자동 생성 완료 ✓</span>
+          <span className="rounded-full bg-primary-600 px-3 py-1.5 text-[11.5px] font-black tracking-[0.14em] text-white">REPOSITORY → SYSTEM MAP</span>
+          <span className="text-[11.5px] font-extrabold text-primary-500">자동 생성 완료 ✓</span>
         </div>
         <h1 className="mt-5 text-[30px] font-black leading-[1.08] tracking-[-0.055em] text-bluewood-950">코드 목록이 아니라<br />설명 가능한 구조로.</h1>
         <p className="mt-3 text-[13px] font-semibold leading-[1.65] text-bluewood-500">호출 관계와 문서 맥락을 함께 분석해<br />면접에서 바로 설명할 수 있는 한 장을 만듭니다.</p>
@@ -748,7 +748,7 @@ function DemoDevImpactSection({ architectureRef, architectureFocus = false }) {
       <div className="mb-2 flex items-baseline justify-between gap-3"><h2 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h2><span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-bluewood-300"><Github size={12} /> laonpl/popol · 다시 분석</span></div>
       <div className="border-t border-surface-200 pt-5"><div className="space-y-8">
         <div>
-          <div className="mb-1 flex items-baseline justify-between"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">프로젝트 소개</h3><span className="text-[11px] text-bluewood-300">노션형 편집 · 우클릭 서식</span></div>
+          <div className="mb-1 flex items-baseline justify-between"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">프로젝트 소개</h3><span className="text-[12px] text-bluewood-300">노션형 편집 · 우클릭 서식</span></div>
           <div className="px-2 py-2"><h3 className="text-[17px] font-extrabold text-bluewood-900">FitPoly</h3><p className="mt-2 text-[13px] leading-[1.75] text-bluewood-600">흩어진 경험을 모아, 회사에 맞는 맞춤형 포트폴리오로 가공해주는 서비스</p><h3 className="mt-5 text-[17px] font-extrabold text-bluewood-900">문제 정의</h3><p className="mt-2 text-[13px] leading-[1.85] text-bluewood-600">취준생의 73%가 포트폴리오 제작에 평균 40시간 이상을 소요하며, 무엇을 보여줘야 할지 막막해 공고마다 수정·재편집을 반복합니다. 반면 인사담당자는 짧은 시간 안에 직무 적합성과 핵심 역량이 바로 보이기를 원합니다.</p><h3 className="mt-5 text-[17px] font-extrabold text-bluewood-900">해결 방법</h3><p className="mt-2 text-[13px] leading-[1.85] text-bluewood-600">경험을 새로 생성하는 것이 아니라 추출하고 검증해 채용 언어로 전환합니다. 질문 기반 구조화와 GitHub 근거 분석으로 하나의 경험을 여러 채용 결과물에 재사용할 수 있게 합니다.</p></div>
         </div>
         <DemoFactTable title="주요 성과" rows={[["커밋 분석", "345개 중 본인 커밋 179개 식별"], ["기여 비중", "51.9% · 저장소 기여 1위"]]} />
@@ -756,15 +756,15 @@ function DemoDevImpactSection({ architectureRef, architectureFocus = false }) {
         <div ref={architectureRef} className={cx('transition-all duration-500', architectureFocus && 'rounded-[22px] border-2 border-primary-300 bg-white p-5 shadow-[0_22px_70px_rgba(0,47,108,0.2)] ring-8 ring-primary-50')}>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-600">SYSTEM MAP · AUTO GENERATED</p>
+              <p className="text-[11.5px] font-black uppercase tracking-[0.2em] text-primary-600">SYSTEM MAP · AUTO GENERATED</p>
               <h3 className="mt-1.5 text-[21px] font-black tracking-[-0.035em] text-bluewood-950">한 장으로 보는 서비스 구조</h3>
               <p className="mt-1 text-[12px] font-medium text-bluewood-400">저장소의 호출 관계와 경험 문서의 맥락을 함께 분석했습니다.</p>
             </div>
-            <span className="shrink-0 rounded-full bg-bluewood-900 px-3 py-1.5 text-[10.5px] font-black text-white">5 COMPONENTS · 5 FLOWS</span>
+            <span className="shrink-0 rounded-full bg-bluewood-900 px-3 py-1.5 text-[11.5px] font-black text-white">5 COMPONENTS · 5 FLOWS</span>
           </div>
           <PitchArchitectureMap />
         </div>
-        <div><div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">문제 해결 과정</h3><span className="text-[11.5px] font-semibold text-bluewood-300">1건 · 눌러서 펼치기 · 눌러서 편집</span></div><div className="border-y border-surface-200 py-3"><div className="flex items-start gap-2.5"><span className="mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded bg-primary-700 text-[10.5px] font-black text-white">1</span><div><h4 className="text-[14.5px] font-extrabold text-bluewood-900">경험 구조화·검증 파이프라인 개발</h4><p className="mt-1 text-[11px] text-bluewood-400">2026.04 — 2026.07 · React, Node.js, Firebase, Gemini API</p></div></div><div className="mt-3 space-y-2.5 pl-7"><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-bluewood-700">문제</b>저장 순서가 엇갈리면 GitHub 분석 근거가 결과 화면에서 누락됐습니다.</p><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-primary-700">해결</b>저장 결과를 단일 소스로 삼고 케이스 스터디 동기화 순서를 보장했습니다.</p><p className="text-[12.5px] font-bold text-bluewood-900"><b className="mr-2 text-primary-700">성과</b>커밋 345개 중 본인 기여 179개를 근거와 함께 자동 변환</p><CodeSnippet file="frontend/src/stores/experienceStore.js" code={"- await saveExperience(payload)\n+ const result = await saveExperience(payload)\n+ await syncCaseStudy(result.id)\n+ return result"} /></div></div></div>
+        <div><div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">문제 해결 과정</h3><span className="text-[11.5px] font-semibold text-bluewood-300">1건 · 눌러서 펼치기 · 눌러서 편집</span></div><div className="border-y border-surface-200 py-3"><div className="flex items-start gap-2.5"><span className="mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded bg-primary-700 text-[11.5px] font-black text-white">1</span><div><h4 className="text-[14.5px] font-extrabold text-bluewood-900">경험 구조화·검증 파이프라인 개발</h4><p className="mt-1 text-[12px] text-bluewood-400">2026.04 — 2026.07 · React, Node.js, Firebase, Gemini API</p></div></div><div className="mt-3 space-y-2.5 pl-7"><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-bluewood-700">문제</b>저장 순서가 엇갈리면 GitHub 분석 근거가 결과 화면에서 누락됐습니다.</p><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-primary-700">해결</b>저장 결과를 단일 소스로 삼고 케이스 스터디 동기화 순서를 보장했습니다.</p><p className="text-[12.5px] font-bold text-bluewood-900"><b className="mr-2 text-primary-700">성과</b>커밋 345개 중 본인 기여 179개를 근거와 함께 자동 변환</p><CodeSnippet file="frontend/src/stores/experienceStore.js" code={"- await saveExperience(payload)\n+ const result = await saveExperience(payload)\n+ await syncCaseStudy(result.id)\n+ return result"} /></div></div></div>
       </div></div>
     </>
   );
@@ -776,13 +776,13 @@ function CodeReasonEvidence({ active }) {
   return (
     <section className={cx('rounded-xl border bg-white transition-all duration-500', active ? 'border-primary-400 ring-4 ring-primary-100 shadow-[0_18px_55px_rgba(0,47,108,0.18)]' : 'border-surface-200')}>
       <div className="border-b border-surface-200 px-4 py-3">
-        <p className="text-[11px] font-bold text-bluewood-700">코드 변경</p>
+        <p className="text-[12px] font-bold text-bluewood-700">코드 변경</p>
         <p className="mt-1 text-[13px] font-extrabold text-bluewood-900">경험 구조화·검증 파이프라인 개발</p>
       </div>
       <div className="p-4">
         <CodeSnippet file={snippet.file} code={snippet.code} />
         <div className="-mt-2 rounded-b-lg border border-t-0 border-surface-200 bg-surface-50/55 px-4 pb-3 pt-5">
-          <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-primary-600">왜 이 코드를 썼는지</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-primary-600">왜 이 코드를 썼는지</p>
           <p className="mt-2 text-[12.5px] font-semibold leading-[1.75] text-bluewood-700">{snippet.why}</p>
           <p className="mt-2 text-[11.5px] leading-[1.65] text-bluewood-500">결과 화면으로 먼저 이동하면 저장 전 데이터가 노출될 수 있어, 저장 결과를 단일 기준으로 삼고 케이스 스터디 동기화가 끝난 뒤 결과를 반환하도록 구현했습니다.</p>
         </div>
@@ -912,13 +912,13 @@ function ResultsScreen({ current }) {
             <aside className="lg:pr-2">
               <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 <p className="text-[11.5px] font-black uppercase tracking-[0.22em] text-primary-700">핵심 경험 리포트</p>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400"><PenLine size={12} /> 눌러서 편집</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[12px] font-semibold text-bluewood-400"><PenLine size={12} /> 눌러서 편집</span>
               </div>
               <h1 className="text-[26px] font-black leading-[1.22] tracking-tight text-bluewood-900">졸프</h1>
               <div ref={commitsRef} className="mt-4 border-t border-surface-200 pt-4"><DemoGitHeroCard /></div>
               <div className="mt-4 border-t border-surface-200 pt-4">
-                <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">기술 스택</p>
-                <div className="flex flex-wrap gap-1.5">{DEMO_RESULT_EXPERIENCE.structuredResult.projectOverview.techStack.map(t => <span key={t} className="rounded-md bg-surface-100 px-2 py-0.5 text-[11px] font-semibold text-bluewood-600">{t}</span>)}</div>
+                <p className="mb-2 text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">기술 스택</p>
+                <div className="flex flex-wrap gap-1.5">{DEMO_RESULT_EXPERIENCE.structuredResult.projectOverview.techStack.map(t => <span key={t} className="rounded-md bg-surface-100 px-2 py-0.5 text-[12px] font-semibold text-bluewood-600">{t}</span>)}</div>
               </div>
             </aside>
 

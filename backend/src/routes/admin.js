@@ -175,13 +175,14 @@ router.post('/dashboard', async (req, res, next) => {
       pageToken = page.pageToken;
     } while (pageToken);
 
-    const [expSnap, walletsSnap, portfolioSnap, deletionsSnap, ordersSnap, feedbackSnap] = await Promise.all([
+    const [expSnap, walletsSnap, portfolioSnap, deletionsSnap, ordersSnap, feedbackSnap, productEventsSnap] = await Promise.all([
       adminDb.collection('experiences').get(),
       adminDb.collection('creditWallets').get(),
       adminDb.collection('portfolios').get(),
       adminDb.collection('accountDeletions').get(),
       adminDb.collection('creditOrders').get(),
       adminDb.collection('feedback').get(),
+      adminDb.collection('productEvents').where('createdAt', '>=', new Date(now - 30 * DAY_MS)).get(),
     ]);
 
     // ── 경험정리 ──
@@ -214,6 +215,27 @@ router.post('/dashboard', async (req, res, next) => {
     const pfUsers = new Set(portfolios.map(p => p.userId).filter(Boolean));
     const publicPortfolios = portfolios.filter(p => p.isPublic === true);
     const publicUsers = new Set(publicPortfolios.map(p => p.userId).filter(Boolean));
+    const readyPerUser = {};
+    experiences.forEach(e => {
+      if (e.userId && e.lifecycleStatus === 'portfolio_ready') readyPerUser[e.userId] = (readyPerUser[e.userId] || 0) + 1;
+    });
+    const atLeastReady = count => Object.values(readyPerUser).filter(value => value >= count).length;
+    const planUsers = new Set(portfolios.filter(p => p.portfolioPlan?.selectedExperienceIds?.length).map(p => p.userId).filter(Boolean));
+    const experienceBundleFunnel = [
+      { step: '경험 1개+', users: expUsers.size, rate: 100 },
+      { step: '검증 1개+', users: atLeastReady(1), rate: pct(atLeastReady(1), expUsers.size) },
+      { step: '검증 2개+', users: atLeastReady(2), rate: pct(atLeastReady(2), expUsers.size) },
+      { step: '검증 3개+', users: atLeastReady(3), rate: pct(atLeastReady(3), expUsers.size) },
+      { step: '플랜 생성', users: planUsers.size, rate: pct(planUsers.size, expUsers.size) },
+    ];
+    const eventUsers = {};
+    productEventsSnap.docs.forEach(doc => {
+      const event = doc.data();
+      if (!event.eventName || !event.userId) return;
+      if (!eventUsers[event.eventName]) eventUsers[event.eventName] = new Set();
+      eventUsers[event.eventName].add(event.userId);
+    });
+    const productEvents30d = Object.fromEntries(Object.entries(eventUsers).map(([name, users]) => [name, users.size]));
 
     // ── 활성화: 가입 → 결과물(포폴 생성 or 내보내기) 도달 ──
     const reachedUsers = new Set([...pfUsers, ...exportUsers]);
@@ -339,6 +361,9 @@ router.post('/dashboard', async (req, res, next) => {
         ttvP75: round1(quantile(ttvMinutes, 0.75)),
         ttvSample: ttvMinutes.length,
         ttvBuckets,
+        experienceBundleFunnel,
+        productEvents30d,
+        legacyNeedsConfirmation: experiences.filter(e => e.structuredResult && !e.lifecycleStatus).length,
       },
       // 가치 (CSAT + 설문 미수집 표기)
       value: {

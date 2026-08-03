@@ -130,6 +130,7 @@ export default function CreditSettings() {
               <p className="text-xs text-primary-600 font-semibold mb-2">{item.label}</p>
               <p className="text-xl font-bold text-bluewood-800">{item.credits.toLocaleString()} C</p>
               <p className="text-sm text-bluewood-400 mt-1">{item.price.toLocaleString()}원</p>
+              {item.outcome && <p className="mt-2 text-[11px] leading-relaxed text-bluewood-400">{item.outcome}</p>}
             </button>
           ))}
         </div>

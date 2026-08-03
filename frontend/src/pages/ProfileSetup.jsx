@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards, Info } from 'lucide-react';
+import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards, Info, AlertCircle } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
 import useUnsavedChanges from '../hooks/useUnsavedChanges';
@@ -22,6 +22,7 @@ const PROFICIENCY_LEVELS = [
 ];
 
 const INPUT_CLS = 'w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-[14px] text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
+const INPUT_ERROR_CLS = 'w-full rounded-lg border border-red-300 bg-red-50/40 px-3 py-2.5 text-[14px] text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:border-red-400 focus:ring-2 focus:ring-red-100';
 const SELECT_CLS = `${INPUT_CLS} cursor-pointer appearance-none`;
 
 export default function ProfileSetup() {
@@ -30,6 +31,8 @@ export default function ProfileSetup() {
   const [saving, setSaving] = useState(false);
   const [skipSaving, setSkipSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // 필드별 검증 오류 — { 'nameKo': '메시지', 'education.0.school': '메시지', ... }
+  const [errors, setErrors] = useState({});
 
   // 편집 중 이탈 방지 (저장/건너뛰기 진행 중에는 화면 전환 허용)
   useUnsavedChanges(dirty && !saving && !skipSaving);
@@ -164,6 +167,19 @@ export default function ProfileSetup() {
   const update = (field, value) => {
     setDirty(true);
     setForm(prev => ({ ...prev, [field]: value }));
+    // 사용자가 고치기 시작하면 그 필드 오류는 즉시 지운다 (오류가 남아 있으면 혼란)
+    setErrors(prev => {
+      if (!Object.keys(prev).length) return prev;
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        if (key === field || key.startsWith(`${field}.`)) { delete next[key]; changed = true; }
+        // 배열 필드(education/languageScores)는 접두어가 다르므로 별도 매핑
+        if (field === 'education' && key.startsWith('education.')) { delete next[key]; changed = true; }
+        if (field === 'languageScores' && key.startsWith('lang.')) { delete next[key]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
   };
 
   // 컴포넌트 마운트 시 스크립트 미리 로드 (클릭과 무관하게 준비)
@@ -202,44 +218,73 @@ export default function ProfileSetup() {
     const phone = form.phone.trim();
     const email = form.email.trim();
 
-    if (!nameKo) { toast.error('이름(한글)을 입력해주세요'); return; }
-    if (!/^[가-힣]{2,10}$/.test(nameKo)) {
-      toast.error('이름(한글)은 한글 2~10자로 입력해주세요 (공백·숫자·특수문자 불가)'); return;
+    /* ── 검증 ──
+       예전에는 toast로 한 번에 한 개씩만 알려줘서, 긴 폼에서 사용자가
+       "어느 칸이 문제인지" 직접 찾아다녀야 했다(3초 뒤 사라짐).
+       이제는 모든 오류를 한 번에 모아 각 필드 아래에 표시하고, 첫 오류로 스크롤한다.
+
+       또한 필수 항목을 이름·이메일로 줄였다. 포트폴리오를 만들러 온 사람에게
+       집 주소·생년월일·전화번호를 강제할 이유가 없다(입력하면 채워주되 선택). */
+    const nextErrors = {};
+
+    if (!nameKo) nextErrors.nameKo = '이름을 입력해주세요';
+    else if (nameKo.length > 40) nextErrors.nameKo = '이름은 40자 이내로 입력해주세요';
+
+    if (nameEn && !/^[a-zA-Z][a-zA-Z\s\-.']*$/.test(nameEn)) {
+      nextErrors.nameEn = '영문 이름은 영문자·공백·하이픈만 사용할 수 있어요';
     }
-    if (nameEn && !/^[a-zA-Z][a-zA-Z\s\-\.]{1,}$/.test(nameEn)) {
-      toast.error('이름(영문)은 영문자만 입력 가능합니다'); return;
+
+    if (birthDate) {
+      const birthYear = parseInt(birthDate.split('.')[0], 10);
+      const thisYear = new Date().getFullYear();
+      if (Number.isNaN(birthYear) || birthYear < 1940 || birthYear > thisYear) {
+        nextErrors.birthDate = `생년월일은 1940년 ~ ${thisYear}년 사이로 선택해주세요`;
+      }
     }
-    if (!location) { toast.error('거주지를 입력해주세요'); return; }
-    if (location.length < 5) { toast.error('유효한 주소를 입력해주세요 (주소 검색 버튼을 이용하세요)'); return; }
-    if (!birthDate) { toast.error('생년월일을 입력해주세요'); return; }
-    const bParts = birthDate.split('.');
-    const birthYear = parseInt(bParts[0]);
-    const currentYear = new Date().getFullYear();
-    if (isNaN(birthYear) || birthYear < 1940 || birthYear > currentYear - 15) {
-      toast.error(`생년월일은 1940년 ~ ${currentYear - 15}년생까지 입력 가능합니다`); return;
+
+    if (phone) {
+      const phoneDigits = phone.replace(/[-\s]/g, '');
+      if (!/^0[0-9]{8,10}$/.test(phoneDigits)) {
+        nextErrors.phone = '전화번호 형식을 확인해주세요 (예: 010-1234-5678)';
+      }
     }
-    if (!phone) { toast.error('전화번호를 입력해주세요'); return; }
-    const phoneDigits = phone.replace(/[-\s]/g, '');
-    if (!/^0[0-9]{9,10}$/.test(phoneDigits)) {
-      toast.error('올바른 전화번호를 입력해주세요 (예: 010-1234-5678)'); return;
+
+    if (!email) nextErrors.email = '이메일을 입력해주세요';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      nextErrors.email = '이메일 형식을 확인해주세요 (예: name@example.com)';
     }
-    if (!email) { toast.error('이메일을 입력해주세요'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-      toast.error('올바른 이메일 형식으로 입력해주세요'); return;
+
+    // 학력은 선택. 단, 적기 시작했다면 학교명은 있어야 저장된다.
+    form.education.forEach((edu, i) => {
+      const hasAny = edu.school?.trim() || edu.major?.trim() || edu.degree || edu.period?.trim();
+      if (hasAny && !edu.school?.trim()) {
+        nextErrors[`education.${i}.school`] = '학교명을 입력하거나 이 항목을 삭제해주세요';
+      }
+    });
+
+    form.languageScores.forEach((lang, i) => {
+      if (!lang.name.trim()) nextErrors[`lang.${i}.name`] = '시험명을 선택하거나 이 항목을 삭제해주세요';
+      else if (!lang.score.trim()) nextErrors[`lang.${i}.score`] = '점수/등급을 입력해주세요';
+    });
+
+    setErrors(nextErrors);
+    const errorKeys = Object.keys(nextErrors);
+    if (errorKeys.length > 0) {
+      // 첫 오류 필드로 스크롤 + 포커스
+      const el = document.querySelector(`[data-field="${errorKeys[0]}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.querySelector('input, select, textarea')?.focus({ preventScroll: true });
+      }
+      toast.error(
+        errorKeys.length === 1
+          ? '입력을 하나 확인해주세요'
+          : `입력 ${errorKeys.length}곳을 확인해주세요`
+      );
+      return;
     }
 
     const validEducation = form.education.filter(e => e.school.trim());
-    if (validEducation.length === 0) { toast.error('학력을 하나 이상 입력해주세요'); return; }
-    for (const edu of validEducation) {
-      if (edu.school.trim().length < 2) { toast.error('학교명을 2자 이상 입력해주세요'); return; }
-      if (!edu.degree) { toast.error('학위/과정을 선택해주세요'); return; }
-      if (!edu.period.trim()) { toast.error('재학 기간을 입력해주세요 (예: 2020.03 - 현재)'); return; }
-      if (!/\d{4}/.test(edu.period)) { toast.error('재학 기간에 연도(YYYY)를 포함해주세요 (예: 2020.03 - 현재)'); return; }
-    }
-    for (const lang of form.languageScores) {
-      if (!lang.name.trim()) { toast.error('어학 성적 시험명을 입력하거나 해당 항목을 삭제해주세요'); return; }
-      if (!lang.score.trim()) { toast.error('어학 성적 점수/등급을 입력해주세요'); return; }
-    }
 
     setSaving(true);
     try {
@@ -323,142 +368,17 @@ export default function ProfileSetup() {
   const updateNestedArr = (parent, arrKey, items) => update(parent, { ...form[parent], [arrKey]: items });
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 1979 }, (_, i) => currentYear - i);
+  const years = Array.from({ length: currentYear - 1939 }, (_, i) => currentYear - i);
 
-  const SkillBubbleInput = ({ label, field, presets, placeholder }) => {
-    const [customInput, setCustomInput] = useState('');
-    const [showProficiency, setShowProficiency] = useState(null);
-    const selectedItems = form[field] || [];
+  // 선택된 연/월의 실제 일수 (윤년 포함)
+  const daysInSelectedMonth = (() => {
+    const [y, m] = (form.birthDate || '').split('.');
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10);
+    if (!year || !month) return 31;
+    return new Date(year, month, 0).getDate();
+  })();
 
-    const getItemName = (item) => typeof item === 'string' ? item : item.name;
-    const getItemProficiency = (item) => typeof item === 'string' ? 0 : (item.proficiency || 0);
-    const selectedNames = selectedItems.map(getItemName);
-
-    const toggleSkill = (name) => {
-      if (selectedNames.includes(name)) {
-        update(field, selectedItems.filter(item => getItemName(item) !== name));
-      } else {
-        update(field, [...selectedItems, { name, proficiency: 3 }]);
-      }
-    };
-
-    const setProficiency = (name, level) => {
-      update(field, selectedItems.map(item =>
-        getItemName(item) === name
-          ? { name: getItemName(item), proficiency: level }
-          : (typeof item === 'string' ? { name: item, proficiency: 0 } : item)
-      ));
-      setShowProficiency(null);
-    };
-
-    const addCustom = () => {
-      const val = customInput.trim();
-      if (!val || selectedNames.includes(val)) return;
-      update(field, [...selectedItems, { name: val, proficiency: 3 }]);
-      setCustomInput('');
-    };
-
-    return (
-      <div>
-        <p className="mb-2 text-[13px] font-semibold text-bluewood-600">{label}</p>
-
-        {/* 선택된 항목 (수준 설정 가능) */}
-        {selectedItems.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {selectedItems.map((item, i) => {
-              const name = getItemName(item);
-              const prof = getItemProficiency(item);
-              return (
-                <div key={i} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowProficiency(showProficiency === name ? null : name)}
-                    className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-primary-700"
-                  >
-                    {name}
-                    {prof > 0 && (
-                      <span className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map(l => (
-                          <span key={l} className={`h-3 w-1.5 rounded-sm ${l <= prof ? PROFICIENCY_LEVELS[prof - 1].color : 'bg-white/30'}`} />
-                        ))}
-                      </span>
-                    )}
-                    <span
-                      role="button"
-                      onClick={(e) => { e.stopPropagation(); toggleSkill(name); }}
-                      className="ml-0.5 text-white/70 hover:text-white"
-                    >
-                      <X size={12} />
-                    </span>
-                  </button>
-                  {showProficiency === name && (
-                    <div className="absolute left-0 top-full z-20 mt-1 min-w-[150px] rounded-lg border border-surface-200 bg-white p-1.5 shadow-lg">
-                      <p className="mb-1 px-1.5 text-[11px] font-semibold text-bluewood-300">수준 설정</p>
-                      {PROFICIENCY_LEVELS.map(lv => (
-                        <button
-                          key={lv.value}
-                          type="button"
-                          onClick={() => setProficiency(name, lv.value)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] transition-colors hover:bg-surface-50 ${prof === lv.value ? 'bg-primary-50 font-semibold text-primary-700' : 'text-bluewood-500'}`}
-                        >
-                          <span className="flex gap-0.5">
-                            {[1, 2, 3, 4, 5].map(l => (
-                              <span key={l} className={`h-3 w-1.5 rounded-sm ${l <= lv.value ? lv.color : 'bg-gray-200'}`} />
-                            ))}
-                          </span>
-                          {lv.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* 프리셋 칩 */}
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {presets.map(name => {
-            const isSelected = selectedNames.includes(name);
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => toggleSkill(name)}
-                className={`rounded-full border px-2.5 py-1 text-[12.5px] font-medium transition-all ${
-                  isSelected
-                    ? 'border-primary-200 bg-primary-50 text-primary-600'
-                    : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300 hover:text-bluewood-600'
-                }`}
-              >
-                {isSelected && <Check size={11} className="-mt-0.5 mr-0.5 inline" />}
-                {name}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 직접 입력 */}
-        <div className="flex gap-2">
-          <input
-            value={customInput}
-            onChange={e => setCustomInput(e.target.value)}
-            placeholder={placeholder}
-            className={INPUT_CLS}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
-          />
-          <button
-            type="button"
-            onClick={addCustom}
-            className="flex-shrink-0 rounded-lg border border-surface-200 px-4 text-[13px] font-semibold text-bluewood-600 transition-colors hover:bg-surface-50"
-          >
-            추가
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const renderAdditionalSection = (key) => {
     switch (key) {
@@ -578,7 +498,7 @@ export default function ProfileSetup() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[26px] font-extrabold tracking-tight text-bluewood-900">프로필 설정</h1>
-            <p className="mt-1.5 text-[14px] text-bluewood-400">포트폴리오에 자동으로 채워지는 기본 정보예요. <span className="font-semibold text-red-400">*</span> 표시는 필수입니다.</p>
+            <p className="mt-1.5 text-[14px] text-bluewood-400">포트폴리오에 자동으로 채워지는 기본 정보예요. 필수는 이름과 이메일뿐이고, 나머지는 나중에 채워도 됩니다.</p>
           </div>
           {profile && (
             <button
@@ -611,22 +531,22 @@ export default function ProfileSetup() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <Section title="기본 정보" first>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="이름 (한글)" required value={form.nameKo} onChange={v => update('nameKo', v)} placeholder="홍길동" maxLength={20} />
-                <Field label="이름 (영문)" optional value={form.nameEn} onChange={v => update('nameEn', v)} placeholder="Gildong Hong" maxLength={50} />
-                <div className="col-span-2">
-                  <Label required>거주지</Label>
-                  <div className="flex gap-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="이름" name="nameKo" required error={errors.nameKo} value={form.nameKo} onChange={v => update('nameKo', v)} placeholder="홍길동" maxLength={40} />
+                <Field label="이름 (영문)" name="nameEn" optional error={errors.nameEn} value={form.nameEn} onChange={v => update('nameEn', v)} placeholder="Gildong Hong" maxLength={50} />
+                <div className="sm:col-span-2">
+                  <Label>거주지 <span className="font-normal text-bluewood-300">(선택)</span></Label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input type="text" value={form.location || ''} onChange={e => update('location', e.target.value)}
-                      placeholder="주소 검색을 눌러주세요" maxLength={100} className={INPUT_CLS} />
+                      placeholder="예: 서울 강남구 (정확한 주소는 선택)" maxLength={100} className={INPUT_CLS} />
                     <button type="button" onClick={openAddressSearch}
-                      className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-surface-200 px-3.5 text-[13px] font-semibold text-bluewood-600 transition-colors hover:bg-surface-50">
+                      className="flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border border-surface-200 px-3.5 py-2.5 text-[13px] font-semibold text-bluewood-600 transition-colors hover:bg-surface-50">
                       <Search size={14} /> 주소 검색
                     </button>
                   </div>
                 </div>
-                <div>
-                  <Label required>생년월일</Label>
+                <div data-field="birthDate">
+                  <Label>생년월일 <span className="font-normal text-bluewood-300">(선택)</span></Label>
                   <div className="flex gap-1.5">
                     <select value={form.birthDate ? form.birthDate.split('.')[0] : ''}
                       onChange={e => { const y = e.target.value; const parts = (form.birthDate || '').split('.'); const m = parts[1] || '01'; const d = parts[2] || '01'; update('birthDate', y ? `${y}.${m}.${d}` : ''); }}
@@ -644,20 +564,22 @@ export default function ProfileSetup() {
                       onChange={e => { const d = e.target.value; const parts = (form.birthDate || '').split('.'); const y = parts[0] || ''; const m = parts[1] || '01'; update('birthDate', y && m ? `${y}.${m}.${d || '01'}` : ''); }}
                       className={`${SELECT_CLS} flex-[2]`}>
                       <option value="">일</option>
-                      {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{parseInt(d)}일</option>)}
+                      {/* 선택한 연·월에 실제로 있는 날짜만 노출 (2월 31일 같은 선택 방지) */}
+                      {Array.from({ length: daysInSelectedMonth }, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{parseInt(d)}일</option>)}
                     </select>
                   </div>
+                  <FieldError message={errors.birthDate} />
                 </div>
-                <Field label="전화번호" required value={form.phone} onChange={v => update('phone', formatPhone(v))} placeholder="010-0000-0000" maxLength={13} />
-                <div className="col-span-2">
-                  <Field label="이메일" required value={form.email} onChange={v => update('email', v)} placeholder="example@email.com" maxLength={100} />
+                <Field label="전화번호" name="phone" optional error={errors.phone} value={form.phone} onChange={v => update('phone', formatPhone(v))} placeholder="010-0000-0000" maxLength={13} />
+                <div className="sm:col-span-2">
+                  <Field label="이메일" name="email" required error={errors.email} value={form.email} onChange={v => update('email', v)} placeholder="example@email.com" maxLength={100} />
                 </div>
               </div>
             </Section>
           </Card>
 
           <Card>
-            <Section title="학력" required first>
+            <Section title="학력" optional first>
               <div className="space-y-3">
                 {form.education.map((edu, i) => (
                   <div key={i} className="relative rounded-xl border border-surface-200 bg-surface-50/40 p-4">
@@ -667,8 +589,8 @@ export default function ProfileSetup() {
                         <X size={15} />
                       </button>
                     )}
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="학교명" required value={edu.school} onChange={v => updateEducation(i, 'school', v)} placeholder="가천대학교" maxLength={50} />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="학교명" name={`education.${i}.school`} error={errors[`education.${i}.school`]} value={edu.school} onChange={v => updateEducation(i, 'school', v)} placeholder="가천대학교" maxLength={50} />
                       <Field label="전공" value={edu.major} onChange={v => updateEducation(i, 'major', v)} placeholder="컴퓨터공학과" maxLength={50} />
                       <div>
                         <Label>학위/과정</Label>
@@ -705,13 +627,13 @@ export default function ProfileSetup() {
                       className="absolute right-3 top-3 rounded p-1 text-bluewood-300 transition-colors hover:bg-white hover:text-red-400">
                       <X size={15} />
                     </button>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div data-field={`lang.${i}.name`}>
                         <Label>시험명</Label>
                         <select
                           value={LANGUAGE_TEST_OPTIONS.includes(lang.name) ? lang.name : (lang.name ? '__custom__' : '')}
                           onChange={e => updateLang(i, 'name', e.target.value === '__custom__' ? '' : e.target.value)}
-                          className={SELECT_CLS}>
+                          className={errors[`lang.${i}.name`] ? `${INPUT_ERROR_CLS} cursor-pointer appearance-none` : SELECT_CLS}>
                           <option value="">선택</option>
                           {LANGUAGE_TEST_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           <option value="__custom__">직접 입력</option>
@@ -720,8 +642,9 @@ export default function ProfileSetup() {
                           <input value={lang.name} onChange={e => updateLang(i, 'name', e.target.value)}
                             placeholder="시험명 직접 입력" maxLength={30} className={`${INPUT_CLS} mt-2`} />
                         )}
+                        <FieldError message={errors[`lang.${i}.name`]} />
                       </div>
-                      <Field label="점수/등급" value={lang.score} onChange={v => updateLang(i, 'score', v)} placeholder="900" maxLength={20} />
+                      <Field label="점수/등급" name={`lang.${i}.score`} error={errors[`lang.${i}.score`]} value={lang.score} onChange={v => updateLang(i, 'score', v)} placeholder="900" maxLength={20} />
                       <div>
                         <Label>취득일</Label>
                         <input type="month"
@@ -757,7 +680,7 @@ export default function ProfileSetup() {
                     <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600"><Plus size={14} /></span>
                     <span>
                       <span className="block text-[13px] font-semibold text-bluewood-800">{s.label}</span>
-                      <span className="block text-[11px] text-bluewood-300">섹션 세트 추가</span>
+                      <span className="block text-[12px] text-bluewood-300">섹션 세트 추가</span>
                     </span>
                   </button>
                 ))}
@@ -769,123 +692,18 @@ export default function ProfileSetup() {
           <Card>
             <Section title="기술 · 도구" optional first>
               <div className="grid grid-cols-2 gap-x-6 gap-y-6">
-                <SkillBubbleInput label="도구 (Tools)" field="tools" presets={PRESET_TOOLS} placeholder="기타 도구 직접 입력 후 Enter" />
-                <SkillBubbleInput label="프로그래밍 언어" field="programmingLanguages" presets={PRESET_LANGUAGES} placeholder="기타 언어 직접 입력 후 Enter" />
-                <SkillBubbleInput label="프레임워크 · 라이브러리" field="frameworks" presets={PRESET_FRAMEWORKS} placeholder="기타 프레임워크 직접 입력 후 Enter" />
-                <SkillBubbleInput label="기타 역량" field="others" presets={PRESET_OTHERS} placeholder="기타 역량 직접 입력 후 Enter" />
+                <SkillBubbleInput label="도구 (Tools)" field="tools" presets={PRESET_TOOLS} placeholder="기타 도구 직접 입력 후 Enter"
+                  selectedItems={form.tools || []} onChange={items => update('tools', items)} />
+                <SkillBubbleInput label="프로그래밍 언어" field="programmingLanguages" presets={PRESET_LANGUAGES} placeholder="기타 언어 직접 입력 후 Enter"
+                  selectedItems={form.programmingLanguages || []} onChange={items => update('programmingLanguages', items)} />
+                <SkillBubbleInput label="프레임워크 · 라이브러리" field="frameworks" presets={PRESET_FRAMEWORKS} placeholder="기타 프레임워크 직접 입력 후 Enter"
+                  selectedItems={form.frameworks || []} onChange={items => update('frameworks', items)} />
+                <SkillBubbleInput label="기타 역량" field="others" presets={PRESET_OTHERS} placeholder="기타 역량 직접 입력 후 Enter"
+                  selectedItems={form.others || []} onChange={items => update('others', items)} />
               </div>
             </Section>
           </Card>
         </div>
-
-        {/* ── 추가 섹션 (2열 그리드) ── */}
-        {false && activeSections.length > 0 && (
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {activeSections.includes('awards') && (
-              <Card>
-                <Section title="수상" optional first onRemove={() => deactivateSection('awards')}>
-                  <RepeatableRows items={form.awards} onChange={items => update('awards', items)} addLabel="수상 추가" cols={2}
-                    fields={[
-                      { key: 'title', label: '수상명', placeholder: '○○ 공모전 대상' },
-                      { key: 'date', label: '날짜', placeholder: '2024.06' },
-                      { key: 'organization', label: '기관', placeholder: '주최 기관' },
-                      { key: 'description', label: '설명', placeholder: '간단한 설명', full: true },
-                    ]} />
-                </Section>
-              </Card>
-            )}
-
-            {activeSections.includes('goals') && (
-              <Card>
-                <Section title="목표와 계획" optional first onRemove={() => deactivateSection('goals')}>
-                  <RepeatableRows items={form.goals} onChange={items => update('goals', items)} addLabel="목표 추가" cols={1}
-                    fields={[
-                      { key: 'title', label: '목표', placeholder: '예: 3년 내 프로덕트 매니저로 성장' },
-                      { key: 'description', label: '상세 계획', placeholder: '구체적인 실행 계획을 적어주세요', textarea: true, full: true },
-                    ]} />
-                </Section>
-              </Card>
-            )}
-
-            {activeSections.includes('values') && (
-              <Card>
-                <Section title="가치관" optional first onRemove={() => deactivateSection('values')}>
-                  <p className="mb-2 text-[13px] font-semibold text-bluewood-600">중요하게 생각하는 가치</p>
-                  <RepeatableRows items={form.values} onChange={items => update('values', items)} addLabel="가치 추가" cols={1}
-                    fields={[{ key: 'keyword', label: '가치 키워드', placeholder: '예: 성장, 책임감, 협업' }]} />
-                  <div className="mt-4">
-                    <Label>경험과 연결되는 이야기</Label>
-                    <textarea value={form.valuesEssay} onChange={e => update('valuesEssay', e.target.value)}
-                      placeholder="가치관이 드러난 경험을 자유롭게 적어주세요" rows={3} className={INPUT_CLS} />
-                  </div>
-                </Section>
-              </Card>
-            )}
-
-            {activeSections.includes('contact') && (
-              <Card>
-                <Section title="연락처" optional first onRemove={() => deactivateSection('contact')}>
-                  <p className="mb-3 text-[13px] text-bluewood-400">전화번호·이메일은 기본 정보에서 가져옵니다. 추가 링크만 입력해주세요.</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="LinkedIn" value={form.contact.linkedin} onChange={v => update('contact', { ...form.contact, linkedin: v })} placeholder="linkedin.com/in/..." maxLength={150} />
-                    <Field label="GitHub" value={form.contact.github} onChange={v => update('contact', { ...form.contact, github: v })} placeholder="github.com/..." maxLength={150} />
-                    <Field label="Instagram" value={form.contact.instagram} onChange={v => update('contact', { ...form.contact, instagram: v })} placeholder="@username" maxLength={100} />
-                    <Field label="웹사이트" value={form.contact.website} onChange={v => update('contact', { ...form.contact, website: v })} placeholder="https://..." maxLength={150} />
-                  </div>
-                </Section>
-              </Card>
-            )}
-
-            {activeSections.includes('curricular') && (
-              <Card className="lg:col-span-2">
-                <Section title="교과 활동" optional first onRemove={() => deactivateSection('curricular')}>
-                  <div className="mb-4 grid grid-cols-4 gap-3">
-                    <Field label="이수 학점" value={form.curricular.credits} onChange={v => update('curricular', { ...form.curricular, credits: v })} placeholder="120" maxLength={10} />
-                    <Field label="평점 평균" value={form.curricular.gpa} onChange={v => update('curricular', { ...form.curricular, gpa: v })} placeholder="4.0 / 4.5" maxLength={10} />
-                  </div>
-                  <p className="mb-2 text-[13px] font-semibold text-bluewood-600">수강 과목</p>
-                  <RepeatableRows items={form.curricular.courses} onChange={items => updateNestedArr('curricular', 'courses', items)} addLabel="과목 추가" cols={3}
-                    fields={[
-                      { key: 'semester', label: '학기', placeholder: '2023-1' },
-                      { key: 'name', label: '과목명', placeholder: '자료구조' },
-                      { key: 'grade', label: '성적', placeholder: 'A+' },
-                    ]} />
-                </Section>
-              </Card>
-            )}
-
-            {activeSections.includes('extracurricular') && (
-              <Card className="lg:col-span-2">
-                <Section title="비교과 활동" optional first onRemove={() => deactivateSection('extracurricular')}>
-                  <div className="mb-4">
-                    <Label>요약</Label>
-                    <textarea value={form.extracurricular.summary} onChange={e => update('extracurricular', { ...form.extracurricular, summary: e.target.value })}
-                      placeholder="비교과 활동을 한 줄로 요약해주세요" rows={2} className={INPUT_CLS} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-8">
-                    <div>
-                      <p className="mb-2 text-[13px] font-semibold text-bluewood-600">디지털 배지 / 자격</p>
-                      <RepeatableRows items={form.extracurricular.badges} onChange={items => updateNestedArr('extracurricular', 'badges', items)} addLabel="배지 추가" cols={2}
-                        fields={[
-                          { key: 'name', label: '배지명/자격명', placeholder: '정보처리기사' },
-                          { key: 'issuer', label: '발급 기관', placeholder: '한국산업인력공단' },
-                        ]} />
-                    </div>
-                    <div>
-                      <p className="mb-2 text-[13px] font-semibold text-bluewood-600">세부 활동</p>
-                      <RepeatableRows items={form.extracurricular.details} onChange={items => updateNestedArr('extracurricular', 'details', items)} addLabel="활동 추가" cols={2}
-                        fields={[
-                          { key: 'title', label: '활동명', placeholder: '동아리 회장' },
-                          { key: 'period', label: '기간', placeholder: '2023.03 - 2024.02' },
-                          { key: 'description', label: '설명', placeholder: '활동 내용', full: true },
-                        ]} />
-                    </div>
-                  </div>
-                </Section>
-              </Card>
-            )}
-          </div>
-        )}
 
         {/* ── 비밀번호 변경 ── */}
         {isEmailUser && (
@@ -1013,18 +831,18 @@ function Label({ children, required }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder, required, optional, maxLength }) {
+function Field({ label, value, onChange, placeholder, required, optional, maxLength, error, name }) {
   const len = (value || '').length;
   const near = maxLength && len >= maxLength * 0.9;
   return (
-    <div>
+    <div data-field={name}>
       <div className="mb-1.5 flex items-center justify-between">
         <label className="block text-[13px] font-semibold text-bluewood-600">
           {label} {required && <span className="text-red-400">*</span>}
           {optional && <span className="font-normal text-bluewood-300"> (선택)</span>}
         </label>
         {maxLength && near && (
-          <span className={`text-[11px] tabular-nums ${len >= maxLength ? 'font-semibold text-red-400' : 'text-amber-500'}`}>{len}/{maxLength}</span>
+          <span className={`text-[12px] tabular-nums ${len >= maxLength ? 'font-semibold text-red-400' : 'text-amber-500'}`}>{len}/{maxLength}</span>
         )}
       </div>
       <input
@@ -1033,8 +851,160 @@ function Field({ label, value, onChange, placeholder, required, optional, maxLen
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
-        className={INPUT_CLS}
+        aria-invalid={error ? 'true' : undefined}
+        className={error ? INPUT_ERROR_CLS : INPUT_CLS}
       />
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+/* 필드 아래 인라인 오류 — 토스트와 달리 사라지지 않고 위치를 정확히 알려준다 */
+function FieldError({ message }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="mt-1.5 flex items-start gap-1 text-[12px] font-medium leading-4 text-red-500">
+      <AlertCircle size={13} className="mt-px flex-shrink-0" />
+      {message}
+    </p>
+  );
+}
+
+/* 기술·도구 선택 입력.
+   [주의] 이 컴포넌트는 반드시 최상위에 있어야 한다.
+   예전엔 ProfileSetup 내부에 정의돼 있어서, 부모가 리렌더될 때마다 컴포넌트 타입이
+   새로 만들어지고 → React가 언마운트/재마운트 → 직접 입력 중이던 텍스트와
+   숙련도 팝오버 상태가 날아갔다. (프리셋 칩을 누르면 입력칸이 비워지던 증상) */
+function SkillBubbleInput({ label, field, presets, placeholder, selectedItems, onChange }) {
+  const [customInput, setCustomInput] = useState('');
+  const [showProficiency, setShowProficiency] = useState(null);
+
+  const getItemName = (item) => typeof item === 'string' ? item : item.name;
+  const getItemProficiency = (item) => typeof item === 'string' ? 0 : (item.proficiency || 0);
+  const selectedNames = selectedItems.map(getItemName);
+
+  const toggleSkill = (name) => {
+    if (selectedNames.includes(name)) {
+      onChange(selectedItems.filter(item => getItemName(item) !== name));
+    } else {
+      onChange([...selectedItems, { name, proficiency: 3 }]);
+    }
+  };
+
+  const setProficiency = (name, level) => {
+    onChange(selectedItems.map(item =>
+      getItemName(item) === name
+        ? { name: getItemName(item), proficiency: level }
+        : (typeof item === 'string' ? { name: item, proficiency: 0 } : item)
+    ));
+    setShowProficiency(null);
+  };
+
+  const addCustom = () => {
+    const val = customInput.trim();
+    if (!val || selectedNames.includes(val)) return;
+    onChange([...selectedItems, { name: val, proficiency: 3 }]);
+    setCustomInput('');
+  };
+
+  return (
+    <div>
+      <p className="mb-2 text-[13px] font-semibold text-bluewood-600">{label}</p>
+
+      {/* 선택된 항목 (수준 설정 가능) */}
+      {selectedItems.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {selectedItems.map((item, i) => {
+            const name = getItemName(item);
+            const prof = getItemProficiency(item);
+            return (
+              <div key={i} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowProficiency(showProficiency === name ? null : name)}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-primary-700"
+                >
+                  {name}
+                  {prof > 0 && (
+                    <span className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(l => (
+                        <span key={l} className={`h-3 w-1.5 rounded-sm ${l <= prof ? PROFICIENCY_LEVELS[prof - 1].color : 'bg-white/30'}`} />
+                      ))}
+                    </span>
+                  )}
+                  <span
+                    role="button"
+                    onClick={(e) => { e.stopPropagation(); toggleSkill(name); }}
+                    className="ml-0.5 text-white/70 hover:text-white"
+                  >
+                    <X size={12} />
+                  </span>
+                </button>
+                {showProficiency === name && (
+                  <div className="absolute left-0 top-full z-20 mt-1 min-w-[150px] rounded-lg border border-surface-200 bg-white p-1.5 shadow-lg">
+                    <p className="mb-1 px-1.5 text-[12px] font-semibold text-bluewood-300">수준 설정</p>
+                    {PROFICIENCY_LEVELS.map(lv => (
+                      <button
+                        key={lv.value}
+                        type="button"
+                        onClick={() => setProficiency(name, lv.value)}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] transition-colors hover:bg-surface-50 ${prof === lv.value ? 'bg-primary-50 font-semibold text-primary-700' : 'text-bluewood-500'}`}
+                      >
+                        <span className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map(l => (
+                            <span key={l} className={`h-3 w-1.5 rounded-sm ${l <= lv.value ? lv.color : 'bg-gray-200'}`} />
+                          ))}
+                        </span>
+                        {lv.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 프리셋 칩 */}
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {presets.map(name => {
+          const isSelected = selectedNames.includes(name);
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => toggleSkill(name)}
+              className={`rounded-full border px-2.5 py-1 text-[12.5px] font-medium transition-all ${
+                isSelected
+                  ? 'border-primary-200 bg-primary-50 text-primary-600'
+                  : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300 hover:text-bluewood-600'
+              }`}
+            >
+              {isSelected && <Check size={11} className="-mt-0.5 mr-0.5 inline" />}
+              {name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 직접 입력 */}
+      <div className="flex gap-2">
+        <input
+          value={customInput}
+          onChange={e => setCustomInput(e.target.value)}
+          placeholder={placeholder}
+          className={INPUT_CLS}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          className="flex-shrink-0 rounded-lg border border-surface-200 px-4 text-[13px] font-semibold text-bluewood-600 transition-colors hover:bg-surface-50"
+        >
+          추가
+        </button>
+      </div>
     </div>
   );
 }

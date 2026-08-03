@@ -37,6 +37,7 @@ import MissingFieldsPanel from '../../components/MissingFieldsPanel';
 import InterviewPrepPanel from '../../components/InterviewPrepPanel';
 import OnePagerPanel from '../../components/OnePagerPanel';
 import { collectMissingFields } from '../../utils/missingFields';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
 const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
@@ -473,7 +474,7 @@ function ResizableFigure({ src, width, onWidth, onReplace, onDelete }) {
       <div onMouseDown={start('br')} className={`${corner} bottom-0 right-0 cursor-nwse-resize`} style={{ background: 'radial-gradient(circle at 100% 100%, rgba(0,47,108,0.85) 40%, transparent 70%)' }} />
       <div onMouseDown={start('ml')} className={`${side} left-0 cursor-ew-resize rounded-l`} style={{ background: 'rgba(0,47,108,0.45)' }} />
       <div onMouseDown={start('mr')} className={`${side} right-0 cursor-ew-resize rounded-r`} style={{ background: 'rgba(0,47,108,0.45)' }} />
-      <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/50 px-1.5 py-0.5 text-[11px] text-white opacity-0 transition-opacity group-hover/img:opacity-100">{width || '100%'}</div>
+      <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/50 px-1.5 py-0.5 text-[12px] text-white opacity-0 transition-opacity group-hover/img:opacity-100">{width || '100%'}</div>
     </div>
   );
 }
@@ -546,11 +547,11 @@ function CaseBody({ body, onChange }) {
                 />
                 <div className="mt-0.5 flex items-center gap-2 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
                   <button type="button" onClick={() => update(i, { variant: seg.variant === 'heading' ? 'paragraph' : 'heading' })}
-                    className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:bg-surface-100">
+                    className="rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-400 hover:bg-surface-100">
                     {seg.variant === 'heading' ? '본문으로' : '제목으로'}
                   </button>
                   {body.length > 1 && (
-                    <button type="button" onClick={() => removeAt(i)} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+                    <button type="button" onClick={() => removeAt(i)} className="rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
                   )}
                 </div>
               </div>
@@ -565,8 +566,8 @@ function CaseBody({ body, onChange }) {
             )}
 
             <div className="mt-1 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/row:opacity-100">
-              <button type="button" onClick={() => insertAfter(i, textSeg('', 'paragraph'))} className="rounded-md border border-surface-200 px-2 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 텍스트</button>
-              <button type="button" onClick={() => addImage(i)} className="rounded-md border border-surface-200 px-2 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
+              <button type="button" onClick={() => insertAfter(i, textSeg('', 'paragraph'))} className="rounded-md border border-surface-200 px-2 py-0.5 text-[12px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 텍스트</button>
+              <button type="button" onClick={() => addImage(i)} className="rounded-md border border-surface-200 px-2 py-0.5 text-[12px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
             </div>
           </div>
         </div>
@@ -719,7 +720,7 @@ function CommitGrass({ days }) {
             {/* 요일 라벨 (월·수·금) */}
             <div className="flex flex-shrink-0 flex-col" style={{ gap: GRASS_GAP, width: 26 - GRASS_GAP }}>
               {['', '월', '', '수', '', '금', ''].map((lb, i) => (
-                <span key={i} className="pr-1 text-right text-[9px] text-bluewood-300" style={{ height: GRASS_CELL, lineHeight: `${GRASS_CELL}px` }}>{lb}</span>
+                <span key={i} className="pr-1 text-right text-[10.5px] text-bluewood-300" style={{ height: GRASS_CELL, lineHeight: `${GRASS_CELL}px` }}>{lb}</span>
               ))}
             </div>
             {/* 주 열 × 요일 행 */}
@@ -747,8 +748,8 @@ function CommitGrass({ days }) {
       </div>
       {/* 근거 + 범례 */}
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10.5px] text-bluewood-300">분석된 최근 커밋 {total}개 기준</span>
-        <span className="flex items-center gap-1 text-[10px] text-bluewood-300">
+        <span className="text-[11.5px] text-bluewood-300">분석된 최근 커밋 {total}개 기준</span>
+        <span className="flex items-center gap-1 text-[11.5px] text-bluewood-300">
           적음
           {GRASS_COLORS.map((c, i) => (
             <span key={i} className="rounded-[2px]" style={{ width: GRASS_CELL, height: GRASS_CELL, backgroundColor: c }} />
@@ -803,7 +804,7 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className={MICRO_LABEL}>기여도 · 영향력</h3>
         {stats.activePeriod && (
-          <span className="text-[11px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span>
+          <span className="text-[12px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span>
         )}
       </div>
 
@@ -816,12 +817,12 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
         {pct > 0 && (
           <div>
             <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{stats.myCommits ?? '—'}<span className="text-[13px] font-semibold text-bluewood-400"> / {stats.totalCommits || '—'}</span></p>
-            <p className="mt-1.5 text-[11px] text-bluewood-400">내 커밋 / 전체</p>
+            <p className="mt-1.5 text-[12px] text-bluewood-400">내 커밋 / 전체</p>
           </div>
         )}
         <div>
           <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{role || '—'}</p>
-          <p className="mt-1.5 text-[11px] text-bluewood-400">주 역할</p>
+          <p className="mt-1.5 text-[12px] text-bluewood-400">주 역할</p>
         </div>
       </div>
 
@@ -831,7 +832,7 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface-100">
             <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: ACCENT }} />
           </div>
-          <p className="mt-1.5 text-[11px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
+          <p className="mt-1.5 text-[12px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
         </div>
       )}
 
@@ -857,7 +858,7 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
       {/* 커밋 잔디 — 언제 얼마나 꾸준히 기여했는지 (GitHub 컨트리뷰션 그래프) */}
       {grassDays.length > 0 && (
         <div className="mt-6">
-          <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">커밋 활동</p>
+          <p className="mb-2.5 text-[12px] font-bold text-bluewood-400">커밋 활동</p>
           <CommitGrass days={grassDays} />
         </div>
       )}
@@ -865,7 +866,7 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
       {/* 커밋 유형 분포 — 무슨 일을 주로 했는지 (feat/fix/refactor …) */}
       {types.length > 0 && (
         <div className="mt-6">
-          <p className="mb-2 text-[11px] font-bold text-bluewood-400">커밋 유형</p>
+          <p className="mb-2 text-[12px] font-bold text-bluewood-400">커밋 유형</p>
           <div className="space-y-1.5">
             {types.map((t, i) => (
               <div key={i} className="flex items-center gap-2.5 text-[11.5px]">
@@ -883,7 +884,7 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
       {/* 핵심 역할 — 이 개발에서 내가 맡아 해결한 작업 포인트 (git 경험 요약) */}
       {rolePoints.length > 0 && (
         <div className="mt-6">
-          <p className="mb-2 text-[11px] font-bold text-bluewood-400">핵심 역할</p>
+          <p className="mb-2 text-[12px] font-bold text-bluewood-400">핵심 역할</p>
           <ul className="space-y-1.5">
             {rolePoints.map((p, i) => (
               <li key={i} className="flex gap-2 text-[12px] leading-[1.5] text-bluewood-600">
@@ -896,22 +897,22 @@ function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
       )}
       {onChange && (
         <details className="mt-6 rounded-xl border border-primary-100 bg-primary-50/35 print:hidden">
-          <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-primary-600">기여도·언어·커밋 유형 전체 편집</summary>
+          <summary className="cursor-pointer px-3 py-2 text-[12px] font-bold text-primary-600">기여도·언어·커밋 유형 전체 편집</summary>
           <div className="space-y-4 border-t border-primary-100 p-3">
             <div className="grid grid-cols-2 gap-2">
               {[
                 ['myCommits', '내 커밋'], ['totalCommits', '전체 커밋'], ['contributionPct', '기여 비중(%)'], ['rank', '기여 순위'],
-              ].map(([key, label]) => <label key={key} className="text-[10.5px] font-bold text-bluewood-400">{label}<input type="number" value={stats[key] || 0} onChange={e => onChange({ ...stats, [key]: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>)}
-              <label className="text-[10.5px] font-bold text-bluewood-400">활동 시작일<input value={stats.activePeriod?.first || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), first: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
-              <label className="text-[10.5px] font-bold text-bluewood-400">활동 종료일<input value={stats.activePeriod?.last || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), last: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
+              ].map(([key, label]) => <label key={key} className="text-[11.5px] font-bold text-bluewood-400">{label}<input type="number" value={stats[key] || 0} onChange={e => onChange({ ...stats, [key]: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>)}
+              <label className="text-[11.5px] font-bold text-bluewood-400">활동 시작일<input value={stats.activePeriod?.first || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), first: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
+              <label className="text-[11.5px] font-bold text-bluewood-400">활동 종료일<input value={stats.activePeriod?.last || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), last: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between"><span className="text-[10.5px] font-bold text-bluewood-400">언어 구성</span><button type="button" onClick={() => onChange({ ...stats, languages: [...langs, { name: '', pct: 0 }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-1.5">{langs.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.name || ''} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, name: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><input type="number" value={item.pct || 0} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, pct: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><button type="button" onClick={() => onChange({ ...stats, languages: langs.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-1.5 flex items-center justify-between"><span className="text-[11.5px] font-bold text-bluewood-400">언어 구성</span><button type="button" onClick={() => onChange({ ...stats, languages: [...langs, { name: '', pct: 0 }] })} className="text-[11.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-1.5">{langs.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.name || ''} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, name: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[12px]" /><input type="number" value={item.pct || 0} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, pct: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[12px]" /><button type="button" onClick={() => onChange({ ...stats, languages: langs.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between"><span className="text-[10.5px] font-bold text-bluewood-400">커밋 유형</span><button type="button" onClick={() => onChange({ ...stats, commitTypes: [...types, { type: '', count: 0 }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-1.5">{types.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.type || ''} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, type: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><input type="number" value={item.count || 0} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, count: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><button type="button" onClick={() => onChange({ ...stats, commitTypes: types.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-1.5 flex items-center justify-between"><span className="text-[11.5px] font-bold text-bluewood-400">커밋 유형</span><button type="button" onClick={() => onChange({ ...stats, commitTypes: [...types, { type: '', count: 0 }] })} className="text-[11.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-1.5">{types.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.type || ''} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, type: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[12px]" /><input type="number" value={item.count || 0} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, count: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[12px]" /><button type="button" onClick={() => onChange({ ...stats, commitTypes: types.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
           </div>
         </details>
@@ -930,7 +931,7 @@ function EditableCodeWindow({ file, code, onPatch }) {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="absolute right-2 top-1.5 hidden rounded border border-[#30363d] bg-[#161b22] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#8b949e] hover:text-white group-hover/cw:block"
+          className="absolute right-2 top-1.5 hidden rounded border border-[#30363d] bg-[#161b22] px-1.5 py-0.5 font-mono text-[11.5px] font-semibold text-[#8b949e] hover:text-white group-hover/cw:block"
         >수정</button>
       </div>
     );
@@ -942,9 +943,9 @@ function EditableCodeWindow({ file, code, onPatch }) {
           value={file || ''}
           onChange={e => onPatch({ file: e.target.value })}
           placeholder="파일 경로 (예: src/auth/middleware.ts)"
-          className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-[#e6edf3] outline-none placeholder:text-[#4d5566]"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#e6edf3] outline-none placeholder:text-[#4d5566]"
         />
-        <button type="button" onClick={() => setEditing(false)} className="flex-shrink-0 rounded bg-primary-600 px-2 py-0.5 text-[10.5px] font-bold text-white hover:bg-primary-500">완료</button>
+        <button type="button" onClick={() => setEditing(false)} className="flex-shrink-0 rounded bg-primary-600 px-2 py-0.5 text-[11.5px] font-bold text-white hover:bg-primary-500">완료</button>
       </div>
       <textarea
         autoFocus
@@ -963,7 +964,7 @@ function EditableCodeWindow({ file, code, onPatch }) {
 function GitListEdit({ label, color, value, onChange, placeholder }) {
   return (
     <div>
-      <p className="mb-0.5 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <p className="mb-0.5 text-[12px] font-bold" style={{ color }}>{label}</p>
       <AutoText
         dense
         value={value}
@@ -1000,7 +1001,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
       {open ? (
         /* ── 펼침: 편집 가능한 헤더 (번호 + 제목) ── */
         <div className="flex items-start gap-2.5 pt-2.5 pb-1">
-          <span className="mt-0.5 flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <span className="mt-0.5 flex flex-shrink-0 items-center justify-center rounded text-[11.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
           <div className="min-w-0 flex-1">
             <AutoText
               prose
@@ -1015,7 +1016,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
                   value={exp.period || ''}
                   onChange={(v) => onPatch({ period: v })}
                   placeholder="기간 (예: 2026.05 ~ 2026.07)"
-                  className="text-[11px] text-bluewood-400"
+                  className="text-[12px] text-bluewood-400"
                 />
               </div>
               <div className="min-w-0 flex-1">
@@ -1023,13 +1024,13 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
                   value={exp.core_tech_stack || ''}
                   onChange={(v) => onPatch({ core_tech_stack: v })}
                   placeholder="기술 태그 (쉼표로 구분)"
-                  className="text-[11px] text-bluewood-500"
+                  className="text-[12px] text-bluewood-500"
                 />
               </div>
             </div>
           </div>
           <div className="flex flex-shrink-0 items-center gap-1">
-            <button type="button" onClick={onDelete} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+            <button type="button" onClick={onDelete} className="rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
             <button
               type="button"
               onClick={onToggle}
@@ -1045,7 +1046,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
       ) : (
         /* ── 접힘: 행 전체 클릭 · 컴팩트 ── */
         <button type="button" onClick={onToggle} aria-expanded={false} className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-          <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <span className="flex flex-shrink-0 items-center justify-center rounded text-[11.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[14.5px] font-extrabold leading-snug text-bluewood-900">{title}</p>
             {problemLine ? (
@@ -1060,7 +1061,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
           </div>
           {/* 접힘 상태에서도 깊이가 보이도록 — 코드·픽스 카운트 */}
           {(snippets.length > 0 || troubleSnippets.length > 0 || trouble.length > 0) && (
-            <span className="hidden flex-shrink-0 items-center gap-1.5 font-mono text-[10px] sm:flex">
+            <span className="hidden flex-shrink-0 items-center gap-1.5 font-mono text-[11.5px] sm:flex">
               {snippets.length > 0 && <span className="rounded border border-surface-200 bg-surface-50 px-1.5 py-0.5 text-bluewood-400">{'</>'} {snippets.length}</span>}
               {(troubleSnippets.length > 0 || trouble.length > 0) && <span className="rounded px-1.5 py-0.5 font-semibold" style={{ color: '#b45309', backgroundColor: '#fef7ec' }}>fix {troubleSnippets.length || trouble.length}</span>}
             </span>
@@ -1078,7 +1079,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
 
           {/* 성과 — 접힘 요약·하이라이트와 동기화 */}
           <div className="flex items-baseline gap-2">
-            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
+            <span className="flex-shrink-0 text-[11.5px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
             <AutoText
               dense
               value={exp.core_impact || ''}
@@ -1091,7 +1092,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
           {/* 코드 변경 — 파일·코드·설명 모두 편집 가능 */}
           {snippets.length > 0 ? (
             <div>
-              <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
+              <p className="mb-1.5 text-[12px] font-bold text-bluewood-700">코드 변경</p>
               {exp.code_snippets.map((s, i) => (
                 (s && (s.code || s.why || s.file)) ? (
                   <div key={i} className="mb-3">
@@ -1114,7 +1115,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
           {/* 트러블슈팅 — 이슈·파일·코드·해결 설명 편집 가능 */}
           {troubleSnippets.length > 0 ? (
             <div>
-              <p className="mb-1.5 text-[11px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
+              <p className="mb-1.5 text-[12px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
               {exp.troubleshooting_snippets.map((s, i) => (
                 (s && (s.code || s.solution || s.issue)) ? (
                   <div key={i} className="mb-3">
@@ -1461,15 +1462,15 @@ function ProductFacts({ exp, onChange }) {
       {rows.length > 0 && <Table label="핵심 기능" rowsData={rows} />}
       {onChange && (
         <details className="rounded-xl border border-primary-100 bg-primary-50/35 print:hidden">
-          <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-primary-600">주요 성과·핵심 기능 전체 편집</summary>
+          <summary className="cursor-pointer px-3 py-2 text-[12px] font-bold text-primary-600">주요 성과·핵심 기능 전체 편집</summary>
           <div className="space-y-4 border-t border-primary-100 p-3">
             <div>
-              <div className="mb-2 flex items-center justify-between"><p className="text-[10.5px] font-bold text-bluewood-500">주요 성과</p><button type="button" onClick={() => onChange({ ...product, outcomes: [...(product.outcomes || []), { label: '', value: '' }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-2">{(product.outcomes || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><AutoText dense value={item.label || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, label: value } : row) })} placeholder="성과명" className="text-[11.5px]" /><AutoText dense value={item.value || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, value } : row) })} placeholder="결과·수치" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, outcomes: product.outcomes.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[11.5px] font-bold text-bluewood-500">주요 성과</p><button type="button" onClick={() => onChange({ ...product, outcomes: [...(product.outcomes || []), { label: '', value: '' }] })} className="text-[11.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(product.outcomes || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><AutoText dense value={item.label || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, label: value } : row) })} placeholder="성과명" className="text-[11.5px]" /><AutoText dense value={item.value || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, value } : row) })} placeholder="결과·수치" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, outcomes: product.outcomes.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
             <div>
-              <div className="mb-2 flex items-center justify-between"><p className="text-[10.5px] font-bold text-bluewood-500">핵심 기능</p><button type="button" onClick={() => onChange({ ...product, features: [...(product.features || []), { name: '', desc: '' }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
-              <div className="space-y-2">{(product.features || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[0.8fr_1.5fr_auto]"><AutoText dense value={item.name || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, name: value } : row) })} placeholder="기능명" className="text-[11.5px]" /><AutoText dense value={item.desc || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, desc: value } : row) })} placeholder="기능 설명" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, features: product.features.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[11.5px] font-bold text-bluewood-500">핵심 기능</p><button type="button" onClick={() => onChange({ ...product, features: [...(product.features || []), { name: '', desc: '' }] })} className="text-[11.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(product.features || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[0.8fr_1.5fr_auto]"><AutoText dense value={item.name || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, name: value } : row) })} placeholder="기능명" className="text-[11.5px]" /><AutoText dense value={item.desc || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, desc: value } : row) })} placeholder="기능 설명" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, features: product.features.filter((_, i) => i !== index) })} className="text-[11.5px] font-bold text-red-400">삭제</button></div>)}</div>
             </div>
           </div>
         </details>
@@ -1574,7 +1575,7 @@ function OverviewDoc({ value, seed, onChange }) {
     <div>
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <h3 className={MICRO_LABEL}>프로젝트 소개</h3>
-        <span className="text-[11px] text-bluewood-300">{isSeed ? '내용 기반 자동 초안 · ' : ''}노션형 편집 · 우클릭 서식</span>
+        <span className="text-[12px] text-bluewood-300">{isSeed ? '내용 기반 자동 초안 · ' : ''}노션형 편집 · 우클릭 서식</span>
       </div>
       <div className="rounded-lg border border-transparent px-1 py-1 transition-colors hover:border-surface-100 hover:bg-surface-50/40">
         <YooptaMiniEditor
@@ -1642,6 +1643,7 @@ function ContextMenuHost() {
 
 /* ── 개발 임팩트 — 케이스 스터디의 개발 직군 구조: README → 아키텍처 → 문제 해결 (기여도 통계는 좌측 사이드바로 이동) ── */
 function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
+  const [pendingGitDelete, setPendingGitDelete] = useState(null);   // 삭제 확인 대기 인덱스
   const [connectOpen, setConnectOpen] = useState(false);
   const [openProjects, setOpenProjects] = useState([0]); // 첫 항목은 펼친 상태로
 
@@ -1706,8 +1708,12 @@ function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
       },
     });
   };
-  const deleteGitExp = (i) => {
-    if (!window.confirm('이 문제 해결 항목을 삭제할까요?')) return;
+  const deleteGitExp = (i) => setPendingGitDelete(i);
+
+  const confirmDeleteGitExp = () => {
+    const i = pendingGitDelete;
+    setPendingGitDelete(null);
+    if (i === null) return;
     const experiences = displayDevExps.filter((_, ei) => ei !== i);
     onPatchSr({
       ...sr,
@@ -1787,6 +1793,16 @@ function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
 
   return (
     <>
+      <ConfirmDialog
+        open={pendingGitDelete !== null}
+        tone="danger"
+        title="이 문제 해결 항목을 삭제할까요?"
+        message="작성한 내용이 사라지고 되돌릴 수 없어요."
+        confirmLabel="삭제"
+        cancelLabel="그대로 두기"
+        onCancel={() => setPendingGitDelete(null)}
+        onConfirm={confirmDeleteGitExp}
+      />
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h2>
         {hasGit ? (
@@ -1846,14 +1862,14 @@ function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
                   </div>
                   {editDiagram ? (
                     <span className="flex items-center gap-1.5">
-                      <button type="button" onClick={addNode} className="rounded-md border border-dashed border-primary-300 px-2 py-0.5 text-[11px] font-semibold text-primary-600 hover:bg-primary-50 transition-colors">＋ 박스</button>
-                      <button type="button" onClick={saveDiagramEdit} className="rounded-md bg-primary-600 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors">완료</button>
-                      <button type="button" onClick={() => setEditDiagram(false)} className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">취소</button>
+                      <button type="button" onClick={addNode} className="rounded-md border border-dashed border-primary-300 px-2 py-0.5 text-[12px] font-semibold text-primary-600 hover:bg-primary-50 transition-colors">＋ 박스</button>
+                      <button type="button" onClick={saveDiagramEdit} className="rounded-md bg-primary-600 px-2.5 py-0.5 text-[12px] font-bold text-white hover:bg-primary-700 transition-colors">완료</button>
+                      <button type="button" onClick={() => setEditDiagram(false)} className="rounded-md px-2 py-0.5 text-[12px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">취소</button>
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      {!isFlow && !savedSystem && activeDiagram && <span className="text-[11px] text-bluewood-300">기술 스택 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
-                      {isFlow && !savedFlow && activeDiagram && <span className="text-[11px] text-bluewood-300">핵심 경험 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
+                      {!isFlow && !savedSystem && activeDiagram && <span className="text-[12px] text-bluewood-300">기술 스택 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
+                      {isFlow && !savedFlow && activeDiagram && <span className="text-[12px] text-bluewood-300">핵심 경험 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
                       {activeDiagram && <button type="button" onClick={enterEditDiagram} className="text-[11.5px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">{isFlow ? '흐름 편집' : '구조 편집'}</button>}
                     </span>
                   )}
@@ -1873,7 +1889,7 @@ function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
                       onRemoveEdge={removeEdge}
                       onConnect={connectNodes}
                     />
-                    <p className="mt-1.5 text-[11px] text-bluewood-300">박스를 드래그해 배치하고, 파란 포트를 다른 박스로 끌어 연결하세요 · ‘완료’ 후 상단 저장으로 반영됩니다</p>
+                    <p className="mt-1.5 text-[12px] text-bluewood-300">박스를 드래그해 배치하고, 파란 포트를 다른 박스로 끌어 연결하세요 · ‘완료’ 후 상단 저장으로 반영됩니다</p>
                   </>
                 ) : activeDiagram ? (
                   <ArchitectureDiagram diagram={activeDiagram} />
@@ -1999,10 +2015,10 @@ function CommonLegacyDoc({
               <div key={k.id} className="py-7 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                    <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
+                    <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[12px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
                     <AutoText prose value={k.title} onChange={(v) => setKeyExp(k.id, 'title', v)} placeholder={`핵심 경험 ${i + 1}`} className="text-[20px] sm:text-[22px] font-extrabold leading-snug text-bluewood-900" />
                   </div>
-                  <button type="button" onClick={() => removeKeyExp(k.id)} className="mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+                  <button type="button" onClick={() => removeKeyExp(k.id)} className="mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
                 </div>
                 <div className="mt-3 flex items-baseline gap-3">
                   <span className="w-[56px] flex-shrink-0 pt-1.5 text-[13px] font-bold" style={{ color: ACCENT }}>성과</span>
@@ -2207,9 +2223,9 @@ function LeanCanvas({ product, patchProduct, canvas, patchCanvas, goals, kpis, o
       <div className="mb-4 bg-[#3d5262] px-5 py-3.5 text-center text-white">
         <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1">
           <h2 className="text-[21px] font-bold tracking-tight sm:text-[24px]">리너 캔버스</h2>
-          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
+          <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
         </div>
-        <p className="mt-1 text-[10.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
+        <p className="mt-1 text-[11.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
       </div>
       <div className="grid border-[4px] border-[#3d5262] bg-[#3d5262] gap-[4px] sm:grid-cols-3">
         <div className="grid gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">
@@ -2250,7 +2266,7 @@ function LeanCanvas({ product, patchProduct, canvas, patchCanvas, goals, kpis, o
           </CanvasCell>
         </div>
       </div>
-      <p className="mt-2 text-[10.5px] text-bluewood-300 print:hidden">칸을 눌러 내용을 편집할 수 있으며, 핵심지표는 검증 데이터와 자동 연결됩니다.</p>
+      <p className="mt-2 text-[11.5px] text-bluewood-300 print:hidden">칸을 눌러 내용을 편집할 수 있으며, 핵심지표는 검증 데이터와 자동 연결됩니다.</p>
     </section>
   );
 }
@@ -2270,7 +2286,7 @@ function TimelineEditableText({ value, onChange, placeholder, className = '' }) 
           onChange={onChange}
           onBlur={() => setEditing(false)}
           placeholder={placeholder}
-          className="text-[10.5px] leading-[1.55] text-bluewood-600"
+          className="text-[11.5px] leading-[1.55] text-bluewood-600"
         />
       </div>
     );
@@ -2385,7 +2401,7 @@ function PmServiceTimeline({ cs, sr, onPatchSr }) {
           <button
             type="button"
             onClick={() => setEditingLayout(v => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold transition-colors print:hidden ${editingLayout ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition-colors print:hidden ${editingLayout ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}
           >
             <SlidersHorizontal size={12} />{editingLayout ? '편집 닫기' : '전체 편집'}
           </button>
@@ -2411,8 +2427,8 @@ function PmServiceTimeline({ cs, sr, onPatchSr }) {
               />
             </div>
             <div className="flex gap-1.5">
-              <button type="button" onClick={resetTimeline} className="inline-flex items-center gap-1 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[10px] font-bold text-bluewood-400 hover:text-bluewood-700"><RotateCcw size={11} />자동 구성</button>
-              <button type="button" onClick={addItem} disabled={items.length >= 8} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-[10px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: ACCENT }}><Plus size={11} />단계 추가</button>
+              <button type="button" onClick={resetTimeline} className="inline-flex items-center gap-1 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[11.5px] font-bold text-bluewood-400 hover:text-bluewood-700"><RotateCcw size={11} />자동 구성</button>
+              <button type="button" onClick={addItem} disabled={items.length >= 8} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-[11.5px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: ACCENT }}><Plus size={11} />단계 추가</button>
             </div>
           </div>
 
@@ -2420,14 +2436,14 @@ function PmServiceTimeline({ cs, sr, onPatchSr }) {
             {items.map((item, i) => (
               <div key={`editor-${i}`} className="grid items-start gap-2 rounded-xl border border-surface-200 bg-white p-2.5 lg:grid-cols-[32px_105px_125px_minmax(180px,1fr)_72px]">
                 <input type="color" value={item.color} onChange={e => patchItem(i, { color: e.target.value })} title="포인트 색상" className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
-                <select value={item.iconKey} onChange={e => patchItem(i, { iconKey: e.target.value })} className="h-8 rounded-md border border-surface-200 bg-white px-2 text-[10.5px] font-semibold text-bluewood-500 outline-none focus:border-primary-300">
+                <select value={item.iconKey} onChange={e => patchItem(i, { iconKey: e.target.value })} className="h-8 rounded-md border border-surface-200 bg-white px-2 text-[11.5px] font-semibold text-bluewood-500 outline-none focus:border-primary-300">
                   {TIMELINE_ICON_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 </select>
                 <div className="grid gap-1">
                   <input value={item.phase} onChange={e => patchItem(i, { phase: e.target.value })} placeholder="영문 라벨" className="rounded-md border border-surface-200 px-2 py-1 text-[9.5px] font-mono text-bluewood-400 outline-none focus:border-primary-300" />
-                  <input value={item.label} onChange={e => patchItem(i, { label: e.target.value })} placeholder="단계 제목" className="rounded-md border border-surface-200 px-2 py-1 text-[11px] font-bold text-bluewood-800 outline-none focus:border-primary-300" />
+                  <input value={item.label} onChange={e => patchItem(i, { label: e.target.value })} placeholder="단계 제목" className="rounded-md border border-surface-200 px-2 py-1 text-[12px] font-bold text-bluewood-800 outline-none focus:border-primary-300" />
                 </div>
-                <AutoText dense value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} className="text-[11px] leading-[1.5] text-bluewood-600" />
+                <AutoText dense value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} className="text-[12px] leading-[1.5] text-bluewood-600" />
                 <div className="flex justify-end gap-1">
                   <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0} title="앞으로" className="rounded-md p-1.5 text-bluewood-400 hover:bg-surface-100 disabled:opacity-25"><ChevronUp size={13} /></button>
                   <button type="button" onClick={() => moveItem(i, 1)} disabled={i === items.length - 1} title="뒤로" className="rounded-md p-1.5 text-bluewood-400 hover:bg-surface-100 disabled:opacity-25"><ChevronDown size={13} /></button>
@@ -2464,7 +2480,7 @@ function PmServiceTimeline({ cs, sr, onPatchSr }) {
                   <Icon size={11} strokeWidth={1.7} style={{ color: item.color }} />
                   <p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p>
                 </div>
-                <p className="mt-0.5 text-[10.5px] font-black leading-tight text-bluewood-900">{item.label}</p>
+                <p className="mt-0.5 text-[11.5px] font-black leading-tight text-bluewood-900">{item.label}</p>
                 <TimelineEditableText value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} />
               </div>
             </div>
@@ -2545,11 +2561,11 @@ function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = 
             <div className="grid grid-cols-2">
               <div className="pr-3 text-center sm:pr-8">
                 <p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p>
-                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p>
+                <p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p>
               </div>
               <div className="pl-3 text-center sm:pl-8">
                 <p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p>
-                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p>
+                <p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p>
               </div>
             </div>
             {/* 화이트보드 — 상단 가로선 + 가운데 세로 구분선 + 컬러 스티키 노트 스캐터 */}
@@ -2565,7 +2581,7 @@ function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = 
             {decision && (
               <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center">
                 <span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span>
-                <p className="text-[11px] font-semibold leading-[1.55] text-primary-800">{decision}</p>
+                <p className="text-[12px] font-semibold leading-[1.55] text-primary-800">{decision}</p>
               </div>
             )}
           </div>
@@ -2589,7 +2605,7 @@ function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = 
                 : split?.unit === '%' ? Math.min(100, Math.max(4, Math.abs(actual))) : 100;
               return (
                 <div key={`${m.label}-${i}`} className={`min-w-0 px-4 py-3.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}>
-                  <p className="truncate text-[10.5px] font-bold text-bluewood-400" title={m.label}>{m.label}</p>
+                  <p className="truncate text-[11.5px] font-bold text-bluewood-400" title={m.label}>{m.label}</p>
                   <p className="mt-1 text-[22px] font-black leading-none tracking-tight text-bluewood-900">{displayValue}</p>
                   {before != null && before !== actual ? (
                     <div className="mt-3 space-y-2">
@@ -2656,7 +2672,7 @@ function MscScoreboard({ goals }) {
               )}
             </div>
             <span
-              className="flex-shrink-0 rounded border-2 px-2 py-0.5 font-mono text-[10.5px] font-black tracking-[0.14em]"
+              className="flex-shrink-0 rounded border-2 px-2 py-0.5 font-mono text-[11.5px] font-black tracking-[0.14em]"
               style={{ transform: 'rotate(-6deg)', borderColor: tone, color: tone }}
             >{g.achieved ? 'PASS' : 'MISS'}</span>
           </div>
@@ -2703,9 +2719,9 @@ function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <p className="text-[12px] font-extrabold text-bluewood-800">검증 지표</p>
-          <p className="mt-0.5 text-[10.5px] text-bluewood-300">가설을 채택하거나 수정할 때 사용한 실제 관측값</p>
+          <p className="mt-0.5 text-[11.5px] text-bluewood-300">가설을 채택하거나 수정할 때 사용한 실제 관측값</p>
         </div>
-        <span className="flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Evidence metrics</span>
+        <span className="flex-shrink-0 font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Evidence metrics</span>
       </div>
       <div className={`grid gap-4 ${items.length === 1 ? 'grid-cols-1 sm:grid-cols-2' : items.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
         {items.map((item, i) => {
@@ -2782,7 +2798,7 @@ function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
               ) : (
                 <p className="mt-4 text-[14px] font-bold leading-snug text-bluewood-800">{item.value}</p>
               )}
-              {item.note && <p className="mt-3 border-t border-surface-100 pt-2 text-[10.5px] leading-[1.5] text-bluewood-400">{item.note}</p>}
+              {item.note && <p className="mt-3 border-t border-surface-100 pt-2 text-[11.5px] leading-[1.5] text-bluewood-400">{item.note}</p>}
             </div>
           );
         })}
@@ -2792,9 +2808,9 @@ function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <p className="text-[13px] font-extrabold text-bluewood-800">동일 단위 지표 비교</p>
-              <p className="mt-0.5 text-[10.5px] text-bluewood-300">{unit} 단위의 검증 신호를 한 축에서 비교합니다.</p>
+              <p className="mt-0.5 text-[11.5px] text-bluewood-300">{unit} 단위의 검증 신호를 한 축에서 비교합니다.</p>
             </div>
-            <span className="font-mono text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>Signal line</span>
+            <span className="font-mono text-[10.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>Signal line</span>
           </div>
           <div className="mt-3 h-[220px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -2893,7 +2909,7 @@ function PmValidationDashboard({ cs, sr, srKE, materialHypotheses, onPatchSr }) 
           type="button"
           onClick={addRow}
           disabled={rows.length >= 12}
-          className="flex items-center gap-1 rounded-lg border border-primary-100 bg-white px-2.5 py-1.5 text-[10.5px] font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 print:hidden"
+          className="flex items-center gap-1 rounded-lg border border-primary-100 bg-white px-2.5 py-1.5 text-[11.5px] font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 print:hidden"
         >
           <Plus size={13} /> 가설 추가
         </button>
@@ -2903,7 +2919,7 @@ function PmValidationDashboard({ cs, sr, srKE, materialHypotheses, onPatchSr }) 
         <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
           <thead className="text-white" style={{ backgroundColor: '#0e1526' }}>
             <tr>
-              <th className="w-12 px-4 py-3.5 font-mono text-[11px] font-black">#</th>
+              <th className="w-12 px-4 py-3.5 font-mono text-[12px] font-black">#</th>
               <th className="px-4 py-3.5 text-[12px] font-bold">가설</th>
               <th className="w-[28%] px-4 py-3.5 text-[12px] font-bold">핵심 KPI / 설정 근거</th>
               <th className="w-[13%] px-4 py-3.5 text-right text-[12px] font-bold">목표</th>
@@ -2994,7 +3010,7 @@ function DecisionStage({ no, label, tone, children }) {
     <div className="flex gap-3.5 py-3.5 first:pt-1 last:pb-1">
       <div className="w-[54px] flex-shrink-0 pt-0.5">
         <p className="font-mono text-[12px] font-black leading-none" style={{ color: c }}>{no}</p>
-        <p className="mt-1 text-[10.5px] font-bold leading-[1.3] text-bluewood-400">{label}</p>
+        <p className="mt-1 text-[11.5px] font-bold leading-[1.3] text-bluewood-400">{label}</p>
       </div>
       <div className="min-w-0 flex-1 pt-0.5">{children}</div>
     </div>
@@ -3008,7 +3024,7 @@ function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
         <div className="flex items-start gap-2.5 px-5 pt-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
+              <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
               {quad && (
                 <span className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide" style={{ backgroundColor: quad === 'QUICK WIN' ? 'rgba(4,120,87,0.1)' : 'rgba(0,47,108,0.07)', color: quad === 'QUICK WIN' ? '#047857' : ACCENT }}>{quad}</span>
               )}
@@ -3024,7 +3040,7 @@ function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
           <div className="w-28 flex-shrink-0 pt-4">
             <AutoText dense value={k.metric} onChange={(v) => onCarl('metric', v)} placeholder="성과 수치" className="text-right text-[12px] font-bold text-caribbean-700" />
           </div>
-          <button type="button" onClick={onDelete} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500 print:hidden">삭제</button>
+          <button type="button" onClick={onDelete} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500 print:hidden">삭제</button>
         </div>
 
         <div className="px-5 py-3">
@@ -3038,11 +3054,11 @@ function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
             <DecisionStage no="02" label="의사결정">
               <div className="grid gap-2.5 sm:grid-cols-2">
                 <div className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'rgba(0,47,108,0.05)', borderLeft: `2px solid ${ACCENT}` }}>
-                  <p className="text-[9px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
+                  <p className="text-[10.5px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
                   <AutoText dense value={jd.decision || ''} onChange={(v) => onJobData({ decision: v })} placeholder="선택한 방향과 판단 기준" className="mt-0.5 text-[12.5px] font-bold leading-[1.6] text-bluewood-900" />
                 </div>
                 <div className="rounded-lg bg-surface-50 px-3 py-2.5">
-                  <p className="text-[9px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
+                  <p className="text-[10.5px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
                   <AutoText dense value={jd.alternatives || ''} onChange={(v) => onJobData({ alternatives: v })} placeholder="검토한 대안과 기각 이유" className="mt-0.5 text-[12px] leading-[1.6] text-bluewood-500" />
                 </div>
               </div>
@@ -3052,11 +3068,11 @@ function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
             <DecisionStage no="03" label="어려움 돌파" tone="amber">
               <div className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
                 <div>
-                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
+                  <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
                   <AutoText dense value={jd.obstacle || ''} onChange={(v) => onJobData({ obstacle: v })} placeholder="가장 막혔던 지점·제약" className="text-[12px] leading-[1.6] text-bluewood-600" />
                 </div>
                 <div>
-                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
+                  <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
                   <AutoText dense value={jd.resolution || ''} onChange={(v) => onJobData({ resolution: v })} placeholder="어떻게 풀어냈는지" className="text-[12px] font-semibold leading-[1.6] text-bluewood-800" />
                 </div>
               </div>
@@ -3167,8 +3183,8 @@ function PmDeliverables({ files, onChange }) {
   return (
     <div className="mt-4 border-t border-surface-200 pt-4">
       <div className="mb-2.5 flex items-baseline justify-between gap-2">
-        <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-bluewood-400">프로젝트 산출물</p>
-        {list.length > 0 && <span className="text-[10.5px] text-bluewood-300">눌러서 열기</span>}
+        <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-bluewood-400">프로젝트 산출물</p>
+        {list.length > 0 && <span className="text-[11.5px] text-bluewood-300">눌러서 열기</span>}
       </div>
       <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.key,.txt,.zip" className="hidden" onChange={onPick} />
 
@@ -3197,7 +3213,7 @@ function PmDeliverables({ files, onChange }) {
                   )}
                   <span className="sr-only">{f.name || visual.label}</span>
                 </a>
-                <span className="block w-full truncate text-center text-[10px] font-semibold leading-tight text-bluewood-500" title={f.name || visual.label}>
+                <span className="block w-full truncate text-center text-[11.5px] font-semibold leading-tight text-bluewood-500" title={f.name || visual.label}>
                   {f.name || visual.label}
                 </span>
                 <button type="button" onClick={() => remove(f.id)} className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-300 opacity-0 shadow-sm transition hover:text-red-500 group-hover/f:opacity-100 print:hidden" aria-label="삭제">
@@ -3227,13 +3243,13 @@ function PmDeliverables({ files, onChange }) {
             value={linkInput}
             onChange={(e) => setLinkInput(e.target.value)}
             placeholder="Notion · Figma · Drive 링크"
-            className="min-w-0 flex-1 bg-transparent py-2.5 text-[11px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-[12px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
           />
         </div>
         <button
           type="submit"
           disabled={!linkInput.trim()}
-          className="flex-shrink-0 rounded-xl bg-primary-600 px-3 py-2.5 text-[10.5px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-35"
+          className="flex-shrink-0 rounded-xl bg-primary-600 px-3 py-2.5 text-[11.5px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-35"
         >
           추가
         </button>
@@ -3265,7 +3281,7 @@ function PmHeroRail({ cs, sr, setField, setMeta, onPatchSr }) {
       <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
         {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
           <div key={m.k} className="min-w-0">
-            <p className="mb-0.5 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{m.label}</p>
+            <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{m.label}</p>
             <AutoText value={cs.meta[m.k]} onChange={(v) => setMeta(m.k, v)} placeholder="—" className="text-[12.5px] font-semibold text-bluewood-700" />
           </div>
         ))}
@@ -3279,6 +3295,7 @@ function PmHeroRail({ cs, sr, setField, setMeta, onPatchSr }) {
 
 /* ── PM 기획 문서 본문 — 좌측 제품 판단 프로필 + 우측(린 캔버스 · 의사결정 · 가설 및 검증) ── */
 function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, onPatchSr }) {
+  const [pendingDecision, setPendingDecision] = useState(null);   // { i, keId } 삭제 확인 대기
   const [editData, setEditData] = useState(false);
   const [activeDecision, setActiveDecision] = useState(0); // 의사결정 로그: 번호 탭으로 한 건씩 전환
 
@@ -3317,8 +3334,12 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
     ke[i] = { ...(ke[i] || {}), jobData: { ...(ke[i]?.jobData || {}), ...changes } };
     onPatchSr({ ...sr, keyExperiences: ke });
   };
-  const removeDecision = (i, keId) => {
-    if (!window.confirm('이 의사결정을 삭제할까요?')) return;
+  const removeDecision = (i, keId) => setPendingDecision({ i, keId });
+
+  const confirmRemoveDecision = () => {
+    if (!pendingDecision) return;
+    const { i, keId } = pendingDecision;
+    setPendingDecision(null);
     removeKeyExp(keId);
     if (srKE.length > i) onPatchSr({ ...sr, keyExperiences: srKE.filter((_, ei) => ei !== i) });
     setActiveDecision(a => Math.max(0, Math.min(a, cs.keyExps.length - 2)));
@@ -3336,6 +3357,17 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
   }).filter(Boolean);
 
   return (
+    <>
+    <ConfirmDialog
+      open={!!pendingDecision}
+      tone="danger"
+      title="이 의사결정을 삭제할까요?"
+      message="이 항목에 정리한 대안·근거·검증 내용이 함께 사라지고 되돌릴 수 없어요."
+      confirmLabel="삭제"
+      cancelLabel="그대로 두기"
+      onCancel={() => setPendingDecision(null)}
+      onConfirm={confirmRemoveDecision}
+    />
     <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
       {/* ════ 좌측 — PM의 문제 프레이밍·판단 원칙·근거·오너십을 보여주는 제품 판단 프로필 ════ */}
       <PmHeroRail cs={cs} sr={sr} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} />
@@ -3346,9 +3378,9 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-surface-100 pb-3">
         {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단']].map(([en2, ko2], i) => (
           <span key={en2} className="flex items-center gap-1.5">
-            {i > 0 && <span className="text-[10px] text-bluewood-200">→</span>}
+            {i > 0 && <span className="text-[11.5px] text-bluewood-200">→</span>}
             <span className="font-mono text-[9.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en2}</span>
-            <span className="text-[10.5px] font-semibold text-bluewood-400">{ko2}</span>
+            <span className="text-[11.5px] font-semibold text-bluewood-400">{ko2}</span>
           </span>
         ))}
       </div>
@@ -3454,10 +3486,10 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
           />
           {(clean(js.msc) || clean(js.businessImpact)) && (
             <details className="rounded-xl border border-surface-200 bg-surface-50/50 print:hidden">
-              <summary className="cursor-pointer px-4 py-2.5 text-[10.5px] font-bold text-bluewood-400">검증 해석 메모 보기</summary>
+              <summary className="cursor-pointer px-4 py-2.5 text-[11.5px] font-bold text-bluewood-400">검증 해석 메모 보기</summary>
               <div className="grid gap-3 border-t border-surface-100 p-3 sm:grid-cols-2">
-                <AutoText dense value={clean(js.msc)} onChange={(v) => patchJobSpecific('msc', v)} placeholder="성공 기준과 미달 원인" className="text-[11px] leading-[1.5] text-bluewood-600" />
-                <AutoText dense value={clean(js.businessImpact)} onChange={(v) => patchJobSpecific('businessImpact', v)} placeholder="지표 변화와 다음 판단" className="text-[11px] leading-[1.5] text-bluewood-600" />
+                <AutoText dense value={clean(js.msc)} onChange={(v) => patchJobSpecific('msc', v)} placeholder="성공 기준과 미달 원인" className="text-[12px] leading-[1.5] text-bluewood-600" />
+                <AutoText dense value={clean(js.businessImpact)} onChange={(v) => patchJobSpecific('businessImpact', v)} placeholder="지표 변화와 다음 판단" className="text-[12px] leading-[1.5] text-bluewood-600" />
               </div>
             </details>
           )}
@@ -3471,6 +3503,7 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
       </section>
       </div>
     </div>
+    </>
   );
 }
 
@@ -3664,7 +3697,7 @@ function DonutChart({ pct, valueText, unit }) {
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="text-[15px] font-extrabold leading-none text-bluewood-900">
-          {valueText}<span className="text-[10px] font-bold text-bluewood-400">{unit}</span>
+          {valueText}<span className="text-[11.5px] font-bold text-bluewood-400">{unit}</span>
         </span>
       </div>
     </div>
@@ -3685,11 +3718,11 @@ function CompareBars({ beforeText, afterText, afterDisplay }) {
     <div className="w-full space-y-1.5">
       {rows.map(r => (
         <div key={r.label} className="flex items-center gap-2">
-          <span className="w-6 flex-shrink-0 text-[10px] font-bold text-bluewood-400">{r.label}</span>
+          <span className="w-6 flex-shrink-0 text-[11.5px] font-bold text-bluewood-400">{r.label}</span>
           <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[#eef2f8]">
             <span className="block h-full rounded-full" style={{ width: `${(Math.abs(r.val) / max) * 100}%`, backgroundColor: r.color, transition: 'width 0.6s' }} />
           </div>
-          <span className={`w-16 flex-shrink-0 text-right text-[11px] tabular-nums ${r.cls}`}>{r.text}</span>
+          <span className={`w-16 flex-shrink-0 text-right text-[12px] tabular-nums ${r.cls}`}>{r.text}</span>
         </div>
       ))}
     </div>
@@ -3739,7 +3772,7 @@ function KpiTile({ label, metric, beforeMetric }) {
       {split ? (
         <>
           <div className="mt-3 flex w-full justify-center"><MetricVisual metric={metric} beforeMetric={beforeMetric} /></div>
-          {caption && <p className="mt-2 text-[10.5px] leading-snug text-bluewood-300">{caption}</p>}
+          {caption && <p className="mt-2 text-[11.5px] leading-snug text-bluewood-300">{caption}</p>}
         </>
       ) : (
         <p className="mt-2.5 text-[13px] font-extrabold leading-snug text-bluewood-900">{metric}</p>
@@ -3825,7 +3858,7 @@ function MiniScoreBar({ label, score, tone = 'blue' }) {
     <div className="min-w-0">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="truncate text-[11.5px] font-bold text-bluewood-700">{label}</span>
-        <span className="text-[11px] font-black tabular-nums" style={{ color }}>{value}%</span>
+        <span className="text-[12px] font-black tabular-nums" style={{ color }}>{value}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface-100">
         <span className="block h-full rounded-full" style={{ width: `${value}%`, backgroundColor: color }} />
@@ -3856,12 +3889,12 @@ function PositioningMap({ positions = [] }) {
       <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 w-64 h-64 bg-primary-500/20 blur-3xl rounded-full pointer-events-none" />
       <div className="relative z-10 flex items-center justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-300">Positioning Target</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.2em] text-primary-300">Positioning Target</p>
           <h3 className="mt-1 text-[18px] font-black text-white">최적의 마케터 포지션</h3>
         </div>
         <div className="flex -space-x-2">
           {top.map((pos, index) => (
-            <div key={index} className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-50 text-[10px] font-black text-bluewood-950 ring-2 ring-bluewood-900 shadow-sm" style={{ zIndex: 3 - index, opacity: 1 - index * 0.15 }}>
+            <div key={index} className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-50 text-[11.5px] font-black text-bluewood-950 ring-2 ring-bluewood-900 shadow-sm" style={{ zIndex: 3 - index, opacity: 1 - index * 0.15 }}>
               {pos.score}%
             </div>
           ))}
@@ -3870,13 +3903,13 @@ function PositioningMap({ positions = [] }) {
       <div className="relative z-10 mt-6 grid gap-3">
         {top.map((pos, index) => (
           <div key={index} className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-3 backdrop-blur-sm ring-1 ring-white/20">
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black ${index === 0 ? 'bg-primary-500 text-white' : 'bg-surface-100 text-bluewood-600'}`}>{index + 1}</span>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-black ${index === 0 ? 'bg-primary-500 text-white' : 'bg-surface-100 text-bluewood-600'}`}>{index + 1}</span>
             <div className="flex-1 min-w-0">
               <p className="truncate text-[14px] font-black text-white">{pos.name}</p>
             </div>
             <div className="text-right">
               <span className="text-[15px] font-black text-primary-300">{pos.score}</span>
-              <span className="text-[10px] text-bluewood-300 ml-0.5">% Match</span>
+              <span className="text-[11.5px] text-bluewood-300 ml-0.5">% Match</span>
             </div>
           </div>
         ))}
@@ -4034,7 +4067,7 @@ function ResearchPoint({ index, card, accent = ACCENT }) {
         {(card.chartTitle || card.source) && (
           <div className="mb-3 text-center">
             {card.chartTitle && <p className="text-[14px] font-black text-bluewood-800">{card.chartTitle}</p>}
-            {card.source && <p className="mt-0.5 text-[11px] font-semibold text-bluewood-400">{card.source}</p>}
+            {card.source && <p className="mt-0.5 text-[12px] font-semibold text-bluewood-400">{card.source}</p>}
           </div>
         )}
         {chart}
@@ -4213,7 +4246,7 @@ function MarketerDoc({
         <div className="mt-4 flex flex-wrap gap-x-7 gap-y-2">
           {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀' }].map(m => (
             <div key={m.k} className="flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-wide text-bluewood-400">{m.label}</span>
+              <span className="text-[12px] font-black uppercase tracking-wide text-bluewood-400">{m.label}</span>
               <div className="min-w-[44px] max-w-[220px]">
                 <AutoText
                   dense
@@ -4240,19 +4273,19 @@ function MarketerDoc({
         <summary className="cursor-pointer px-4 py-3 text-[12px] font-black text-primary-600">마케터 핵심 경험 전체 편집</summary>
         <div className="space-y-6 border-t border-primary-100 p-4">
           <div>
-            <p className="mb-2 text-[11px] font-black text-bluewood-600">포지셔닝 진단</p>
+            <p className="mb-2 text-[12px] font-black text-bluewood-600">포지셔닝 진단</p>
             <AutoText dense value={report.recommendation || ''} onChange={value => setKitValue(['positioningReport', 'recommendation'], value)} placeholder="추천 포지셔닝 문장" className="text-[12px]" />
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
               {[
                 ['strengths', '핵심 강점'], ['weaknesses', '보완 필요점'], ['priorityFixes', '우선 액션 플랜'],
-              ].map(([key, label]) => <div key={key}><p className="mb-1 text-[10.5px] font-bold text-bluewood-400">{label}</p><AutoText dense value={(report[key] || []).join('\n')} onChange={value => setKitValue(['positioningReport', key], value.split('\n').map(line => line.trim()).filter(Boolean))} placeholder="한 줄에 하나씩 입력" className="text-[11.5px]" /></div>)}
+              ].map(([key, label]) => <div key={key}><p className="mb-1 text-[11.5px] font-bold text-bluewood-400">{label}</p><AutoText dense value={(report[key] || []).join('\n')} onChange={value => setKitValue(['positioningReport', key], value.split('\n').map(line => line.trim()).filter(Boolean))} placeholder="한 줄에 하나씩 입력" className="text-[11.5px]" /></div>)}
             </div>
             <div className="mt-3 space-y-2">
               {(report.recommendedPositions || []).map((position, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_80px_1.5fr]"><AutoText dense value={position.name || ''} onChange={value => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, name: value } : row))} placeholder="추천 직무" className="text-[11.5px]" /><input type="number" value={position.score || 0} onChange={event => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, score: Number(event.target.value) } : row))} className="rounded-lg border border-surface-200 bg-white px-2 text-[11.5px]" /><AutoText dense value={position.reason || ''} onChange={value => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, reason: value } : row))} placeholder="추천 근거" className="text-[11.5px]" /></div>)}
             </div>
           </div>
           <div>
-            <p className="mb-2 text-[11px] font-black text-bluewood-600">경험정리 카드</p>
+            <p className="mb-2 text-[12px] font-black text-bluewood-600">경험정리 카드</p>
             <div className="space-y-3">
               {cards.map((card, index) => <div key={card.id || index} className="rounded-xl border border-surface-200 bg-white p-3"><div className="grid gap-2 sm:grid-cols-2"><AutoText dense value={card.title || ''} onChange={value => setCardField(card, index, 'title', value)} placeholder="카드 제목" className="text-[12px] font-bold" /><AutoText dense value={card.oneLineSummary || ''} onChange={value => setCardField(card, index, 'oneLineSummary', value)} placeholder="한 줄 요약" className="text-[11.5px]" /><AutoText dense value={card.problem || ''} onChange={value => setCardField(card, index, 'problem', value)} placeholder="문제" className="text-[11.5px]" /><AutoText dense value={card.goal || ''} onChange={value => setCardField(card, index, 'goal', value)} placeholder="목표" className="text-[11.5px]" /><AutoText dense value={(card.execution || []).join('\n')} onChange={value => updateCardList(card, index, 'execution', value)} placeholder="실행 — 한 줄에 하나" className="text-[11.5px]" /><AutoText dense value={(card.results || []).join('\n')} onChange={value => updateCardList(card, index, 'results', value)} placeholder="성과 — 한 줄에 하나" className="text-[11.5px]" /></div></div>)}
             </div>
@@ -4269,7 +4302,7 @@ function MarketerDoc({
               const isTop = index === 0;
               return (
                 <span key={`${pos.name}-${index}`} className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-[16px] font-black ${isTop ? 'bg-bluewood-950 text-white' : 'bg-primary-50 text-primary-700 ring-1 ring-primary-100'}`}>
-                  <span className={`text-[11px] font-black ${isTop ? 'text-primary-300' : 'text-primary-400'}`}>{index + 1}순위</span>
+                  <span className={`text-[12px] font-black ${isTop ? 'text-primary-300' : 'text-primary-400'}`}>{index + 1}순위</span>
                   {pos.name || '—'}
                 </span>
               );
@@ -4359,7 +4392,7 @@ function MarketerDoc({
                     <ul className="space-y-3">
                       {execution.map((a, ai) => (
                         <li key={ai} className="flex gap-3">
-                          <span className="mt-[2px] flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-black text-amber-700">{ai + 1}</span>
+                          <span className="mt-[2px] flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-[12px] font-black text-amber-700">{ai + 1}</span>
                           <span className="text-[14px] leading-[1.75] text-bluewood-700">{a}</span>
                         </li>
                       ))}
@@ -4443,7 +4476,7 @@ function MarketerDoc({
                         ))}
                       </div>
                     )}
-                    <button type="button" onClick={() => addKeyExpImage(card.sourceId)} className="rounded-md border border-surface-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 print:hidden">＋ 증거 이미지</button>
+                    <button type="button" onClick={() => addKeyExpImage(card.sourceId)} className="rounded-md border border-surface-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 print:hidden">＋ 증거 이미지</button>
                   </div>
                 )}
 
@@ -4452,7 +4485,7 @@ function MarketerDoc({
                   <div className="mt-6 flex flex-wrap gap-x-10 gap-y-4 border-t border-surface-200 pt-5">
                     {metaRows.map(([label, vals]) => (
                       <div key={label} className="min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">{label}</p>
+                        <p className="text-[12px] font-black uppercase tracking-[0.12em] text-bluewood-400">{label}</p>
                         <p className="mt-1 text-[13.5px] font-semibold leading-[1.55] text-bluewood-700">{vals.join(' · ')}</p>
                       </div>
                     ))}
@@ -4882,9 +4915,11 @@ export default function ExperienceResult() {
         keyExpImages,
         title: cs.title || exp?.title || '',
         structuredResult: updatedStructured,
+        lifecycleStatus: 'needs_confirmation',
+        confirmedAt: null,
         updatedAt: new Date(),
       });
-      setExp(prev => ({ ...(prev || {}), structuredResult: updatedStructured, title: cs.title || prev?.title || '' }));
+      setExp(prev => ({ ...(prev || {}), structuredResult: updatedStructured, title: cs.title || prev?.title || '', lifecycleStatus: 'needs_confirmation', confirmedAt: null }));
       setDirty(false);
       toast.success('저장됐어요.');
     } catch (err) {
@@ -4941,7 +4976,7 @@ export default function ExperienceResult() {
       setExp(prev => ({ ...(prev || {}), structuredResult: nextStructured }));
       if (id !== 'demo') {
         try {
-          await updateDoc(doc(db, 'experiences', id), { structuredResult: nextStructured, updatedAt: new Date() });
+          await updateDoc(doc(db, 'experiences', id), { structuredResult: nextStructured, lifecycleStatus: 'needs_confirmation', confirmedAt: null, updatedAt: new Date() });
         } catch {
           setDirty(true); // 즉시 저장 실패 시 일반 저장 경로로 보존
         }
@@ -4958,8 +4993,9 @@ export default function ExperienceResult() {
   };
 
   // 저장 안 한 변경이 있으면 이동/새로고침 시 경고
+  const [pendingNav, setPendingNav] = useState(null);   // 저장 없이 이동할 목적지
   const guardedNav = (to) => {
-    if (dirty && !window.confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 이동할까요?')) return;
+    if (dirty) { setPendingNav(to); return; }
     navigate(to);
   };
   useEffect(() => {
@@ -5020,6 +5056,15 @@ export default function ExperienceResult() {
 
   return (
     <>
+    <ConfirmDialog
+      open={!!pendingNav}
+      title="저장하지 않고 이동할까요?"
+      message="지금까지 수정한 내용이 저장되지 않은 상태예요. 이동하면 변경사항이 사라집니다."
+      confirmLabel="저장 안 하고 이동"
+      cancelLabel="여기 남기"
+      onCancel={() => setPendingNav(null)}
+      onConfirm={() => { const to = pendingNav; setPendingNav(null); navigate(to); }}
+    />
     <FeedbackModal
       open={feedbackOpen}
       onClose={closeFeedback}
@@ -5054,7 +5099,7 @@ export default function ExperienceResult() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3.5 py-2 text-[13px] font-bold text-primary-700 transition-colors hover:bg-primary-50"
               >
                 채우면 좋은 항목
-                <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[10.5px] font-black leading-none text-white">{missingCount}</span>
+                <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[11.5px] font-black leading-none text-white">{missingCount}</span>
               </button>
             )}
             <button
@@ -5088,6 +5133,12 @@ export default function ExperienceResult() {
             >
               {saving ? '저장 중…' : dirty ? '저장' : '저장됨'}
             </button>
+            <button
+              onClick={() => guardedNav(`/app/experience/complete/${id}`)}
+              className="hidden sm:inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[13px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+            >
+              사실 확인·다음 경험
+            </button>
           </div>
         </div>
       </div>
@@ -5095,12 +5146,12 @@ export default function ExperienceResult() {
       <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
         {identityLine && (
           <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4 sm:px-6">
-            <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>
+            <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>
             <p className="mt-1.5 text-[17px] font-extrabold leading-[1.55] text-bluewood-900">“{identityLine}”</p>
             {identityProofs.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {identityProofs.map((proof, index) => (
-                  <span key={`${proof}-${index}`} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[10.5px] font-semibold text-primary-700">{proof}</span>
+                  <span key={`${proof}-${index}`} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-primary-700">{proof}</span>
                 ))}
               </div>
             )}
@@ -5129,14 +5180,14 @@ export default function ExperienceResult() {
               <div className="mt-4 space-y-3">
                 {identityPatternCandidates.map(candidate => (
                   <article key={candidate.id} className="rounded-xl border border-primary-100 bg-primary-50/40 p-4">
-                    <p className="text-[11px] font-bold text-primary-600">AI가 찾은 후보 · 아직 미승인</p>
+                    <p className="text-[12px] font-bold text-primary-600">AI가 찾은 후보 · 아직 미승인</p>
                     <p className="mt-1 text-[15px] font-extrabold leading-relaxed text-bluewood-900">“{candidate.sentence}”</p>
                     {candidate.meaning && (
                       <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">{candidate.meaning}</p>
                     )}
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {(candidate.proofs || []).map(proof => (
-                        <span key={`${candidate.id}-${proof.experienceId}`} title={proof.evidence} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[10.5px] font-semibold text-primary-700">
+                        <span key={`${candidate.id}-${proof.experienceId}`} title={proof.evidence} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-primary-700">
                           {proof.title || '근거 경험'}
                         </span>
                       ))}
@@ -5224,7 +5275,7 @@ export default function ExperienceResult() {
           <div className={`lg:pr-2 ${isDevJob ? '' : 'lg:sticky lg:top-[72px]'}`}>
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
               <p className="text-[11.5px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>핵심 경험 리포트</p>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[12px] font-semibold text-bluewood-400">
                 <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 눌러서 편집
               </span>
@@ -5267,7 +5318,7 @@ export default function ExperienceResult() {
             <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
               {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
                 <div key={m.k} className="min-w-0">
-                  <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-0.5">{m.label}</p>
+                  <p className="text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-0.5">{m.label}</p>
                   <AutoText
                     value={cs.meta[m.k]}
                     onChange={(v) => setMeta(m.k, v)}
@@ -5281,10 +5332,10 @@ export default function ExperienceResult() {
             {/* 기술 스택 — 개발 직군은 프로젝트/GitHub 분석 결과를 통합해 표시 */}
             {(isDevJob ? devTechStack : cs.tech).length > 0 && (
               <div className="mt-4 border-t border-surface-200 pt-4">
-                <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">{isDevJob ? '기술 스택' : '기술'}</p>
+                <p className="text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">{isDevJob ? '기술 스택' : '기술'}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(isDevJob ? devTechStack : cs.tech).map((t, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-100 text-[11px] font-semibold text-bluewood-600">{t}</span>
+                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-100 text-[12px] font-semibold text-bluewood-600">{t}</span>
                   ))}
                 </div>
               </div>
@@ -5296,7 +5347,7 @@ export default function ExperienceResult() {
               if (active.length === 0) return null;
               return (
                 <div className="mt-4 border-t border-surface-200 pt-4">
-                  <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">핵심 역량</p>
+                  <p className="text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">핵심 역량</p>
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
                     {active.flatMap(g => groups[g.key].map((s, i) => (
                       <span key={`${g.key}-${i}`} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>
@@ -5346,16 +5397,16 @@ export default function ExperienceResult() {
                     return (
                       <div key={k.id} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white px-4 py-3.5">
                         <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: ACCENT }} />
-                        <p className="mb-1.5 truncate text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.title || `핵심 경험 ${i + 1}`}</p>
+                        <p className="mb-1.5 truncate text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.title || `핵심 경험 ${i + 1}`}</p>
                         <p className="text-[26px] font-extrabold leading-none text-bluewood-900">
                           {split.value}<span className="ml-0.5 text-[14px] font-bold text-bluewood-400">{split.unit}</span>
                         </p>
                         {delta != null ? (
-                          <p className="mt-1.5 text-[11px] font-bold text-bluewood-600">
+                          <p className="mt-1.5 text-[12px] font-bold text-bluewood-600">
                             {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}% <span className="font-medium text-bluewood-300">이전 대비</span>
                           </p>
                         ) : (
-                          <p className="mt-1.5 truncate text-[11px] text-bluewood-400">{k.metric}</p>
+                          <p className="mt-1.5 truncate text-[12px] text-bluewood-400">{k.metric}</p>
                         )}
                       </div>
                     );
@@ -5376,7 +5427,7 @@ export default function ExperienceResult() {
                   <div key={k.id} className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
                     {/* 헤더 — 번호 + 제목 */}
                     <div className="flex items-start gap-2.5 px-5 pt-4">
-                      <span className="mt-1 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-md text-[11px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
+                      <span className="mt-1 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-md text-[12px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <AutoText
                           prose
@@ -5386,14 +5437,14 @@ export default function ExperienceResult() {
                           className="text-[15px] sm:text-[16px] font-extrabold leading-snug text-bluewood-900"
                         />
                       </div>
-                      <button type="button" onClick={() => removeKeyExp(k.id)} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+                      <button type="button" onClick={() => removeKeyExp(k.id)} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
                     </div>
 
                     {/* 성과 — 시각 지표 (전/후 값이 있으면 한 색상 두 명암의 비교 막대) */}
                     <div className="mx-5 mt-2.5 rounded-xl border border-surface-100 bg-surface-50/70 px-4 py-3">
                       <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
                         <div className="min-w-[200px] flex-1">
-                          <p className="text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</p>
+                          <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</p>
                           <AutoText
                             dense
                             value={k.metric}
@@ -5402,7 +5453,7 @@ export default function ExperienceResult() {
                             className="text-[14.5px] font-extrabold text-bluewood-900"
                           />
                           <div className="mt-0.5 flex items-baseline gap-1.5">
-                            <span className="flex-shrink-0 text-[10px] font-semibold text-bluewood-300">이전 값 (선택)</span>
+                            <span className="flex-shrink-0 text-[11.5px] font-semibold text-bluewood-300">이전 값 (선택)</span>
                             <div className="w-32">
                               <AutoText
                                 dense
@@ -5417,18 +5468,18 @@ export default function ExperienceResult() {
                         {showBars && (
                           <div className="w-full space-y-1.5 self-center sm:w-[240px] sm:flex-shrink-0">
                             <div className="flex items-center gap-2">
-                              <span className="w-6 flex-shrink-0 text-[10px] font-bold text-bluewood-300">이전</span>
+                              <span className="w-6 flex-shrink-0 text-[11.5px] font-bold text-bluewood-300">이전</span>
                               <div className="h-2.5 flex-1 overflow-hidden rounded bg-surface-100">
                                 <span className="block h-full rounded" style={{ width: `${(Math.abs(before) / maxV) * 100}%`, backgroundColor: ACCENT_LIGHT, transition: 'width 0.6s' }} />
                               </div>
-                              <span className="w-14 flex-shrink-0 text-right text-[11px] font-bold tabular-nums text-bluewood-500">{k.beforeMetric}</span>
+                              <span className="w-14 flex-shrink-0 text-right text-[12px] font-bold tabular-nums text-bluewood-500">{k.beforeMetric}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="w-6 flex-shrink-0 text-[10px] font-bold text-bluewood-600">이후</span>
+                              <span className="w-6 flex-shrink-0 text-[11.5px] font-bold text-bluewood-600">이후</span>
                               <div className="h-2.5 flex-1 overflow-hidden rounded bg-surface-100">
                                 <span className="block h-full rounded" style={{ width: `${(Math.abs(after) / maxV) * 100}%`, backgroundColor: ACCENT, transition: 'width 0.6s' }} />
                               </div>
-                              <span className="w-14 flex-shrink-0 text-right text-[11px] font-black tabular-nums text-bluewood-900">{afterSplit ? `${afterSplit.value}${afterSplit.unit}` : ''}</span>
+                              <span className="w-14 flex-shrink-0 text-right text-[12px] font-black tabular-nums text-bluewood-900">{afterSplit ? `${afterSplit.value}${afterSplit.unit}` : ''}</span>
                             </div>
                           </div>
                         )}
@@ -5439,7 +5490,7 @@ export default function ExperienceResult() {
                     <div className="grid gap-x-6 gap-y-2.5 px-5 py-4 sm:grid-cols-2">
                       {KE_ROWS.map(r => (
                         <div key={r.key}>
-                          <p className="mb-0.5 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{r.label}</p>
+                          <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{r.label}</p>
                           <AutoText
                             dense
                             value={k[r.key]}
@@ -5467,7 +5518,7 @@ export default function ExperienceResult() {
                           ))}
                         </div>
                       )}
-                      <button type="button" onClick={() => addKeyExpImage(k.id)} className="rounded-md border border-surface-200 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
+                      <button type="button" onClick={() => addKeyExpImage(k.id)} className="rounded-md border border-surface-200 px-2.5 py-1 text-[12px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
                     </div>
                   </div>
                 );

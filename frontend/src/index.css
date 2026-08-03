@@ -16,35 +16,165 @@ body {
   line-height: 1.6;
 }
 
-/* Custom scrollbar - hidden but functional */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-}
-*::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
+/* ══════════════════════════════════════════════════════════════
+   FitPoly 스크롤바 — 브랜드 네이비(#002F6C) 기반
+   ──────────────────────────────────────────────────────────────
+   이전에는 * { scrollbar-width: none } 으로 전역에서 숨겼는데,
+   그 결과 "더 볼 내용이 있는지 / 지금 어디인지"를 알 수 없었다.
+   여기서는 숨기는 대신 브랜드 톤의 얇은 필(pill) 형태로 되살린다.
+
+   - track  : 투명 (배경색이 무엇이든 자연스럽게 얹힘)
+   - thumb  : 네이비 저채도 → hover 시 진해짐
+   - 여백   : border-transparent + background-clip 으로 thumb 양옆 숨쉴 공간
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  --fp-scroll-thumb: rgba(0, 47, 108, 0.22);
+  --fp-scroll-thumb-hover: rgba(0, 47, 108, 0.42);
+  --fp-scroll-thumb-active: rgba(0, 47, 108, 0.58);
 }
 
-/* Custom scrollbar - to show thin scrollbar when needed */
+/* ══════════════════════════════════════════════════════════════
+   z-index 층 규약 — 새 오버레이를 만들 땐 반드시 이 표를 따른다.
+   (예전엔 z-50 모달이 z-[80] 헤더에 가려 닫기 버튼이 안 눌렸다)
+
+     10 ~  40 : 페이지 내부 요소 (드롭다운 클릭 차단막 등)
+     50 ~  70 : 페이지 내 팝오버 / 툴팁
+     80       : 앱 상단 헤더 (Layout)
+     90       : 헤더에 붙는 팝오버 (크레딧 패널, 설정 메뉴)
+    105       : 사이드 패널 (원페이저 / 면접준비 / 누락항목)
+    110       : 일반 모달  ← 기본값
+    120       : 피드백 모달
+    130       : 크레딧 소진 안내 (차단성 공지)
+    140       : 가이드 튜토리얼 오버레이
+    150       : 튜토리얼 위에서 열려야 하는 상세 모달
+   ══════════════════════════════════════════════════════════════ */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--fp-scroll-thumb) transparent;
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--fp-scroll-thumb);
+  border: 3px solid transparent;   /* thumb 양옆 여백 */
+  background-clip: padding-box;
+  border-radius: 9999px;
+  transition: background-color 0.18s ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--fp-scroll-thumb-hover);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--fp-scroll-thumb-active);
+  background-clip: padding-box;
+}
+/* 가로/세로가 만나는 코너 */
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 스크롤바 등장/소멸로 인한 레이아웃 흔들림 방지 */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* 어두운 배경 위 스크롤 영역(네이비 카드, 다크 프리뷰 등)에서 쓰는 밝은 변형 */
+.scrollbar-on-dark {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+.scrollbar-on-dark::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+  background-clip: padding-box;
+}
+.scrollbar-on-dark::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+  background-clip: padding-box;
+}
+
+/* 더 가느다란 변형 — 좁은 패널·드롭다운용 */
 .custom-scrollbar {
-  scrollbar-width: thin !important; /* Firefox */
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent !important; /* Firefox gray thumb */
-  -ms-overflow-style: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fp-scroll-thumb) transparent;
 }
 .custom-scrollbar::-webkit-scrollbar {
-  display: block !important;
-  width: 6px !important;
-  height: 6px !important;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent !important;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.4) !important;
-  border-radius: 9999px !important;
+  background-color: var(--fp-scroll-thumb);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.6) !important;
+  background-color: var(--fp-scroll-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* 의도적으로 스크롤바를 숨겨야 하는 곳(가로 캐러셀, 탭 스트립 등) 전용 */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* 인쇄 시에는 스크롤바 흔적 제거 */
+@media print {
+  *::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   호버로만 나타나는 액션의 접근성 보정
+   ──────────────────────────────────────────────────────────────
+   편집/삭제 버튼 다수가 `opacity-0 group-hover:opacity-100` 으로만 노출된다.
+   마우스가 없는 환경(터치)에서는 영영 나타나지 않아 기능 자체에 접근할 수 없고,
+   키보드 사용자도 포커스는 가지만 눈에 보이지 않는다.
+
+   - hover 불가 기기: 항상 표시
+   - 키보드 포커스: 표시
+   각 컴포넌트를 25곳 넘게 고치는 대신 여기서 한 번에 보정한다.
+   ══════════════════════════════════════════════════════════════ */
+@media (hover: none) {
+  [class*="group-hover:opacity-100"] {
+    opacity: 1 !important;
+  }
+}
+
+[class*="group-hover:opacity-100"]:focus-visible,
+[class*="group-hover:opacity-100"]:focus-within {
+  opacity: 1 !important;
+}
+
+/* 키보드 포커스 링 — 브랜드 색으로 통일 (기본 파란 링이 디자인과 충돌) */
+:focus-visible {
+  outline: 2px solid rgba(0, 47, 108, 0.55);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 모션 최소화 설정을 켠 사용자 존중 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Highlight colors for experience analysis */

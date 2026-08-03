@@ -771,7 +771,7 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
           applyFontSize(event.target.value);
           event.target.value = '';
         }}
-        className="h-6 rounded border border-surface-200 bg-white px-1 text-[11px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title-size:opacity-100 focus:opacity-100"
+        className="h-6 rounded border border-surface-200 bg-white px-1 text-[12px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title-size:opacity-100 focus:opacity-100"
         title="선택 글자 크기"
         aria-label="선택 글자 크기"
       >
@@ -1121,8 +1121,9 @@ export default function NotionPortfolioEditor() {
       const snapData = portfolioSnap.exists() ? portfolioSnap.data() : null;
       if (snapData?.pendingAutofill && !location.state?.exportConfig) {
         const allExps = useExperienceStore.getState().experiences || [];
-        let chosen = allExps;
-        if (snapData.jobAnalysis && allExps.length > 0) {
+        const plannedIds = Array.isArray(snapData.experienceIds) ? new Set(snapData.experienceIds) : new Set();
+        let chosen = plannedIds.size > 0 ? allExps.filter(e => plannedIds.has(e.id)) : allExps;
+        if (plannedIds.size === 0 && snapData.jobAnalysis && allExps.length > 0) {
           try {
             const { data: rec } = await api.post('/job/recommend-experiences', { jobAnalysis: snapData.jobAnalysis });
             const recIds = new Set((rec.recommendations || []).map(r => r.experience?.id).filter(Boolean));
@@ -1986,7 +1987,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
                   {data.recommendations.map((rec, i) => (
                     <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
                       <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[12px] font-bold flex items-center justify-center">{i + 1}</span>
                         <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
                         <button
                           type="button"
@@ -2145,7 +2146,7 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
 
       {/* ── 우측 기업 분석 Drawer (portal 렌더링) ── */}
       {showExpPicker && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40 backdrop-blur-sm" onClick={() => setShowExpPicker(false)}>
+        <div className="fixed inset-0 z-[110] flex items-start justify-center pt-20 bg-black/40 backdrop-blur-sm" onClick={() => setShowExpPicker(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h3 className="font-bold text-base text-gray-800 flex items-center gap-2">
@@ -2545,7 +2546,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
                   style={{ background: 'rgba(99,102,241,0.5)' }} />
 
                 {/* 크기 표시 배지 */}
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[11px] px-1.5 py-0.5 rounded opacity-0 group-hover/rimg:opacity-100 transition-opacity pointer-events-none">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[12px] px-1.5 py-0.5 rounded opacity-0 group-hover/rimg:opacity-100 transition-opacity pointer-events-none">
                   {seg.width || '100%'}
                 </div>
               </div>
@@ -4332,7 +4333,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </h2>
           {/* Semester tabs */}
           {semesterKeys.length > 0 && (
-            <div className="flex gap-2 mb-4 overflow-x-auto">
+            <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none">
               {semesterKeys.map(s => (
                 <button key={s} onClick={() => setActiveSemester(activeSemester === s ? null : s)}
                   className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeSemester === s ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}
@@ -4825,7 +4826,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                     </button>
                     {openCellSettings === cellKey && (
                       <div className="fixed z-[1002] w-48 rounded-md border border-surface-200 bg-white p-2 text-xs shadow-lg" style={{ left: cellMenuPosition.x, top: cellMenuPosition.y }}>
-                        <div className="mb-2 flex items-center justify-between text-[11px] text-gray-400">
+                        <div className="mb-2 flex items-center justify-between text-[12px] text-gray-400">
                           <span>속성 · 선택 {settingsTargetCount}칸</span>
                           {selectedCells.size > 0 && (
                             <button type="button" onClick={() => setSelectedCells(new Set())} className="hover:text-red-400">
@@ -4850,7 +4851,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                               key={align}
                               type="button"
                               onClick={() => updateCellSettings(-1, column.key, { align })}
-                              className={`px-2 py-1 text-[11px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
+                              className={`px-2 py-1 text-[12px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
                             >
                               {label}
                             </button>
@@ -4889,7 +4890,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
               </th>
               );
             })}
-            <th className="w-10 border-b border-surface-200 bg-white text-center text-[10px] font-medium text-gray-300">행</th>
+            <th className="w-10 border-b border-surface-200 bg-white text-center text-[11.5px] font-medium text-gray-300">행</th>
           </tr>
         </thead>
         <tbody>
@@ -4974,7 +4975,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                       </button>
                       {openCellSettings === cellKey && (
                         <div className="fixed z-[1002] w-48 rounded-md border border-surface-200 bg-white p-2 text-xs shadow-lg" style={{ left: cellMenuPosition.x, top: cellMenuPosition.y }}>
-                          <div className="mb-2 flex items-center justify-between text-[11px] text-gray-400">
+                          <div className="mb-2 flex items-center justify-between text-[12px] text-gray-400">
                             <span>속성 · 선택 {settingsTargetCount}칸</span>
                             {selectedCells.size > 0 && (
                               <button type="button" onClick={() => setSelectedCells(new Set())} className="hover:text-red-400">
@@ -4999,7 +5000,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                                 key={align}
                                 type="button"
                                 onClick={() => updateCellSettings(rowIndex, column.key, { align })}
-                                className={`px-2 py-1 text-[11px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
+                                className={`px-2 py-1 text-[12px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
                               >
                                 {label}
                               </button>
@@ -5448,7 +5449,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
         {hidden.map(bk => (
           <button key={bk} type="button" onClick={() => setContentBlockHidden(sectionKey, bk, false)}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-surface-300 px-2.5 py-1 text-[11px] text-gray-400 transition-colors hover:border-primary-300 hover:text-primary-600">
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-surface-300 px-2.5 py-1 text-[12px] text-gray-400 transition-colors hover:border-primary-300 hover:text-primary-600">
             <Plus size={11} /> {CONTENT_BLOCK_LABELS[bk] || bk} 복원
           </button>
         ))}
@@ -5614,7 +5615,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       </div>
 
       {/* Quick Menu */}
-      <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto">
+      <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto scrollbar-none">
         {['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관'].filter(menu => {
           const sectionMap = { '교과 활동': 'curricular', '비교과 활동': 'extracurricular', '기술': 'skills', '목표와 계획': 'goals', '가치관': 'values' };
           return sections.includes(sectionMap[menu]) && !hiddenSections.includes(sectionMap[menu]);
@@ -7548,7 +7549,7 @@ function CurricularSection({ portfolio, update, updateNested, templateId, jobAna
 
       {/* 에브리타임 가져오기 모달 */}
       {showEveryTimeImport && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowEveryTimeImport(false)}>
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onClick={() => setShowEveryTimeImport(false)}>
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">에브리타임 수강 내역 가져오기</h3>

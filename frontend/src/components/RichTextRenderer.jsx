@@ -130,7 +130,7 @@ export default function RichTextRenderer({ value, className = '', dark = false }
         }
         if (block.type === 'Blockquote') return <blockquote key={block.id || index} className={`border-l-4 pl-4 text-sm italic leading-relaxed ${c.quote}`}>{text}</blockquote>;
         if (block.type === 'Callout') return <div key={block.id || index} className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">{text}</div>;
-        if (block.type === 'Code') return <pre key={block.id || index} className="overflow-x-auto rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{text}</code></pre>;
+        if (block.type === 'Code') return <pre key={block.id || index} className="overflow-x-auto scrollbar-on-dark rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{text}</code></pre>;
         return <p key={block.id || index} className={`text-sm leading-relaxed ${c.body} whitespace-pre-line`}>{text}</p>;
       })}
     </div>

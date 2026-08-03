@@ -364,7 +364,7 @@ function OutputShowcase() {
               </span>
               <span className={`text-[12px] font-extrabold truncate ${i === index ? 'text-gray-900' : 'text-gray-500'}`}>{t.name}</span>
             </div>
-            <p className="text-[11px] text-gray-400 font-medium truncate">{t.desc}</p>
+            <p className="text-[12px] text-gray-400 font-medium truncate">{t.desc}</p>
             <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gray-100">
               {i === index && (
                 <div
@@ -1226,7 +1226,7 @@ export default function Landing() {
                   {/* Resume Header */}
                   <div className="flex items-start justify-between gap-4 mb-7 sm:mb-9">
                     <div>
-                      <p className="text-[11px] font-bold tracking-[0.2em] text-gray-400 mb-1.5">RESUME</p>
+                      <p className="text-[12px] font-bold tracking-[0.2em] text-gray-400 mb-1.5">RESUME</p>
                       <h4 className="text-[26px] sm:text-[32px] font-extrabold text-[#1B264F] leading-none mb-2.5">김서연</h4>
                       <p className="text-[13px] sm:text-[14px] text-gray-500 font-medium" style={{ wordBreak: 'keep-all' }}>데이터 기반 서비스 기획으로 6개의 프로젝트를 이끌어온 주니어 PM</p>
                     </div>
@@ -1240,11 +1240,11 @@ export default function Landing() {
                     {/* Left: CONTACT + STRENGTHS */}
                     <div className="space-y-6">
                       <div>
-                        <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-2">CONTACT</p>
+                        <p className="text-[12px] font-bold tracking-[0.15em] text-gray-400 mb-2">CONTACT</p>
                         <a className="text-[13px] text-primary-600 font-semibold break-all">seoyeon.kim@gmail.com</a>
                       </div>
                       <div>
-                        <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">STRENGTHS</p>
+                        <p className="text-[12px] font-bold tracking-[0.15em] text-gray-400 mb-3">STRENGTHS</p>
                         <div className="space-y-3">
                           {[
                             { t: '데이터 기반 문제 정의', s: '설문·VOC 분석에서 발휘한 역량' },
@@ -1253,7 +1253,7 @@ export default function Landing() {
                           ].map((it, i) => (
                             <div key={i}>
                               <p className="text-[13px] font-extrabold text-[#1B264F] leading-tight">{it.t}</p>
-                              <p className="text-[11px] text-gray-400 leading-snug mt-0.5">{it.s}</p>
+                              <p className="text-[12px] text-gray-400 leading-snug mt-0.5">{it.s}</p>
                             </div>
                           ))}
                         </div>
@@ -1262,7 +1262,7 @@ export default function Landing() {
 
                     {/* Middle: TOOLS */}
                     <div>
-                      <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">TOOLS</p>
+                      <p className="text-[12px] font-bold tracking-[0.15em] text-gray-400 mb-3">TOOLS</p>
                       <div className="space-y-3">
                         {[
                           { t: 'Figma', c: 3 },
@@ -1275,7 +1275,7 @@ export default function Landing() {
                           <div key={i}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[13px] font-bold text-[#1B264F]">{it.t}</span>
-                              <span className="text-[10px] font-bold text-gray-400">프로젝트 {it.c}</span>
+                              <span className="text-[11.5px] font-bold text-gray-400">프로젝트 {it.c}</span>
                             </div>
                             <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full bg-[#1B264F] rounded-full" style={{ width: `${(it.c / 3) * 100}%` }} />
@@ -1287,7 +1287,7 @@ export default function Landing() {
 
                     {/* Right: PROJECTS */}
                     <div>
-                      <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">PROJECTS</p>
+                      <p className="text-[12px] font-bold tracking-[0.15em] text-gray-400 mb-3">PROJECTS</p>
                       <div className="space-y-4">
                         {[
                           { t: 'AI 챗봇 도입으로 CS 응대 시간 40% 단축', d: '단순 반복 문의 65%를 자동화해 상담 인력 부하를 크게 줄였습니다.', y: '2025' },
@@ -1302,7 +1302,7 @@ export default function Landing() {
                               <p className="text-[13px] sm:text-[14px] font-extrabold text-[#1B264F] leading-snug" style={{ wordBreak: 'keep-all' }}>{it.t}</p>
                               <p className="text-[12px] text-gray-400 leading-snug mt-0.5" style={{ wordBreak: 'keep-all' }}>{it.d}</p>
                             </div>
-                            <span className="text-[11px] font-bold text-gray-300 shrink-0 mt-0.5">{it.y}</span>
+                            <span className="text-[12px] font-bold text-gray-300 shrink-0 mt-0.5">{it.y}</span>
                           </div>
                         ))}
                       </div>
@@ -1362,7 +1362,7 @@ export default function Landing() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 bg-surface-50 rounded-lg border border-surface-200 overflow-hidden">
-                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[11px] font-bold rounded shrink-0">잡코리아</span>
+                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[12px] font-bold rounded shrink-0">잡코리아</span>
                         <span className="text-[13px] sm:text-[14px] text-bluewood-500 truncate">https://www.jobkorea.co.kr/Recruit/GI_Read/291234</span>
                       </div>
                       <div className="px-3 sm:px-4 py-2 bg-[#1B264F] text-white rounded-lg text-[13px] sm:text-[14px] font-bold shrink-0">분석하기</div>
@@ -1385,7 +1385,7 @@ export default function Landing() {
                       ))}
                     </div>
 
-                    <div className="flex items-center gap-1 p-1 bg-surface-50 rounded-lg mb-4 overflow-x-auto">
+                    <div className="flex items-center gap-1 p-1 bg-surface-50 rounded-lg mb-4 overflow-x-auto scrollbar-none">
                       {['기업 분석', '직무 분석', '지원 전략', '산업 트렌드'].map((tab, i) => (
                         <button key={i} className={`flex-1 min-w-fit py-1.5 px-2 rounded-md text-[12px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${i === 0 ? 'bg-white text-primary-600 shadow-sm' : 'text-bluewood-500'}`}>
                           {tab}
@@ -1440,7 +1440,7 @@ export default function Landing() {
                     <p className="text-[13px] sm:text-[14px] text-bluewood-500">본 포트폴리오는 PC 환경에 최적화되어 있습니다.</p>
                   </div>
 
-                  <div className="flex gap-2 mb-6 sm:mb-8 overflow-x-auto pb-2 border-b border-surface-100">
+                  <div className="flex gap-2 mb-6 sm:mb-8 overflow-x-auto scrollbar-none pb-2 border-b border-surface-100">
                     {['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관'].map((tab, i) => (
                       <span key={i} className="px-3 sm:px-4 py-1.5 bg-surface-50 text-bluewood-600 text-[13px] sm:text-[14px] font-bold rounded-lg shrink-0 cursor-pointer">
                         {tab}

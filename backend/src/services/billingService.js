@@ -13,9 +13,9 @@ const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 2500);
 const FEEDBACK_REWARD_CREDITS = Number(process.env.FEEDBACK_REWARD_CREDITS || 300);
 
 export const CREDIT_PACKAGES = [
-  { id: 'starter', credits: 1000, price: 3000, label: '가볍게 시작' },
-  { id: 'standard', credits: 5000, price: 12000, label: '가장 많이 선택' },
-  { id: 'pro', credits: 12000, price: 25000, label: '집중 준비' },
+  { id: 'starter', credits: 1000, price: 3000, label: '경험 1개 보강', outcome: '한 경험을 더 깊게 정리할 때' },
+  { id: 'standard', credits: 5000, price: 12000, label: '포트폴리오 스타터', outcome: '경험 3~4개와 플랜을 준비할 때' },
+  { id: 'pro', credits: 12000, price: 25000, label: '집중 지원 준비', outcome: '여러 공고에 맞춰 반복 준비할 때' },
 ];
 
 export const PAYMENT_METHODS = [
@@ -512,7 +512,7 @@ export async function createCreditRequest(uid, email, packageId) {
     createdAt: new Date(),
     updatedAt: new Date(),
   });
-  return { id: ref.id, credits: creditPackage.crwedits, price: creditPackage.price };
+  return { id: ref.id, credits: creditPackage.credits, price: creditPackage.price };
 }
 
 export async function createCheckout(uid, packageId, paymentMethod) {

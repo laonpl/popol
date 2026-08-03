@@ -43,6 +43,8 @@ import RecipeArtifactCover from './portfolio/RecipeArtifactCover';
 import { normalizePortfolioVisuals } from '../utils/devPortfolio';
 import { JOB_SPECIFIC_FIELDS } from '../stores/experienceStore';
 import { stripMd } from '../utils/textUtils';
+import useModalBehavior from '../hooks/useModalBehavior';
+import ConfirmDialog from './ConfirmDialog';
 
 function slatePlainText(node) {
   if (!node) return '';
@@ -89,29 +91,29 @@ function JobArtifactCover({ exp }) {
       const checks = [['권한별 화면', 'PASS'], ['키보드 탐색', 'PASS'], ['조건부 검증', '86%'], ['1,000행 렌더', '0.6s']];
       return (
         <div className="grid min-h-[270px] w-full bg-[#edf2f7] md:grid-cols-[1fr_310px]">
-          <div className="p-6"><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#47627c]">Release quality matrix</p><p className="mt-1 text-[21px] font-black text-[#14263a]">배포 전 품질 게이트</p><div className="mt-5 grid grid-cols-2 gap-2">{checks.map(([label, value], index) => <div key={label} className="rounded-lg border border-[#cdd9e5] bg-white p-3"><div className="flex items-center justify-between"><span className="text-[10px] font-bold text-[#5d7186]">0{index + 1}</span><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${value === 'PASS' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>{value}</span></div><p className="mt-3 text-[12px] font-extrabold text-[#14263a]">{label}</p></div>)}</div></div>
-          <div className="flex flex-col justify-between bg-[#172554] p-6 text-white"><div><p className="text-[10px] font-bold text-blue-200">TEST COVERAGE</p><p className="mt-2 text-[48px] font-black leading-none">86<span className="text-[20px]">%</span></p><div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full w-[86%] rounded-full bg-[#60a5fa]" /></div></div><div className="space-y-2">{outcomes.map((item, index) => <div key={index} className="flex justify-between gap-3 border-t border-white/10 pt-2 text-[10px]"><span className="text-blue-200">{item.label}</span><span className="font-black">{item.value}</span></div>)}</div></div>
+          <div className="p-6"><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#47627c]">Release quality matrix</p><p className="mt-1 text-[21px] font-black text-[#14263a]">배포 전 품질 게이트</p><div className="mt-5 grid grid-cols-2 gap-2">{checks.map(([label, value], index) => <div key={label} className="rounded-lg border border-[#cdd9e5] bg-white p-3"><div className="flex items-center justify-between"><span className="text-[11.5px] font-bold text-[#5d7186]">0{index + 1}</span><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${value === 'PASS' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>{value}</span></div><p className="mt-3 text-[12px] font-extrabold text-[#14263a]">{label}</p></div>)}</div></div>
+          <div className="flex flex-col justify-between bg-[#172554] p-6 text-white"><div><p className="text-[11.5px] font-bold text-blue-200">TEST COVERAGE</p><p className="mt-2 text-[48px] font-black leading-none">86<span className="text-[20px]">%</span></p><div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full w-[86%] rounded-full bg-[#60a5fa]" /></div></div><div className="space-y-2">{outcomes.map((item, index) => <div key={index} className="flex justify-between gap-3 border-t border-white/10 pt-2 text-[11.5px]"><span className="text-blue-200">{item.label}</span><span className="font-black">{item.value}</span></div>)}</div></div>
         </div>
       );
     }
 
     if (variant === 'performance-report') {
       return (
-        <div className="min-h-[270px] w-full bg-[#111827] p-6 text-white"><div className="flex items-start justify-between"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#55e6a5]">Core web vitals</p><p className="mt-1 text-[21px] font-black">성능 개선 전후 리포트</p></div><span className="rounded-full border border-[#55e6a5]/40 px-3 py-1 text-[9px] font-bold text-[#55e6a5]">BUDGET PASSED</span></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{outcomes.map((item, index) => <div key={index} className="rounded-xl border border-white/10 bg-white/[.04] p-4"><p className="text-[9px] font-bold text-slate-400">{item.label}</p><p className="mt-2 text-[24px] font-black text-[#55e6a5]">{item.value}</p><div className="mt-4 flex items-end gap-1">{[32, 48, 43, 68, 82, 100].map((height, barIndex) => <span key={barIndex} className="flex-1 rounded-sm bg-[#55e6a5]" style={{ height: `${Math.max(6, height - index * 5)}px`, opacity: .25 + barIndex * .13 }} />)}</div></div>)}</div></div>
+        <div className="min-h-[270px] w-full bg-[#111827] p-6 text-white"><div className="flex items-start justify-between"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#55e6a5]">Core web vitals</p><p className="mt-1 text-[21px] font-black">성능 개선 전후 리포트</p></div><span className="rounded-full border border-[#55e6a5]/40 px-3 py-1 text-[10.5px] font-bold text-[#55e6a5]">BUDGET PASSED</span></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{outcomes.map((item, index) => <div key={index} className="rounded-xl border border-white/10 bg-white/[.04] p-4"><p className="text-[10.5px] font-bold text-slate-400">{item.label}</p><p className="mt-2 text-[24px] font-black text-[#55e6a5]">{item.value}</p><div className="mt-4 flex items-end gap-1">{[32, 48, 43, 68, 82, 100].map((height, barIndex) => <span key={barIndex} className="flex-1 rounded-sm bg-[#55e6a5]" style={{ height: `${Math.max(6, height - index * 5)}px`, opacity: .25 + barIndex * .13 }} />)}</div></div>)}</div></div>
       );
     }
 
     if (variant === 'accessibility-audit') {
       const audits = [['Dialog focus trap', '수정'], ['Tab keyboard pattern', '수정'], ['ARIA live message', '검증'], ['axe CI regression', '자동화']];
       return (
-        <div className="grid min-h-[270px] w-full bg-white md:grid-cols-[235px_1fr]"><div className="flex flex-col justify-between bg-[#111827] p-6 text-white"><div><p className="font-mono text-[10px] font-black tracking-[0.18em] text-violet-300">A11Y AUDIT</p><p className="mt-3 text-[20px] font-black leading-tight">키보드·스크린리더 접근성 개선</p></div><div><p className="text-[42px] font-black leading-none text-violet-300">14 → 2</p><p className="mt-1 text-[10px] text-slate-400">핵심 시나리오 오류</p></div></div><div className="p-5"><div className="grid grid-cols-[1fr_70px] border-b border-slate-200 pb-2 text-[9px] font-black uppercase tracking-wider text-slate-400"><span>Audit item</span><span className="text-right">Status</span></div>{audits.map(([label, status], index) => <div key={label} className="grid grid-cols-[24px_1fr_70px] items-center border-b border-slate-100 py-3"><span className="font-mono text-[9px] font-black text-violet-500">0{index + 1}</span><span className="text-[11px] font-bold text-slate-700">{label}</span><span className="text-right text-[9px] font-black text-emerald-600">{status}</span></div>)}<p className="mt-3 text-[10px] text-slate-400">7개 PR · Storybook interaction 18개 · axe 자동 검사</p></div></div>
+        <div className="grid min-h-[270px] w-full bg-white md:grid-cols-[235px_1fr]"><div className="flex flex-col justify-between bg-[#111827] p-6 text-white"><div><p className="font-mono text-[11.5px] font-black tracking-[0.18em] text-violet-300">A11Y AUDIT</p><p className="mt-3 text-[20px] font-black leading-tight">키보드·스크린리더 접근성 개선</p></div><div><p className="text-[42px] font-black leading-none text-violet-300">14 → 2</p><p className="mt-1 text-[11.5px] text-slate-400">핵심 시나리오 오류</p></div></div><div className="p-5"><div className="grid grid-cols-[1fr_70px] border-b border-slate-200 pb-2 text-[10.5px] font-black uppercase tracking-wider text-slate-400"><span>Audit item</span><span className="text-right">Status</span></div>{audits.map(([label, status], index) => <div key={label} className="grid grid-cols-[24px_1fr_70px] items-center border-b border-slate-100 py-3"><span className="font-mono text-[10.5px] font-black text-violet-500">0{index + 1}</span><span className="text-[12px] font-bold text-slate-700">{label}</span><span className="text-right text-[10.5px] font-black text-emerald-600">{status}</span></div>)}<p className="mt-3 text-[11.5px] text-slate-400">7개 PR · Storybook interaction 18개 · axe 자동 검사</p></div></div>
       );
     }
 
     if (variant === 'automation-flow') {
       const stages = [['EVENT', '행사 일정'], ['QUEUE', '예약 작업'], ['FUNCTION', '멱등 발송'], ['MONITOR', '실패 추적']];
       return (
-        <div className="min-h-[270px] w-full bg-[#eef6ff] p-6"><div className="flex items-end justify-between"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Serverless operation</p><p className="mt-1 text-[21px] font-black text-slate-900">알림 자동화 실행 흐름</p></div><p className="text-right text-[10px] text-slate-500">운영 3시간 → <b className="text-blue-700">50분</b></p></div><div className="mt-8 grid grid-cols-4 gap-3">{stages.map(([en, ko], index) => <div key={en} className="relative rounded-xl border border-blue-100 bg-white px-3 py-4 text-center shadow-sm">{index < stages.length - 1 && <span className="absolute -right-3 top-1/2 z-[1] -translate-y-1/2 text-[16px] font-black text-blue-300">→</span>}<span className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 font-mono text-[10px] font-black text-blue-700">0{index + 1}</span><p className="mt-2 font-mono text-[8px] font-black text-blue-400">{en}</p><p className="mt-1 text-[11px] font-extrabold text-slate-800">{ko}</p></div>)}</div><div className="mt-5 flex gap-2">{commitTypes.map((item, index) => <div key={index} className="flex-1 rounded-lg bg-blue-900 px-3 py-2 text-white"><span className="text-[9px] text-blue-200">{item.type}</span><b className="float-right text-[12px]">{item.count}</b></div>)}</div></div>
+        <div className="min-h-[270px] w-full bg-[#eef6ff] p-6"><div className="flex items-end justify-between"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-blue-600">Serverless operation</p><p className="mt-1 text-[21px] font-black text-slate-900">알림 자동화 실행 흐름</p></div><p className="text-right text-[11.5px] text-slate-500">운영 3시간 → <b className="text-blue-700">50분</b></p></div><div className="mt-8 grid grid-cols-4 gap-3">{stages.map(([en, ko], index) => <div key={en} className="relative rounded-xl border border-blue-100 bg-white px-3 py-4 text-center shadow-sm">{index < stages.length - 1 && <span className="absolute -right-3 top-1/2 z-[1] -translate-y-1/2 text-[16px] font-black text-blue-300">→</span>}<span className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 font-mono text-[11.5px] font-black text-blue-700">0{index + 1}</span><p className="mt-2 font-mono text-[8px] font-black text-blue-400">{en}</p><p className="mt-1 text-[12px] font-extrabold text-slate-800">{ko}</p></div>)}</div><div className="mt-5 flex gap-2">{commitTypes.map((item, index) => <div key={index} className="flex-1 rounded-lg bg-blue-900 px-3 py-2 text-white"><span className="text-[10.5px] text-blue-200">{item.type}</span><b className="float-right text-[12px]">{item.count}</b></div>)}</div></div>
       );
     }
 
@@ -119,24 +121,24 @@ function JobArtifactCover({ exp }) {
       <div className="grid min-h-[270px] w-full bg-[#0d1117] text-white md:grid-cols-[260px_1fr]">
         <div className="flex flex-col justify-between border-b border-[#30363d] p-6 md:border-b-0 md:border-r">
           <div>
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#7d8590]">Git contribution</p>
+            <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.2em] text-[#7d8590]">Git contribution</p>
             <p className="mt-3 break-words text-[17px] font-black leading-tight">{stats.repoName || 'PROJECT REPOSITORY'}</p>
           </div>
           <div className="mt-6 flex items-end gap-5">
-            <div><p className="text-[38px] font-black leading-none text-[#58a6ff]">{stats.contributionPct || 0}%</p><p className="mt-1 text-[10px] text-[#8b949e]">기여 비중</p></div>
-            <div><p className="text-[22px] font-extrabold leading-none">{stats.myCommits || 0}<span className="text-[12px] text-[#8b949e]"> / {stats.totalCommits || 0}</span></p><p className="mt-1 text-[10px] text-[#8b949e]">내 커밋 / 전체</p></div>
+            <div><p className="text-[38px] font-black leading-none text-[#58a6ff]">{stats.contributionPct || 0}%</p><p className="mt-1 text-[11.5px] text-[#8b949e]">기여 비중</p></div>
+            <div><p className="text-[22px] font-extrabold leading-none">{stats.myCommits || 0}<span className="text-[12px] text-[#8b949e]"> / {stats.totalCommits || 0}</span></p><p className="mt-1 text-[11.5px] text-[#8b949e]">내 커밋 / 전체</p></div>
           </div>
         </div>
         <div className="min-w-0 p-5 font-mono">
-          <div className="mb-3 flex items-center gap-2 text-[10px] text-[#8b949e]"><span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" /><span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" /><span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" /><span className="ml-2 truncate">{snippet.file || 'src/main.ts'}</span><span className="ml-auto rounded bg-[#1f6f3f]/40 px-2 py-0.5 font-bold text-[#56d364]">DIFF</span></div>
-          <div className="overflow-hidden rounded-md border border-[#30363d] bg-[#161b22] py-2 text-[11px] leading-[1.7]">
+          <div className="mb-3 flex items-center gap-2 text-[11.5px] text-[#8b949e]"><span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" /><span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" /><span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" /><span className="ml-2 truncate">{snippet.file || 'src/main.ts'}</span><span className="ml-auto rounded bg-[#1f6f3f]/40 px-2 py-0.5 font-bold text-[#56d364]">DIFF</span></div>
+          <div className="overflow-hidden rounded-md border border-[#30363d] bg-[#161b22] py-2 text-[12px] leading-[1.7]">
             {codeLines.map((line, index) => {
               const added = line.startsWith('+');
               const removed = line.startsWith('-');
               return <div key={index} className={`flex gap-2 px-3 ${added ? 'bg-[#238636]/20 text-[#aff5b4]' : removed ? 'bg-[#da3633]/20 text-[#ffdcd7]' : 'text-[#c9d1d9]'}`}><span className="w-4 select-none text-right text-[#484f58]">{index + 1}</span><span className="whitespace-pre">{line}</span></div>;
             })}
           </div>
-          <p className="mt-3 line-clamp-2 text-[11px] leading-relaxed text-[#8b949e]">{experience.core_impact}</p>
+          <p className="mt-3 line-clamp-2 text-[12px] leading-relaxed text-[#8b949e]">{experience.core_impact}</p>
         </div>
       </div>
     );
@@ -150,40 +152,40 @@ function JobArtifactCover({ exp }) {
 
     if (variant === 'experiment-board') {
       return (
-        <div className="grid min-h-[270px] w-full bg-[#f4f1ff] p-6 md:grid-cols-[1fr_280px]"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-violet-600">Experiment design</p><p className="mt-1 text-[21px] font-black text-slate-900">가설 검증 보드</p><div className="mt-5 rounded-xl border border-violet-200 bg-white p-4"><span className="rounded bg-violet-100 px-2 py-1 text-[9px] font-black text-violet-700">H1</span><p className="mt-3 text-[13px] font-bold leading-relaxed text-slate-800">{hypothesis.hypothesis}</p><div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 rounded-lg bg-slate-50 p-3 text-center"><div><p className="text-[8px] text-slate-400">KPI</p><p className="mt-1 text-[10px] font-black">{hypothesis.kpi}</p></div><div><p className="text-[8px] text-slate-400">TARGET</p><p className="mt-1 text-[12px] font-black">{hypothesis.target}</p></div><div><p className="text-[8px] text-slate-400">ACTUAL</p><p className="mt-1 text-[12px] font-black text-emerald-600">{hypothesis.achievement}</p></div></div></div></div><div className="mt-5 flex flex-col justify-center gap-3 md:mt-0">{['가설 정의', '2주 MVP', 'A/B 테스트', '전체 적용'].map((step, index) => <div key={step} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${index === 3 ? 'bg-emerald-600 text-white' : 'border border-violet-200 bg-white text-slate-700'}`}><span className="font-mono text-[9px] font-black">0{index + 1}</span><span className="text-[11px] font-bold">{step}</span></div>)}</div></div>
+        <div className="grid min-h-[270px] w-full bg-[#f4f1ff] p-6 md:grid-cols-[1fr_280px]"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-violet-600">Experiment design</p><p className="mt-1 text-[21px] font-black text-slate-900">가설 검증 보드</p><div className="mt-5 rounded-xl border border-violet-200 bg-white p-4"><span className="rounded bg-violet-100 px-2 py-1 text-[10.5px] font-black text-violet-700">H1</span><p className="mt-3 text-[13px] font-bold leading-relaxed text-slate-800">{hypothesis.hypothesis}</p><div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 rounded-lg bg-slate-50 p-3 text-center"><div><p className="text-[8px] text-slate-400">KPI</p><p className="mt-1 text-[11.5px] font-black">{hypothesis.kpi}</p></div><div><p className="text-[8px] text-slate-400">TARGET</p><p className="mt-1 text-[12px] font-black">{hypothesis.target}</p></div><div><p className="text-[8px] text-slate-400">ACTUAL</p><p className="mt-1 text-[12px] font-black text-emerald-600">{hypothesis.achievement}</p></div></div></div></div><div className="mt-5 flex flex-col justify-center gap-3 md:mt-0">{['가설 정의', '2주 MVP', 'A/B 테스트', '전체 적용'].map((step, index) => <div key={step} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${index === 3 ? 'bg-emerald-600 text-white' : 'border border-violet-200 bg-white text-slate-700'}`}><span className="font-mono text-[10.5px] font-black">0{index + 1}</span><span className="text-[12px] font-bold">{step}</span></div>)}</div></div>
       );
     }
 
     if (variant === 'discovery-map') {
       return (
-        <div className="min-h-[270px] w-full bg-[#0d172a] p-6 text-white"><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#d6ff45]">Discovery evidence map</p><div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_170px]"><div className="rotate-[-1deg] rounded-sm bg-[#ffe978] p-4 text-slate-900 shadow-lg"><p className="text-[8px] font-black text-amber-700">OBSERVED PROBLEM</p><p className="mt-3 line-clamp-4 text-[12px] font-bold leading-relaxed">{product.problem}</p></div><div className="rotate-[1deg] rounded-sm bg-[#a7f3d0] p-4 text-slate-900 shadow-lg"><p className="text-[8px] font-black text-emerald-700">DESIGN RESPONSE</p><p className="mt-3 line-clamp-4 text-[12px] font-bold leading-relaxed">{product.solution}</p></div><div className="flex flex-col justify-between rounded-xl border border-white/15 bg-white/5 p-4"><p className="text-[9px] font-bold text-slate-400">USABILITY TEST</p><p className="text-[35px] font-black leading-none text-[#d6ff45]">{metrics[0]?.value}</p><p className="text-[9px] leading-relaxed text-slate-400">목표 {metrics[0]?.target}<br />사용자 근거로 콘셉트 수정</p></div></div></div>
+        <div className="min-h-[270px] w-full bg-[#0d172a] p-6 text-white"><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#d6ff45]">Discovery evidence map</p><div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_170px]"><div className="rotate-[-1deg] rounded-sm bg-[#ffe978] p-4 text-slate-900 shadow-lg"><p className="text-[8px] font-black text-amber-700">OBSERVED PROBLEM</p><p className="mt-3 line-clamp-4 text-[12px] font-bold leading-relaxed">{product.problem}</p></div><div className="rotate-[1deg] rounded-sm bg-[#a7f3d0] p-4 text-slate-900 shadow-lg"><p className="text-[8px] font-black text-emerald-700">DESIGN RESPONSE</p><p className="mt-3 line-clamp-4 text-[12px] font-bold leading-relaxed">{product.solution}</p></div><div className="flex flex-col justify-between rounded-xl border border-white/15 bg-white/5 p-4"><p className="text-[10.5px] font-bold text-slate-400">USABILITY TEST</p><p className="text-[35px] font-black leading-none text-[#d6ff45]">{metrics[0]?.value}</p><p className="text-[10.5px] leading-relaxed text-slate-400">목표 {metrics[0]?.target}<br />사용자 근거로 콘셉트 수정</p></div></div></div>
       );
     }
 
     if (variant === 'service-blueprint') {
       const lanes = [['사용자 행동', 'bg-blue-50 text-blue-800'], ['화면·정책', 'bg-violet-50 text-violet-800'], ['운영 대응', 'bg-amber-50 text-amber-800']];
       return (
-        <div className="min-h-[270px] w-full bg-white p-5"><div className="flex items-end justify-between"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Service blueprint</p><p className="mt-1 text-[20px] font-black text-slate-900">예약 경험과 운영 정책 연결</p></div><span className="text-[9px] font-bold text-slate-400">FRONTSTAGE / BACKSTAGE</span></div><div className="mt-4 overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[92px_repeat(4,1fr)] bg-slate-900 text-white">{['구분', ...timeline.map(item => item.label)].map(label => <div key={label} className="truncate border-r border-white/10 px-2 py-2 text-center text-[8px] font-bold">{label}</div>)}</div>{lanes.map(([label, color], laneIndex) => <div key={label} className="grid grid-cols-[92px_repeat(4,1fr)] border-t border-slate-200"><div className="flex items-center px-2 text-[9px] font-black text-slate-500">{label}</div>{timeline.map((item, index) => <div key={index} className="border-l border-slate-100 p-1.5"><div className={`min-h-[42px] rounded p-2 text-[8.5px] font-semibold leading-snug ${color}`}>{laneIndex === 0 ? item.value : laneIndex === 1 ? `${item.phase} 기준 정의` : `${index + 1}단계 예외 대응`}</div></div>)}</div>)}</div></div>
+        <div className="min-h-[270px] w-full bg-white p-5"><div className="flex items-end justify-between"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-blue-600">Service blueprint</p><p className="mt-1 text-[20px] font-black text-slate-900">예약 경험과 운영 정책 연결</p></div><span className="text-[10.5px] font-bold text-slate-400">FRONTSTAGE / BACKSTAGE</span></div><div className="mt-4 overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[92px_repeat(4,1fr)] bg-slate-900 text-white">{['구분', ...timeline.map(item => item.label)].map(label => <div key={label} className="truncate border-r border-white/10 px-2 py-2 text-center text-[8px] font-bold">{label}</div>)}</div>{lanes.map(([label, color], laneIndex) => <div key={label} className="grid grid-cols-[92px_repeat(4,1fr)] border-t border-slate-200"><div className="flex items-center px-2 text-[10.5px] font-black text-slate-500">{label}</div>{timeline.map((item, index) => <div key={index} className="border-l border-slate-100 p-1.5"><div className={`min-h-[42px] rounded p-2 text-[8.5px] font-semibold leading-snug ${color}`}>{laneIndex === 0 ? item.value : laneIndex === 1 ? `${item.phase} 기준 정의` : `${index + 1}단계 예외 대응`}</div></div>)}</div>)}</div></div>
       );
     }
 
     if (variant === 'policy-system') {
       const nodes = ['문의 접수', '셀프 진단', '정책 판정', '관리자 보정', '월간 개선'];
       return (
-        <div className="grid min-h-[270px] w-full bg-[#f6f8f4] p-6 md:grid-cols-[1fr_240px]"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Operation policy system</p><p className="mt-1 text-[21px] font-black text-slate-900">VOC가 제품 개선으로 이어지는 구조</p><div className="mt-6 flex items-center">{nodes.map((node, index) => <div key={node} className="flex min-w-0 flex-1 items-center"><div className={`min-w-0 flex-1 rounded-lg px-2 py-3 text-center text-[9px] font-black ${index === 2 ? 'bg-emerald-700 text-white' : 'border border-emerald-200 bg-white text-slate-700'}`}>{node}</div>{index < nodes.length - 1 && <span className="px-1 text-emerald-400">›</span>}</div>)}</div><p className="mt-5 max-w-2xl text-[10px] leading-relaxed text-slate-500">{hypothesis.note}</p></div><div className="mt-5 grid gap-2 md:ml-5 md:mt-0">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-emerald-100 bg-white px-3 py-2.5"><p className="text-[8px] font-bold text-slate-400">{metric.label}</p><p className="mt-1 text-[17px] font-black text-emerald-700">{metric.value}</p><p className="text-[8px] text-slate-400">목표 {metric.target}</p></div>)}</div></div>
+        <div className="grid min-h-[270px] w-full bg-[#f6f8f4] p-6 md:grid-cols-[1fr_240px]"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-emerald-700">Operation policy system</p><p className="mt-1 text-[21px] font-black text-slate-900">VOC가 제품 개선으로 이어지는 구조</p><div className="mt-6 flex items-center">{nodes.map((node, index) => <div key={node} className="flex min-w-0 flex-1 items-center"><div className={`min-w-0 flex-1 rounded-lg px-2 py-3 text-center text-[10.5px] font-black ${index === 2 ? 'bg-emerald-700 text-white' : 'border border-emerald-200 bg-white text-slate-700'}`}>{node}</div>{index < nodes.length - 1 && <span className="px-1 text-emerald-400">›</span>}</div>)}</div><p className="mt-5 max-w-2xl text-[11.5px] leading-relaxed text-slate-500">{hypothesis.note}</p></div><div className="mt-5 grid gap-2 md:ml-5 md:mt-0">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-emerald-100 bg-white px-3 py-2.5"><p className="text-[8px] font-bold text-slate-400">{metric.label}</p><p className="mt-1 text-[17px] font-black text-emerald-700">{metric.value}</p><p className="text-[8px] text-slate-400">목표 {metric.target}</p></div>)}</div></div>
       );
     }
 
     return (
       <div className="min-h-[270px] w-full bg-[#f7f9fc] p-6">
         <div className="flex items-end justify-between gap-4">
-          <div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-primary-500">Product roadmap</p><p className="mt-1 text-[21px] font-black text-bluewood-900">근거에서 검증까지 이어지는 실행 로드맵</p></div>
-          <p className="hidden text-[10px] text-bluewood-300 sm:block">DISCOVER → DEFINE → BUILD → VALIDATE</p>
+          <div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-primary-500">Product roadmap</p><p className="mt-1 text-[21px] font-black text-bluewood-900">근거에서 검증까지 이어지는 실행 로드맵</p></div>
+          <p className="hidden text-[11.5px] text-bluewood-300 sm:block">DISCOVER → DEFINE → BUILD → VALIDATE</p>
         </div>
         <div className="relative mt-8 grid grid-cols-4 gap-2 before:absolute before:left-[8%] before:right-[8%] before:top-3 before:h-0.5 before:bg-primary-200">
-          {timeline.map((item, index) => <div key={`${item.phase}-${index}`} className="relative min-w-0 pt-8"><span className="absolute left-1/2 top-0 z-[1] flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white text-[8px] font-black text-white" style={{ backgroundColor: item.color || '#002F6C' }}>{index + 1}</span><p className="truncate text-center font-mono text-[8px] font-bold tracking-wide text-primary-500">{item.phase}</p><p className="mt-1 text-center text-[11px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 line-clamp-2 text-center text-[9px] leading-relaxed text-bluewood-400">{item.value}</p></div>)}
+          {timeline.map((item, index) => <div key={`${item.phase}-${index}`} className="relative min-w-0 pt-8"><span className="absolute left-1/2 top-0 z-[1] flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white text-[8px] font-black text-white" style={{ backgroundColor: item.color || '#002F6C' }}>{index + 1}</span><p className="truncate text-center font-mono text-[8px] font-bold tracking-wide text-primary-500">{item.phase}</p><p className="mt-1 text-center text-[12px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 line-clamp-2 text-center text-[10.5px] leading-relaxed text-bluewood-400">{item.value}</p></div>)}
         </div>
-        <div className="mt-6 grid grid-cols-3 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-surface-200 bg-white px-3 py-2"><p className="truncate text-[9px] font-bold text-bluewood-300">{metric.label}</p><p className="mt-0.5 text-[15px] font-black text-bluewood-900">{metric.value}</p></div>)}</div>
+        <div className="mt-6 grid grid-cols-3 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-surface-200 bg-white px-3 py-2"><p className="truncate text-[10.5px] font-bold text-bluewood-300">{metric.label}</p><p className="mt-0.5 text-[15px] font-black text-bluewood-900">{metric.value}</p></div>)}</div>
       </div>
     );
   }
@@ -197,33 +199,33 @@ function JobArtifactCover({ exp }) {
     if (variant === 'crm-journey') {
       const journey = [['01', '관심 콘텐츠', '행동 데이터로 세그먼트 분기'], ['02', '리마인드', '장바구니·교체 주기 개인화'], ['03', '혜택 전환', '중복 접촉 제외 후 발송']];
       return (
-        <div className="min-h-[270px] w-full bg-[#eaf4e8] p-6"><div className="flex items-end justify-between"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#17452e]">Automated crm journey</p><p className="mt-1 text-[21px] font-black text-[#173c2a]">행동 기반 3단계 리텐션</p></div><span className="rounded-full bg-[#17452e] px-3 py-1 text-[9px] font-black text-[#dff06a]">5 SEGMENTS</span></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{journey.map(([num, title, desc], index) => <div key={num} className="relative rounded-xl bg-[#17452e] p-4 text-white">{index < 2 && <span className="absolute -right-3 top-1/2 z-[1] -translate-y-1/2 text-[18px] font-black text-[#6f927d]">→</span>}<span className="font-mono text-[10px] font-black text-[#dff06a]">{num}</span><p className="mt-4 text-[13px] font-black">{title}</p><p className="mt-1 text-[9px] leading-relaxed text-[#b7cbbd]">{desc}</p></div>)}</div><div className="mt-4 flex gap-2">{metrics.slice(0, 2).map((metric, index) => <div key={index} className="flex-1 rounded-lg bg-white/70 px-3 py-2"><span className="text-[9px] font-bold text-[#52705e]">{metric.name}</span><b className="float-right text-[15px] text-[#17452e]">{metric.value}</b></div>)}</div></div>
+        <div className="min-h-[270px] w-full bg-[#eaf4e8] p-6"><div className="flex items-end justify-between"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#17452e]">Automated crm journey</p><p className="mt-1 text-[21px] font-black text-[#173c2a]">행동 기반 3단계 리텐션</p></div><span className="rounded-full bg-[#17452e] px-3 py-1 text-[10.5px] font-black text-[#dff06a]">5 SEGMENTS</span></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{journey.map(([num, title, desc], index) => <div key={num} className="relative rounded-xl bg-[#17452e] p-4 text-white">{index < 2 && <span className="absolute -right-3 top-1/2 z-[1] -translate-y-1/2 text-[18px] font-black text-[#6f927d]">→</span>}<span className="font-mono text-[11.5px] font-black text-[#dff06a]">{num}</span><p className="mt-4 text-[13px] font-black">{title}</p><p className="mt-1 text-[10.5px] leading-relaxed text-[#b7cbbd]">{desc}</p></div>)}</div><div className="mt-4 flex gap-2">{metrics.slice(0, 2).map((metric, index) => <div key={index} className="flex-1 rounded-lg bg-white/70 px-3 py-2"><span className="text-[10.5px] font-bold text-[#52705e]">{metric.name}</span><b className="float-right text-[15px] text-[#17452e]">{metric.value}</b></div>)}</div></div>
       );
     }
 
     if (variant === 'content-scoreboard') {
       return (
-        <div className="grid min-h-[270px] w-full bg-[#ed503c] p-6 text-white md:grid-cols-[230px_1fr]"><div className="flex flex-col justify-between"><div><p className="font-mono text-[10px] font-black tracking-[0.2em] text-[#ffd36d]">CONTENT SCOREBOARD</p><p className="mt-3 text-[25px] font-black leading-tight">48편의 실험을<br />채널 성장으로</p></div><p className="text-[10px] leading-relaxed text-white/70">조회보다 저장·프로필 방문을<br />핵심 편성 지표로 관리</p></div><div className="grid grid-cols-2 gap-2">{metrics.map((metric, index) => <div key={index} className={`${index === 0 ? 'col-span-2' : ''} rounded-xl bg-[#fff5d8] px-4 py-3 text-[#2a201b]`}><div className="flex items-start justify-between"><p className="text-[9px] font-black text-[#a04736]">0{index + 1} · {metric.name}</p><span className="text-[8px] font-bold text-[#d5583f]">TOP KPI</span></div><p className={`${index === 0 ? 'text-[32px]' : 'text-[21px]'} mt-1 font-black`}>{metric.value}</p></div>)}</div></div>
+        <div className="grid min-h-[270px] w-full bg-[#ed503c] p-6 text-white md:grid-cols-[230px_1fr]"><div className="flex flex-col justify-between"><div><p className="font-mono text-[11.5px] font-black tracking-[0.2em] text-[#ffd36d]">CONTENT SCOREBOARD</p><p className="mt-3 text-[25px] font-black leading-tight">48편의 실험을<br />채널 성장으로</p></div><p className="text-[11.5px] leading-relaxed text-white/70">조회보다 저장·프로필 방문을<br />핵심 편성 지표로 관리</p></div><div className="grid grid-cols-2 gap-2">{metrics.map((metric, index) => <div key={index} className={`${index === 0 ? 'col-span-2' : ''} rounded-xl bg-[#fff5d8] px-4 py-3 text-[#2a201b]`}><div className="flex items-start justify-between"><p className="text-[10.5px] font-black text-[#a04736]">0{index + 1} · {metric.name}</p><span className="text-[8px] font-bold text-[#d5583f]">TOP KPI</span></div><p className={`${index === 0 ? 'text-[32px]' : 'text-[21px]'} mt-1 font-black`}>{metric.value}</p></div>)}</div></div>
       );
     }
 
     if (variant === 'paid-funnel') {
       return (
-        <div className="grid min-h-[270px] w-full bg-[#101827] p-6 text-white md:grid-cols-[1fr_250px]"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Acquisition funnel</p><p className="mt-1 text-[21px] font-black">광고 클릭부터 첫 예산 등록까지</p><div className="mt-5 space-y-2">{funnel.map((item, index) => { const width = 100 - index * 15; return <div key={index} className="mx-auto flex h-9 items-center justify-between rounded px-3 text-[10px] font-bold" style={{ width: `${width}%`, backgroundColor: `rgba(34,211,238,${.22 + index * .18})` }}><span>{item.label}</span><span className="font-black tabular-nums">{Number(item.value).toLocaleString()}</span></div>; })}</div></div><div className="mt-5 flex flex-col justify-center gap-3 md:ml-5 md:mt-0">{metrics.slice(0, 3).map((metric, index) => <div key={index} className="border-l-2 border-cyan-300 pl-3"><p className="text-[9px] text-slate-400">{metric.name}</p><p className="mt-0.5 text-[20px] font-black text-cyan-200">{metric.value}</p><p className="text-[8px] text-slate-500">{metric.status}</p></div>)}</div></div>
+        <div className="grid min-h-[270px] w-full bg-[#101827] p-6 text-white md:grid-cols-[1fr_250px]"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-cyan-300">Acquisition funnel</p><p className="mt-1 text-[21px] font-black">광고 클릭부터 첫 예산 등록까지</p><div className="mt-5 space-y-2">{funnel.map((item, index) => { const width = 100 - index * 15; return <div key={index} className="mx-auto flex h-9 items-center justify-between rounded px-3 text-[11.5px] font-bold" style={{ width: `${width}%`, backgroundColor: `rgba(34,211,238,${.22 + index * .18})` }}><span>{item.label}</span><span className="font-black tabular-nums">{Number(item.value).toLocaleString()}</span></div>; })}</div></div><div className="mt-5 flex flex-col justify-center gap-3 md:ml-5 md:mt-0">{metrics.slice(0, 3).map((metric, index) => <div key={index} className="border-l-2 border-cyan-300 pl-3"><p className="text-[10.5px] text-slate-400">{metric.name}</p><p className="mt-0.5 text-[20px] font-black text-cyan-200">{metric.value}</p><p className="text-[8px] text-slate-500">{metric.status}</p></div>)}</div></div>
       );
     }
 
     if (variant === 'growth-report') {
       const points = '20,120 90,104 160,110 230,72 300,80 370,42 440,28';
       return (
-        <div className="grid min-h-[270px] w-full bg-[#fffdf8] p-6 md:grid-cols-[1fr_230px]"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed]">Audience growth report</p><p className="mt-1 text-[21px] font-black text-slate-900">구독과 추천이 만든 성장 곡선</p><div className="mt-5 rounded-xl border border-violet-100 bg-white p-3"><svg viewBox="0 0 460 140" className="h-[120px] w-full" aria-label="구독자 성장 추이"><defs><linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#8b5cf6" stopOpacity=".28" /><stop offset="1" stopColor="#8b5cf6" stopOpacity="0" /></linearGradient></defs><path d={`M ${points} L 440 135 L 20 135 Z`} fill="url(#growthFill)" /><polyline points={points} fill="none" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />{points.split(' ').map((point, index) => { const [cx, cy] = point.split(','); return <circle key={index} cx={cx} cy={cy} r="5" fill="white" stroke="#7c3aed" strokeWidth="3" />; })}</svg><div className="flex justify-between text-[8px] font-bold text-slate-400"><span>APR</span><span>JUN</span><span>AUG</span><span>OCT</span><span>DEC</span></div></div></div><div className="mt-5 grid content-center gap-2 md:ml-4 md:mt-0">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-violet-100 bg-white px-3 py-2"><span className="text-[8px] font-bold text-slate-400">{metric.name}</span><b className="float-right text-[14px] text-violet-700">{metric.value}</b></div>)}</div></div>
+        <div className="grid min-h-[270px] w-full bg-[#fffdf8] p-6 md:grid-cols-[1fr_230px]"><div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#7c3aed]">Audience growth report</p><p className="mt-1 text-[21px] font-black text-slate-900">구독과 추천이 만든 성장 곡선</p><div className="mt-5 rounded-xl border border-violet-100 bg-white p-3"><svg viewBox="0 0 460 140" className="h-[120px] w-full" aria-label="구독자 성장 추이"><defs><linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#8b5cf6" stopOpacity=".28" /><stop offset="1" stopColor="#8b5cf6" stopOpacity="0" /></linearGradient></defs><path d={`M ${points} L 440 135 L 20 135 Z`} fill="url(#growthFill)" /><polyline points={points} fill="none" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />{points.split(' ').map((point, index) => { const [cx, cy] = point.split(','); return <circle key={index} cx={cx} cy={cy} r="5" fill="white" stroke="#7c3aed" strokeWidth="3" />; })}</svg><div className="flex justify-between text-[8px] font-bold text-slate-400"><span>APR</span><span>JUN</span><span>AUG</span><span>OCT</span><span>DEC</span></div></div></div><div className="mt-5 grid content-center gap-2 md:ml-4 md:mt-0">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-violet-100 bg-white px-3 py-2"><span className="text-[8px] font-bold text-slate-400">{metric.name}</span><b className="float-right text-[14px] text-violet-700">{metric.value}</b></div>)}</div></div>
       );
     }
 
     return (
       <div className="grid min-h-[270px] w-full gap-5 bg-[#fffaf5] p-6 md:grid-cols-[1.15fr_.85fr]">
-        <div><p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#e94e35]">Campaign performance</p><p className="mt-1 text-[21px] font-black text-[#202020]">핵심 KPI 대시보드</p><div className="mt-5 grid grid-cols-2 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-xl border border-[#efd8ce] bg-white px-3.5 py-3"><p className="truncate text-[9px] font-bold uppercase tracking-wide text-[#a56f62]">{metric.name}</p><p className="mt-1 text-[19px] font-black text-[#202020]">{metric.value}</p><p className="mt-0.5 truncate text-[9px] font-semibold text-[#e94e35]">{metric.status}</p></div>)}</div></div>
-        <div className="rounded-xl border border-[#efd8ce] bg-white p-4"><p className="text-[11px] font-black text-[#202020]">전환 퍼널</p><div className="mt-4 space-y-3">{funnel.map((item, index) => <div key={index}><div className="mb-1 flex justify-between text-[9px]"><span className="font-bold text-[#6f5a54]">{item.label}</span><span className="font-black tabular-nums text-[#202020]">{Number(item.value).toLocaleString()}{item.unit || ''}</span></div><div className="h-2 overflow-hidden rounded-full bg-[#f7e9e3]"><div className="h-full rounded-full bg-[#e94e35]" style={{ width: `${Math.max(8, Math.round((Number(item.value) / max) * 100))}%` }} /></div></div>)}</div></div>
+        <div><p className="font-mono text-[11.5px] font-black uppercase tracking-[0.2em] text-[#e94e35]">Campaign performance</p><p className="mt-1 text-[21px] font-black text-[#202020]">핵심 KPI 대시보드</p><div className="mt-5 grid grid-cols-2 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-xl border border-[#efd8ce] bg-white px-3.5 py-3"><p className="truncate text-[10.5px] font-bold uppercase tracking-wide text-[#a56f62]">{metric.name}</p><p className="mt-1 text-[19px] font-black text-[#202020]">{metric.value}</p><p className="mt-0.5 truncate text-[10.5px] font-semibold text-[#e94e35]">{metric.status}</p></div>)}</div></div>
+        <div className="rounded-xl border border-[#efd8ce] bg-white p-4"><p className="text-[12px] font-black text-[#202020]">전환 퍼널</p><div className="mt-4 space-y-3">{funnel.map((item, index) => <div key={index}><div className="mb-1 flex justify-between text-[10.5px]"><span className="font-bold text-[#6f5a54]">{item.label}</span><span className="font-black tabular-nums text-[#202020]">{Number(item.value).toLocaleString()}{item.unit || ''}</span></div><div className="h-2 overflow-hidden rounded-full bg-[#f7e9e3]"><div className="h-full rounded-full bg-[#e94e35]" style={{ width: `${Math.max(8, Math.round((Number(item.value) / max) * 100))}%` }} /></div></div>)}</div></div>
       </div>
     );
   }
@@ -311,7 +313,7 @@ function QuickMenu({ headings, activeId, onSelect, anchorRef, scrollRootRef }) {
         style={{ width: QUICK_MENU_PANEL_WIDTH }}
       >
         <div className="rounded-2xl border border-surface-200 bg-white/98 p-3 shadow-card-hover backdrop-blur">
-          <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-300">
+          <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[11.5px] font-black uppercase tracking-[0.18em] text-bluewood-300">
             <List size={12} /> Quick
           </div>
           {headings.length === 0 ? (
@@ -356,6 +358,7 @@ export default function ProjectDetailModal({
 }) {
   const structured = exp?.structuredResult || {};
   const overview = structured.projectOverview || {};
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, () => onClose?.());
 
   // ── Firestore 섹션 이미지 로드 (마이그레이션 보존용) ──
   const [allImages, setAllImages] = useState([]);
@@ -440,7 +443,11 @@ export default function ProjectDetailModal({
 
   // 폴백 전용 — AI 구성이 실패했을 때만 쓰는 결정론적 조립
   const replaceCanvasWithDraft = (skipConfirm = false) => {
-    if (!skipConfirm && !docIsEmpty && !window.confirm('현재 캔버스 내용을 초안으로 교체할까요?')) return;
+    if (!skipConfirm && !docIsEmpty) { setPendingReplace('draft'); return; }
+    applyDraftToCanvas();
+  };
+
+  const applyDraftToCanvas = () => {
     const blocks = experienceDraftBlocks(exp, { allImages, sectionImages, imageConfig });
     const nextDoc = blocksToYooptaValue(blocks);
     canvasRef.current?.replaceBlocks(blocks);
@@ -456,9 +463,15 @@ export default function ProjectDetailModal({
   // AI가 만든 구성 계획(섹션 선택·순서·제목)에 따라 조립한다.
   const [composing, setComposing] = useState(false);
   const [composePlan, setComposePlan] = useState(null);
+  // 캔버스 교체 확인 — 브라우저 confirm 대신 브랜드 다이얼로그 사용
+  const [pendingReplace, setPendingReplace] = useState(null);   // 'draft' | 'compose' | null
 
   const composeCanvas = async () => {
-    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 새 초안으로 교체할까요?')) return;
+    if (!docIsEmpty) { setPendingReplace('compose'); return; }
+    await runComposeCanvas();
+  };
+
+  const runComposeCanvas = async () => {
     setComposing(true);
     try {
       const sr = exp?.structuredResult || {};
@@ -730,13 +743,33 @@ export default function ProjectDetailModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-3"
-      onClick={event => {
-        if (event.target === event.currentTarget) onClose?.();
-      }}
+      className="fixed inset-0 bg-black/40 z-[110] flex items-center justify-center p-3"
+      {...backdropProps}
     >
+      <ConfirmDialog
+        open={!!pendingReplace}
+        title="현재 캔버스 내용을 교체할까요?"
+        message={pendingReplace === 'compose'
+          ? '지금 작성된 내용이 AI가 새로 구성한 초안으로 완전히 대체되고, 되돌릴 수 없어요.'
+          : '지금 작성된 내용이 기본 초안으로 완전히 대체되고, 되돌릴 수 없어요.'}
+        confirmLabel="교체"
+        cancelLabel="그대로 두기"
+        onCancel={() => setPendingReplace(null)}
+        onConfirm={() => {
+          const mode = pendingReplace;
+          setPendingReplace(null);
+          if (mode === 'compose') runComposeCanvas();
+          else applyDraftToCanvas();
+        }}
+      />
+
       <div
-        className="bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] transition-all duration-300"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="프로젝트 상세"
+        tabIndex={-1}
+        className="bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] transition-all duration-300 outline-none"
         style={{ width: showTailorPanel ? 'min(1700px, calc(100vw - 24px))' : 'min(1400px, calc(100vw - 24px))' }}
         onClick={e => e.stopPropagation()}
       >
@@ -806,11 +839,11 @@ export default function ProjectDetailModal({
           {showPalette && (
             <div data-tour="project-detail-palette" className="w-[248px] flex-shrink-0 border-r border-gray-100 bg-[#fafaf8] overflow-y-auto p-3">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bluewood-300">Blocks</p>
+                <p className="text-[12px] font-black uppercase tracking-[0.16em] text-bluewood-300">Blocks</p>
                 <button
                   type="button"
                   onClick={tutorial.show}
-                  className="rounded-md px-2 py-1 text-[11px] font-bold text-primary-600 hover:bg-primary-50"
+                  className="rounded-md px-2 py-1 text-[12px] font-bold text-primary-600 hover:bg-primary-50"
                 >
                   도움말
                 </button>
@@ -837,7 +870,7 @@ export default function ProjectDetailModal({
                       >
                         <GripVertical size={12} className="text-primary-200 group-hover:text-primary-400" />
                         <span className="min-w-0 flex-1 truncate">{section.label}</span>
-                        <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-black text-primary-600">핵심</span>
+                        <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[11.5px] font-black text-primary-600">핵심</span>
                       </div>
                     ))}
                   </PaletteGroup>
@@ -865,7 +898,7 @@ export default function ProjectDetailModal({
                     >
                       <GripVertical size={12} className="text-gray-300 group-hover:text-primary-400" />
                       <span className="min-w-0 flex-1 truncate">{tpl.label}</span>
-                      {filled && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">작성됨</span>}
+                      {filled && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11.5px] font-black text-emerald-600">작성됨</span>}
                     </div>
                   );
                 })}
@@ -890,7 +923,7 @@ export default function ProjectDetailModal({
                     >
                       <GripVertical size={12} className="text-primary-300" />
                       <span className="min-w-0 flex-1 truncate">전체 핵심 경험</span>
-                      <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-primary-500">{keyExps.length}</span>
+                      <span className="rounded bg-white px-1.5 py-0.5 text-[11.5px] font-black text-primary-500">{keyExps.length}</span>
                     </div>
                     {keyExps.map((item, index) => (
                       <div
@@ -1082,7 +1115,7 @@ export default function ProjectDetailModal({
                       <button
                         type="button"
                         onClick={() => setJobCoreVisible(false)}
-                        className="rounded-md px-2 py-1 text-[11px] font-bold text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600 transition-colors"
+                        className="rounded-md px-2 py-1 text-[12px] font-bold text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600 transition-colors"
                       >
                         숨기기
                       </button>
@@ -1122,30 +1155,30 @@ export default function ProjectDetailModal({
               <div>
                 {composePlan && !composePlan._fallback && (
                   <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50/50 px-4 py-3">
-                    <p className="text-[11px] font-black text-primary-700">
+                    <p className="text-[12px] font-black text-primary-700">
                       구성 근거 · {composePlan.narrative}
                       {composePlan.artifactVariant && (
-                        <span className="ml-1.5 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-primary-600">
+                        <span className="ml-1.5 rounded bg-white px-1.5 py-0.5 font-mono text-[11.5px] text-primary-600">
                           {composePlan.artifactVariant}
                         </span>
                       )}
                     </p>
                     {composePlan.artifactReason && (
-                      <p className="mt-1 text-[11px] leading-snug text-bluewood-500">비주얼 · {composePlan.artifactReason}</p>
+                      <p className="mt-1 text-[12px] leading-snug text-bluewood-500">비주얼 · {composePlan.artifactReason}</p>
                     )}
                     {composePlan.narrativeReason && (
                       <p className="mt-1 text-[11.5px] leading-relaxed text-bluewood-600">{composePlan.narrativeReason}</p>
                     )}
                     {composePlan.omitted?.length > 0 && (
-                      <p className="mt-1.5 text-[11px] text-bluewood-400">
+                      <p className="mt-1.5 text-[12px] text-bluewood-400">
                         뺀 항목 · {composePlan.omitted.map(o => `${o.source}(${o.reason})`).join(' / ')}
                       </p>
                     )}
                     {composePlan.jdAlignment?.length > 0 && (
                       <div className="mt-2 space-y-1 border-t border-primary-100 pt-2">
-                        <p className="text-[10.5px] font-bold text-bluewood-500">공고 요건 대응</p>
+                        <p className="text-[11.5px] font-bold text-bluewood-500">공고 요건 대응</p>
                         {composePlan.jdAlignment.map((a, i) => (
-                          <p key={i} className="text-[11px] leading-snug text-bluewood-600">
+                          <p key={i} className="text-[12px] leading-snug text-bluewood-600">
                             <span className={`mr-1.5 font-bold ${
                               a.strength === 'strong' ? 'text-caribbean-700' : a.strength === 'missing' ? 'text-rose-500' : 'text-amber-600'
                             }`}>

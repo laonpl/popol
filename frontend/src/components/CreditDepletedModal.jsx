@@ -1,9 +1,14 @@
-import { Copy, Mail, X } from 'lucide-react';
+import { Copy, Mail, X, WalletCards, Gift } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 const SUPPORT_EMAIL = 'fitpoly.kr@gmail.com';
 
-export default function CreditDepletedModal({ open, onClose }) {
+export default function CreditDepletedModal({ open, onClose, onOpenFeedback }) {
+  const navigate = useNavigate();
+  const { ref: panelRef, backdropProps } = useModalBehavior(open, onClose);
+
   if (!open) return null;
 
   const copyEmail = async () => {
@@ -16,8 +21,15 @@ export default function CreditDepletedModal({ open, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-bluewood-950/35 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-surface-200 bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-bluewood-950/35 px-4 backdrop-blur-sm" {...backdropProps}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="크레딧 안내"
+        tabIndex={-1}
+        className="w-full max-w-md rounded-lg border border-surface-200 bg-white p-5 shadow-2xl outline-none"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-500">Credit Notice</p>
@@ -34,30 +46,64 @@ export default function CreditDepletedModal({ open, onClose }) {
         </div>
 
         <p className="mt-4 text-sm leading-6 text-bluewood-500">
-          계속 경험 정리와 포트폴리오 생성을 이어가고 싶다면 FitPoly 팀에 메일을 보내주세요.
-          확인 후 크레딧 충전 또는 이용 방법을 안내드릴게요.
+          작업하신 내용은 그대로 저장돼 있어요. 아래 방법 중 하나로 크레딧을 채우면
+          이어서 계속 진행할 수 있습니다.
         </p>
 
-        <div className="mt-4 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2.5 text-sm font-semibold text-primary-700">
-          {SUPPORT_EMAIL}
-        </div>
-
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('FitPoly 크레딧 문의')}`}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
-          >
-            <Mail size={16} />
-            메일 보내기
-          </a>
+        {/* 1순위: 스스로 해결 가능한 경로부터 제시.
+            예전엔 "메일 보내세요"가 유일한 선택지라, 사용자가 답장을 기다리는 것 말고는
+            할 수 있는 게 없었다. */}
+        <div className="mt-4 space-y-2">
           <button
             type="button"
-            onClick={copyEmail}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            onClick={() => { onClose?.(); navigate('/app/settings/credits'); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-3 text-left transition-colors hover:bg-primary-50"
           >
-            <Copy size={16} />
-            주소 복사
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-600">
+              <WalletCards size={17} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-bluewood-800">크레딧 충전하기</span>
+              <span className="block text-[12.5px] text-bluewood-500">패키지를 골라 바로 충전 요청</span>
+            </span>
           </button>
+
+          {onOpenFeedback && (
+            <button
+              type="button"
+              onClick={() => { onClose?.(); onOpenFeedback(); }}
+              className="flex w-full items-center gap-3 rounded-xl border border-surface-200 bg-white px-4 py-3 text-left transition-colors hover:border-primary-200"
+            >
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-caribbean-50 text-caribbean-700">
+                <Gift size={17} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-bluewood-800">피드백 남기고 300C 받기</span>
+                <span className="block text-[12.5px] text-bluewood-500">1분이면 끝나요 · 무료</span>
+              </span>
+            </button>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-surface-100 pt-4">
+          <p className="text-[12.5px] text-bluewood-400">
+            문의가 필요하면 <span className="font-semibold text-bluewood-600">{SUPPORT_EMAIL}</span>
+          </p>
+          <div className="mt-2 flex gap-2">
+            <a
+              href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('FitPoly 크레딧 문의')}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-[12.5px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            >
+              <Mail size={14} /> 메일 보내기
+            </a>
+            <button
+              type="button"
+              onClick={copyEmail}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-[12.5px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            >
+              <Copy size={14} /> 주소 복사
+            </button>
+          </div>
         </div>
       </div>
     </div>
