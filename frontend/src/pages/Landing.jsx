@@ -9,7 +9,6 @@ import {
   Code, GraduationCap, Calendar, List, PenTool,
   MapPin, Phone, Mail, Globe, Presentation
 } from 'lucide-react';
-import useAuthStore from '../stores/authStore';
 
 const BRAND_ICONS = {
   KakaoTalk: '/brand-icons/kakaotalk.svg',
@@ -389,7 +388,6 @@ const MOCK_UPLOAD_FILES = [
 ];
 
 export default function Landing() {
-  const { user } = useAuthStore();
   const navigate = useNavigate();
   const [heroVisible, setHeroVisible] = useState(false);
   const heroRef = useRef(null);
@@ -416,7 +414,10 @@ export default function Landing() {
   const [count2, setCount2] = useState(0);
   const [count3, setCount3] = useState(0);
 
-  const go = () => navigate(user ? '/app' : '/login');
+  // 비로그인도 앱 화면(허브)을 볼 수 있으므로 시작 CTA는 로그인 여부와 무관하게 제품으로 보낸다.
+  // 로그인은 허브에서 실제 기능을 누를 때 요구한다.
+  const go = () => navigate('/app');
+  const goLogin = () => navigate('/login');
 
   useEffect(() => { setHeroVisible(true); }, []);
 
@@ -491,7 +492,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-5 text-[15px] font-medium text-gray-600 px-2">
             <a href="#feature-experience" className="hover:text-black transition-colors">경험정리</a>
             <a href="#feature-portfolio" className="hover:text-black transition-colors">포트폴리오</a>
-            <button onClick={go} className="hover:text-black transition-colors">로그인</button>
+            <button onClick={goLogin} className="hover:text-black transition-colors">로그인</button>
           </nav>
           <button onClick={go} className="bg-gray-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-[14px] sm:text-[15px] font-bold hover:bg-black transition-colors shrink-0 whitespace-nowrap">
             무료로 시작
@@ -1650,44 +1651,6 @@ export default function Landing() {
               ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ── CTA BANNER ── */}
-      <section className="py-20 sm:py-28 md:py-32 bg-white flex flex-col items-center text-center px-4 sm:px-6">
-
-
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-6">
-          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-          <span className="text-[13px] font-bold text-indigo-600">베타 기간 한정 혜택</span>
-        </div>
-        <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.2] mb-5 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
-          지금 가입하면<br />
-          가입 크레딧 <span className="text-indigo-600">2,000개</span>를 드려요
-        </h2>
-        <p className="text-[15px] sm:text-[17px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
-          베타 기간 동안만 드리는 혜택이에요. 지금 가입하고 AI 기능을 마음껏 써보세요.
-        </p>
-        <div className="flex items-center gap-4 mb-8 sm:mb-10 flex-wrap justify-center">
-          <div className="flex items-center gap-1.5 text-[14px] text-gray-500 font-medium">
-            <Check size={14} className="text-green-500" /> 평균 제작 시간 12분
-          </div>
-          <div className="flex items-center gap-1.5 text-[14px] text-gray-500 font-medium">
-            <Check size={14} className="text-green-500" /> 신용카드 불필요
-          </div>
-          <div className="flex items-center gap-1.5 text-[14px] text-gray-500 font-medium">
-            <Check size={14} className="text-green-500" /> 베타 기간 한정
-          </div>
-        </div>
-
-        <div className="w-full max-w-[480px] flex flex-col items-center px-0">
-          <button
-            onClick={go}
-            className="w-full bg-indigo-600 text-white px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-          >
-            지금 가입하고 2,000 크레딧 받기
-          </button>
-          <p className="mt-2 text-[13px] sm:text-[14px] text-gray-500 font-medium">베타 테스터로 지금 바로 이용할 수 있어요</p>
         </div>
       </section>
 

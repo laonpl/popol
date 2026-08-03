@@ -8,17 +8,21 @@ const JOB_SITES = [
   { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
 ];
 
-/* AI 응답 항목이 객체({description, weight})이거나 JSON 문자열로 직렬화된 경우에도 표시용 텍스트만 추출 */
+/* AI 응답 항목이 객체({value, description} 등)이거나 JSON 문자열로 직렬화된 경우에도 표시용 텍스트만 추출.
+   문자열인 후보만 채택해 숫자 점수 등이 새어나오지 않게 한다. */
+function pickText(obj) {
+  const hit = [obj.value, obj.name, obj.title, obj.label, obj.description, obj.requirement, obj.text, obj.content]
+    .find(x => typeof x === 'string' && x.trim());
+  return hit ? hit.trim() : '';
+}
+
 function textFromItem(v) {
   if (v == null) return '';
-  if (typeof v === 'object') {
-    return String(v.description || v.requirement || v.text || v.content || v.name || '');
-  }
+  if (typeof v === 'object') return pickText(v);
   const s = String(v).trim();
   if (/^\{[\s\S]*\}$/.test(s)) {
     try {
-      const parsed = JSON.parse(s);
-      return String(parsed.description || parsed.requirement || parsed.text || parsed.content || parsed.name || '');
+      return pickText(JSON.parse(s));
     } catch { /* JSON이 아니면 원문 유지 */ }
   }
   return s;
@@ -30,7 +34,10 @@ function toCleanList(value) {
 }
 
 function stripMd(s) {
-  return s ? String(s).replace(/<[^>]+>/g, '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+  // AI가 문자열 대신 객체를 돌려주는 경우가 있어(예: businessAreas의 {value, description})
+  // 렌더 직전에 문자열로 환원한다. 객체를 그대로 JSX에 넣으면 React가 죽는다.
+  const raw = (s && typeof s === 'object') ? textFromItem(s) : s;
+  return raw ? String(raw).replace(/<[^>]+>/g, '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 function firstFilled(...values) {
@@ -494,10 +501,10 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
         {(analysis.skills?.length > 0 || analysis.coreValues?.length > 0) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>
             {analysis.skills?.slice(0, 5).map((s, i) => (
-              <span key={i} style={{ fontSize: 11, padding: '3px 8px', background: '#f1f5f9', color: NAV, fontWeight: 700, letterSpacing: '0.03em', border: `1px solid ${NAV}` }}>{s}</span>
+              <span key={i} style={{ fontSize: 11, padding: '3px 8px', background: '#f1f5f9', color: NAV, fontWeight: 700, letterSpacing: '0.03em', border: `1px solid ${NAV}` }}>{stripMd(s)}</span>
             ))}
             {analysis.coreValues?.slice(0, 2).map((v, i) => (
-              <span key={`v${i}`} style={{ fontSize: 11, padding: '3px 8px', background: '#fff', color: '#64748b', border: '1px dotted #94a3b8', fontWeight: 500 }}>{v}</span>
+              <span key={`v${i}`} style={{ fontSize: 11, padding: '3px 8px', background: '#fff', color: '#64748b', border: '1px dotted #94a3b8', fontWeight: 500 }}>{stripMd(v)}</span>
             ))}
           </div>
         )}
@@ -603,7 +610,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {ca.businessAreas?.length > 0 && (
                   <AnalysisCard title="사업 영역">
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {ca.businessAreas.map((a, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{a}</span>)}
+                      {ca.businessAreas.map((a, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{stripMd(a)}</span>)}
                     </div>
                   </AnalysisCard>
                 )}
@@ -636,7 +643,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {ca.sourceNotes?.length > 0 && (
                   <AnalysisCard title="참고 출처">
                     {ca.sourceNotes.slice(0, 5).map((note, i) => (
-                      <p key={i} style={{ color: '#64748b', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(String(note))}</p>
+                      <p key={i} style={{ color: '#64748b', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(note)}</p>
                     ))}
                   </AnalysisCard>
                 )}
@@ -814,7 +821,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                       {desc && <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, marginBottom: 7, paddingLeft: 32 }}>{stripMd(desc)}</p>}
                       {keywords.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 32, marginBottom: 7 }}>
-                          {keywords.map((kw, ki) => <span key={ki} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #cbd5e1', color: '#64748b' }}>#{kw}</span>)}
+                          {keywords.map((kw, ki) => <span key={ki} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #cbd5e1', color: '#64748b' }}>#{stripMd(kw)}</span>)}
                         </div>
                       )}
                       {impact && <p style={{ fontSize: 11, color: NAV, borderLeft: `2px solid ${NAV}`, paddingLeft: 7, marginLeft: 32, marginBottom: 5, lineHeight: 1.5 }}><span style={{ fontWeight: 700 }}>직무 영향</span> {stripMd(impact)}</p>}

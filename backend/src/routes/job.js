@@ -31,6 +31,18 @@ const sendError = (res, err) => res.status(err.status || 500).json({ error: safe
 // userId 헬퍼 — authMiddleware 통과 후 항상 req.user.uid가 존재함
 const getUserId = (req) => req.user.uid;
 
+// AI가 문자열 대신 객체({value,description} 등)를 돌려줘도 화면에 렌더 가능한 문자열로 만든다.
+function toDisplayText(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(toDisplayText).filter(Boolean).join(', ');
+  if (typeof v === 'object') {
+    return toDisplayText(v.value ?? v.name ?? v.text ?? v.title ?? v.label ?? v.description ?? '');
+  }
+  return '';
+}
+
 // ── URL 마스킹 (로그 내 민감 정보 출력 방지) ────────────────────
 function maskUrl(url) {
   try {
@@ -290,10 +302,22 @@ router.post('/analyze', authMiddleware, requireCredits, async (req, res) => {
       try {
         postingText = await scrapeJobPosting(safeUrl);
       } catch (e) {
+        // 채용공고가 아닌 페이지는 추정 분석으로 넘기지 않고 즉시 알린다.
+        if (e.code === 'NOT_JOB_POSTING') {
+          return res.status(400).json({ error: e.message });
+        }
         scrapeFailed = true;
-        console.warn('[Job] 스크래핑 실패, 검색 기반 기업 분석으로 전환:', e.message);
+        console.warn('[Job] 스크래핑 실패:', e.message);
         postingText = '';
       }
+    }
+
+    // 원문을 못 읽었는데 기업명/모집분야 단서도 없으면, 검색으로 아무 기업이나 분석해버리는 문제가 생긴다.
+    // (URL 도메인에서 유추한 이름으로 엉뚱한 기업이 분석되던 원인) 추정 대신 사용자에게 되묻는다.
+    if (scrapeFailed && !hasAnyManualInfo) {
+      return res.status(400).json({
+        error: '공고 원문을 읽지 못했습니다. 로그인이 필요한 공고일 수 있어요. 공고 내용을 직접 붙여넣거나 기업명·모집분야를 입력해주세요.',
+      });
     }
 
     if (hasAnyManualInfo) {
@@ -314,6 +338,23 @@ router.post('/analyze', authMiddleware, requireCredits, async (req, res) => {
       : await analyzeJobPosting(postingText, { sourceUrl: safeUrl || url || '' });
     analysis._scrapedUrl = scrapedUrl;
     if (scrapeFailed) analysis._scrapeWarning = '공고 원문 자동 수집이 제한되어 공개 검색 기반 기업 분석으로 보강했습니다.';
+
+    // company/position은 화면에 그대로 렌더되므로 문자열임을 보장한다.
+    // (AI가 {value, description} 같은 객체로 돌려주면 React가 "Objects are not valid as a React child"로 죽는다)
+    analysis.company = toDisplayText(analysis.company);
+    analysis.position = toDisplayText(analysis.position) || '채용공고';
+
+    // 기업을 확정하지 못한 경우(프롬프트 지침상 company를 비워서 돌려준다) 임의로 채우지 않는다.
+    // 사용자가 직접 입력한 기업명이 있으면 그것을 쓰고, 없으면 되묻는다.
+    if (!analysis.company) {
+      if (company) {
+        analysis.company = company;
+      } else {
+        return res.status(400).json({
+          error: '이 링크에서 어느 기업의 공고인지 확정하지 못했습니다. 공고 내용을 직접 붙여넣거나 기업명을 입력해주세요.',
+        });
+      }
+    }
 
     res.json({ analysis });
   } catch (err) {
@@ -785,9 +826,10 @@ router.post('/save', authMiddleware, async (req, res) => {
 router.get('/list', authMiddleware, async (req, res) => {
   try {
     const userId = getUserId(req);
+    // where + orderBy 조합은 복합 인덱스를 요구한다(미생성 시 FAILED_PRECONDITION).
+    // experience/portfolio의 list와 동일하게 where만 걸고 정렬은 메모리에서 처리한다.
     const snap = await db.collection('jobMatches')
       .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
       .get();
     const items = snap.docs.map(d => ({
       id: d.id,
@@ -796,6 +838,11 @@ router.get('/list', authMiddleware, async (req, res) => {
       overallFitScore: d.data().matchResult?.overallFitScore,
       createdAt: d.data().createdAt,
     }));
+    items.sort((a, b) => {
+      const at = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds ?? 0;
+      const bt = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds ?? 0;
+      return bt - at;
+    });
     res.json({ items });
   } catch (err) {
     console.error('[Job] 목록 조회 실패:', err.code || err.message);

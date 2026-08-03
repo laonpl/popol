@@ -10,6 +10,7 @@ import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 import ProfileBoostStep, { hasEmptyProfileFields } from './ProfileBoostStep';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import useExperienceStore from '../../stores/experienceStore';
 
 const TEMPLATE_CATEGORIES = [
   { id: 'all', label: '전체' },
@@ -994,7 +995,7 @@ function TimelineFullPreview() {
 
 export default function PortfolioTemplateSelect() {
   const navigate = useNavigate();
-  const { user, profile, saveProfile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const { createPortfolio } = usePortfolioStore();
   const [selected, setSelected] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -1003,28 +1004,47 @@ export default function PortfolioTemplateSelect() {
   const [jobAnalysis, setJobAnalysis] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
-  const [boostSaving, setBoostSaving] = useState(false);
+  // 3단계에서 고른 '이 공고에 넣을 경험' — 여기 담긴 것만 포트폴리오 본문에 들어간다.
+  const [selectedExpIds, setSelectedExpIds] = useState([]);
+  const [recommendations, setRecommendations] = useState(null);
+  const [recLoading, setRecLoading] = useState(false);
 
-  // 템플릿 선택 완료 → 빈 항목이 있으면 3단계(빈 섹션 채우기)로, 없으면 바로 생성
-  const handleTemplateNext = () => {
+  // 템플릿 선택 완료 → 3단계(빈 섹션 채우기 · 경험 고르기)로.
+  // 공고를 연결했으면 추천 경험을 먼저 받아두고 넘어간다. (3단계에 들어가자마자 목록이 보이도록)
+  const handleTemplateNext = async () => {
     if (!selected) { toast.error('템플릿을 선택해주세요'); return; }
-    if (hasEmptyProfileFields(profile)) setStep('boost');
-    else handleCreate(jobAnalysis);
-  };
+    // 공고를 연결했으면 경험을 고르게 해야 하므로, 프로필이 다 차 있어도 3단계로 보낸다.
+    if (!hasEmptyProfileFields(profile) && !jobAnalysis) { handleCreate(jobAnalysis); return; }
 
-  // 보완 입력값을 기존 profile과 병합 저장(기존 정보 보존) 후 생성
-  const handleBoostSubmit = async (filled) => {
-    setBoostSaving(true);
-    try {
-      await saveProfile({ ...profile, ...filled });
-    } catch {
-      toast.error('프로필 저장에 실패했습니다');
+    if (jobAnalysis) {
+      setRecLoading(true);
+      try {
+        const { data } = await api.post('/job/recommend-experiences', { jobAnalysis });
+        const list = (data.recommendations || []).filter(r => r.experience?.id);
+        setRecommendations(list);
+        setSelectedExpIds(list.map(r => r.experience.id)); // 추천된 것만 기본 체크
+      } catch {
+        setRecommendations([]); // 추천 실패해도 전체 경험 중에서 직접 고를 수 있다
+      }
+      setRecLoading(false);
+    } else {
+      // 공고를 연결하지 않았으면 기존 동작대로 전체 경험을 기본 선택해 둔다.
+      const all = useExperienceStore.getState().experiences || [];
+      setSelectedExpIds(all.map(e => e.id).filter(Boolean));
     }
-    setBoostSaving(false);
-    handleCreate(jobAnalysis);
+    setStep('boost');
   };
 
-  const handleCreate = async (analysis) => {
+  // 이 단계 입력은 지원 기업/공고에 맞춘 내용이라 재사용하면 안 된다.
+  // 내 정보(profile)에는 저장하지 않고 이번에 만드는 포트폴리오에만 반영한다.
+  const handleBoostSubmit = (filled) => {
+    handleCreate(jobAnalysis, filled);
+  };
+
+  const handleCreate = async (analysis, boostFilled) => {
+    // 빈 섹션 채우기 입력은 기업/공고마다 달라야 하므로 내 정보(profile)에 저장하지 않는다.
+    // 이 포트폴리오에만 반영되도록 병합본을 만들어 쓴다.
+    const srcProfile = boostFilled ? { ...profile, ...boostFilled } : profile;
     const finalAnalysis = analysis || jobAnalysis;
     const template = PORTFOLIO_TEMPLATES.find(t => t.id === selected);
     if (!template) return;
@@ -1033,65 +1053,67 @@ export default function PortfolioTemplateSelect() {
     try {
       const data = {
         title: template.name,
-        userName: profile?.nameKo || user.displayName || '',
+        userName: srcProfile?.nameKo || user.displayName || '',
         sections: [],
         templateId: template.id,
         templateType: template.templateType || template.id,
         headline: '',
         education: [],
-        awards: profile?.awards || [],
+        awards: srcProfile?.awards || [],
         experiences: [],
         contact: {
-          phone: profile?.phone || '',
-          email: profile?.email || user.email || '',
-          linkedin: profile?.contact?.linkedin || '',
-          instagram: profile?.contact?.instagram || '',
-          github: profile?.contact?.github || '',
-          website: profile?.contact?.website || '',
+          phone: srcProfile?.phone || '',
+          email: srcProfile?.email || user.email || '',
+          linkedin: srcProfile?.contact?.linkedin || '',
+          instagram: srcProfile?.contact?.instagram || '',
+          github: srcProfile?.contact?.github || '',
+          website: srcProfile?.contact?.website || '',
         },
         skills: {
-          tools: profile?.tools || [],
-          languages: profile?.programmingLanguages || [],
-          frameworks: profile?.frameworks || [],
-          others: profile?.others || [],
+          tools: srcProfile?.tools || [],
+          languages: srcProfile?.programmingLanguages || [],
+          frameworks: srcProfile?.frameworks || [],
+          others: srcProfile?.others || [],
         },
-        goals: (profile?.goals || []).map(g => ({
+        goals: (srcProfile?.goals || []).map(g => ({
           title: g.title || '',
           description: g.description || '',
           type: g.type || 'short',
           status: g.status || 'planned',
         })),
-        values: profile?.values || [],
+        values: srcProfile?.values || [],
         interests: [],
         curricular: {
           summary: {
-            credits: profile?.curricular?.credits ?? profile?.curricular?.summary?.credits ?? '',
-            gpa: profile?.curricular?.gpa ?? profile?.curricular?.summary?.gpa ?? '',
+            credits: srcProfile?.curricular?.credits ?? srcProfile?.curricular?.summary?.credits ?? '',
+            gpa: srcProfile?.curricular?.gpa ?? srcProfile?.curricular?.summary?.gpa ?? '',
           },
-          courses: profile?.curricular?.courses || [],
+          courses: srcProfile?.curricular?.courses || [],
           creditStatus: [],
         },
         extracurricular: {
-          summary: profile?.extracurricular?.summary || '',
-          badges: profile?.extracurricular?.badges || [],
-          languages: (profile?.languageScores || []).map(l => ({
+          summary: srcProfile?.extracurricular?.summary || '',
+          badges: srcProfile?.extracurricular?.badges || [],
+          languages: (srcProfile?.languageScores || []).map(l => ({
             name: l.name,
             score: l.score,
             date: l.date,
           })),
-          details: profile?.extracurricular?.details || [],
+          details: srcProfile?.extracurricular?.details || [],
         },
-        valuesEssay: profile?.valuesEssay || '',
+        valuesEssay: srcProfile?.valuesEssay || '',
         // 프로필에서 자동 매칭
-        nameEn: profile?.nameEn || '',
-        location: profile?.location || '',
-        birthDate: profile?.birthDate || '',
-        // 에디터 최초 진입 시 경험을 1회 자동 채우도록 플래그를 남긴다.
-        pendingAutofill: true,
+        nameEn: srcProfile?.nameEn || '',
+        location: srcProfile?.location || '',
+        birthDate: srcProfile?.birthDate || '',
+        // 에디터 최초 진입 시 경험을 1회 자동 채운다.
+        // 3단계를 거쳤으면 거기서 고른 것만 채우고, 하나도 안 골랐으면 자동 채움을 끈다.
+        experienceIds: selectedExpIds,
+        pendingAutofill: step === 'boost' ? selectedExpIds.length > 0 : true,
       };
 
       // 학력 자동 매칭
-      if (profile?.education?.length > 0) {
+      if (srcProfile?.education?.length > 0) {
         data.education = profile.education.map(e => ({
           name: e.school,
           nameEn: '',
@@ -1251,16 +1273,23 @@ export default function PortfolioTemplateSelect() {
           <div className="sticky bottom-6">
             <button
               onClick={handleTemplateNext}
-              disabled={!selected || creating}
+              disabled={!selected || creating || recLoading}
               className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-200"
             >
-              {creating ? <><Loader2 size={17} className="animate-spin" /> 생성 중...</> : <ArrowRight size={17} />}
+              {(creating || recLoading) ? <Loader2 size={17} className="animate-spin" /> : <ArrowRight size={17} />}
               {creating
-                ? null
-                : selected
-                  ? `"${PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.name}" 선택 — 다음 단계`
-                  : '템플릿을 선택해주세요'}
+                ? '생성 중...'
+                : recLoading
+                  ? '공고에 맞는 경험을 고르는 중이에요…'
+                  : selected
+                    ? `"${PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.name}" 선택 — 다음 단계`
+                    : '템플릿을 선택해주세요'}
             </button>
+            {recLoading && (
+              <p className="mt-2 text-center text-[12.5px] font-medium text-bluewood-500">
+                내 경험을 공고 요구사항과 대조하고 있어요. 잠시만 기다려주세요.
+              </p>
+            )}
           </div>
         </>
       )}
@@ -1299,7 +1328,10 @@ export default function PortfolioTemplateSelect() {
         <ProfileBoostStep
           profile={profile}
           jobAnalysis={jobAnalysis}
-          submitting={boostSaving || creating}
+          recommendations={recommendations}
+          selectedExperienceIds={selectedExpIds}
+          onSelectedExperienceIdsChange={setSelectedExpIds}
+          submitting={creating}
           onBack={() => setStep('template')}
           onSkip={() => handleCreate(jobAnalysis)}
           onSubmit={handleBoostSubmit}
