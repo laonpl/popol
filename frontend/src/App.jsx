@@ -110,6 +110,10 @@ const router = createBrowserRouter(
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
       <Route path="/example3" element={<PortfolioExample exampleId="example3" />} />
+      {/* 경험정리 결과 예시 — 직무별로 URL을 나눠 각각 색인·공유되게 한다 */}
+      <Route path="/example4" element={<Resultt roleId="dev" />} />
+      <Route path="/example5" element={<Resultt roleId="marketer" />} />
+      <Route path="/example6" element={<Resultt roleId="pm" />} />
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />

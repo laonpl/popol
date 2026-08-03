@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Activity,
   ArrowRight,
@@ -1183,12 +1183,27 @@ function GenericDashboard({ role }) {
   );
 }
 
-export default function Resultt() {
+/**
+ * roleId를 넘기면 해당 직무 하나만 보여주는 예시 페이지가 된다(탭 숨김).
+ * 직무별로 URL을 분리해 각각 검색 색인·공유가 가능하게 하려는 용도다. (/example4~6)
+ * 넘기지 않으면 기존처럼 전 직무 탭 화면으로 동작한다. (/resultt)
+ */
+export default function Resultt({ roleId }) {
+  const locked = ROLES.some(item => item.id === roleId);
   const [selectedRole, setSelectedRole] = useState(() => {
+    if (locked) return roleId;
     const requested = new URLSearchParams(window.location.search).get('job');
     return ROLES.some(item => item.id === requested) ? requested : 'dev';
   });
-  const role = ROLES.find(item => item.id === selectedRole) || ROLES[0];
+  const role = ROLES.find(item => item.id === (locked ? roleId : selectedRole)) || ROLES[0];
+
+  useEffect(() => {
+    if (!locked) return undefined;
+    const previous = document.title;
+    document.title = `${role.label} 경험정리 예시 — FitPoly`;
+    window.scrollTo(0, 0);
+    return () => { document.title = previous; };
+  }, [locked, role.label]);
 
   return (
     <main className="min-h-screen bg-[#f3f6fa] text-slate-900">
@@ -1200,10 +1215,14 @@ export default function Resultt() {
               <span className="rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[9.5px] font-black tracking-[0.1em] text-cyan-700">IR OUTPUT DEMO</span>
             </div>
             <h1 className="mt-2 text-[23px] font-black tracking-[-0.04em] text-slate-950 sm:text-[28px]">
-              경험정리 결과가 <span className="text-[#002f6c]">직무별 포트폴리오 화면</span>으로
+              {locked
+                ? <><span style={{ color: role.accent }}>{role.label}</span> 경험정리 결과 예시</>
+                : <>경험정리 결과가 <span className="text-[#002f6c]">직무별 포트폴리오 화면</span>으로</>}
             </h1>
             <p className="mt-1 text-[11px] font-medium text-slate-500">
-              직무를 선택하면 실제 서비스에서 생성되는 대표 시각 산출물을 한눈에 확인할 수 있습니다.
+              {locked
+                ? `${role.subtitle}`
+                : '직무를 선택하면 실제 서비스에서 생성되는 대표 시각 산출물을 한눈에 확인할 수 있습니다.'}
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
@@ -1215,9 +1234,9 @@ export default function Resultt() {
           </div>
         </header>
 
-        <RoleTabs activeId={selectedRole} onChange={setSelectedRole} />
+        {!locked && <RoleTabs activeId={selectedRole} onChange={setSelectedRole} />}
 
-        <div className="my-2 flex items-center justify-center gap-2 text-[8.5px] font-bold text-slate-400">
+        <div className={`my-2 flex items-center justify-center gap-2 text-[8.5px] font-bold text-slate-400 ${locked ? 'hidden' : ''}`}>
           <Clock3 size={11} />
           <span>직무 탭을 누르면 결과 화면이 즉시 전환됩니다</span>
           <ArrowRight size={11} />
