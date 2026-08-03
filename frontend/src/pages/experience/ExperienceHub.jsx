@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import CareerNarrativeSections from '../../components/CareerNarrativeSections';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
+import useAuthGate from '../../hooks/useAuthGate';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
@@ -211,12 +212,13 @@ function saveFavs(set) {
 
 export default function ExperienceHub() {
   const { user, profile } = useAuthStore();
+  const { isGuest, requireAuth } = useAuthGate();
   const location = useLocation();
   const tutorialKey = user?.uid ? `experience-flow-tutorial-${user.uid}` : null;
   const forceTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
   const tutorialInitialStep = parseInt(new URLSearchParams(location.search).get('step') || '0', 10) || 0;
   const { visible: tutorialVisible, dismiss: dismissTutorial, show: showTutorial } = useOnboarding(tutorialKey, { force: forceTutorial });
-  const { experiences, fetchExperiences, loading, deleteExperience, createExperience, updateExperience } = useExperienceStore();
+  const { experiences, fetchExperiences, loading, loadError, deleteExperience, createExperience, updateExperience } = useExperienceStore();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
@@ -257,9 +259,11 @@ export default function ExperienceHub() {
   const [favorites, setFavorites] = useState(loadFavs);
 
   const displayExperiences = useMemo(() => {
+    // 비로그인은 목록을 렌더하지 않는다. 스토어는 그대로 두므로 로그인 사용자의 데이터에 영향이 없다.
+    if (isGuest) return [];
     if (!tutorialDemoExperience) return experiences;
     return [tutorialDemoExperience, ...experiences.filter(exp => exp.id !== tutorialDemoExperience.id)];
-  }, [experiences, tutorialDemoExperience]);
+  }, [isGuest, experiences, tutorialDemoExperience]);
 
   const clearTutorialDemoTimers = useCallback(() => {
     tutorialDemoTimersRef.current.forEach(timer => window.clearTimeout(timer));
@@ -769,7 +773,7 @@ export default function ExperienceHub() {
             <button
               type="button"
               data-tour="experience-import"
-              onClick={() => {
+              onClick={() => requireAuth(() => {
                 if (tutorialVisible && tutorialCurrentStep === 0) {
                   dismissTutorial(false);
                   setTutorialDemoExperience(null);
@@ -778,7 +782,7 @@ export default function ExperienceHub() {
                   return;
                 }
                 navigate('/app/experience/new');
-              }}
+              })}
               className="flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14.5px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
             >
               <FolderOpen size={16} /> 자료로 만들기
@@ -786,14 +790,56 @@ export default function ExperienceHub() {
             <button
               type="button"
               data-tour="experience-new"
-              onClick={() => navigate('/app/experience/chat')}
+              onClick={() => requireAuth(() => {
+                // 튜토리얼 진행 중엔 기존 흐름(직접 작성 화면) 유지
+                if (tutorialVisible || forceTutorial) {
+                  if (tutorialVisible && tutorialCurrentStep === 0) {
+                    dismissTutorial(false);
+                    setTutorialDemoExperience(null);
+                    setTutorialDemoBuildStep('idle');
+                  }
+                  navigate('/app/experience/new?tutorial=1');
+                  return;
+                }
+                navigate('/app/experience/chat');
+              })}
               className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
             >
               + 새 경험 추가
             </button>
           </div>
         </div>
-        {experiences.length > 0 && (
+        {/* 불러오기 실패 — '데이터 없음'과 구분해서 보여준다 */}
+        {loadError && !isGuest && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+            <p className="text-[14px] font-medium text-red-700">
+              경험 목록을 불러오지 못했어요. 데이터가 사라진 것이 아니라 불러오기에 실패한 상태입니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => user?.uid && fetchExperiences(user.uid)}
+              className="rounded-lg bg-red-600 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-red-700"
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
+        {/* 비로그인 안내 — 화면은 보되 작성·저장은 로그인 후 */}
+        {isGuest && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
+            <p className="text-[14px] font-medium text-bluewood-700">
+              둘러보는 중이에요. 경험을 정리하고 저장하려면 로그인이 필요합니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => requireAuth(() => {})}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-700"
+            >
+              로그인하고 시작하기
+            </button>
+          </div>
+        )}
+        {!isGuest && experiences.length > 0 && (
           <div className="mb-6">
             <PortfolioReadinessBoard experiences={experiences} />
           </div>
@@ -882,7 +928,7 @@ export default function ExperienceHub() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
       ) : displayExperiences.length === 0 ? (
-        <EmptyState onAdd={() => navigate('/app/experience/chat')} />
+        <EmptyState onAdd={() => requireAuth(() => navigate('/app/experience/chat'))} />
       ) : (
         <>
           {/* ═══ 간트 타임라인 ═══ */}

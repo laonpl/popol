@@ -51,6 +51,7 @@ const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExam
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
 const ServiceDeck           = lazy(() => import('./pages/ServiceDeck')); // 슬라이드형 서비스 소개서 (/deck)
+const Resultt               = lazy(() => import('./pages/Resultt')); // 직무별 경험정리 결과 예시
 
 function PageLoader() {
   return (
@@ -72,6 +73,15 @@ function ProfileGuard({ children }) {
   if (profileLoading) return <PageLoader />;
   if (user && !profile) return <Navigate to="/app/profile-setup" replace />;
   return children;
+}
+
+// /app 공통 셸. 비로그인 방문자에게도 레이아웃을 렌더해 허브 화면을 볼 수 있게 하고,
+// 로그인한 사용자에게만 기존 프로필 설정 가드를 적용한다.
+function AppShell() {
+  const { user, loading } = useAuthStore();
+  if (loading) return <PageLoader />;
+  if (!user) return <Layout />;
+  return <ProfileGuard><Layout /></ProfileGuard>;
 }
 
 // 루트 레이아웃: 인증 구독 초기화 + Suspense. 데이터 라우터의 최상위 element.
@@ -110,38 +120,44 @@ const router = createBrowserRouter(
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
       <Route path="/example3" element={<PortfolioExample exampleId="example3" />} />
+      {/* 경험정리 결과 예시 — /resultt는 직무 탭, /example4~6은 직무별 전용 URL(각각 색인·공유용) */}
+      <Route path="/resultt" element={<Resultt />} />
+      <Route path="/example4" element={<Resultt roleId="dev" />} />
+      <Route path="/example5" element={<Resultt roleId="marketer" />} />
+      <Route path="/example6" element={<Resultt roleId="pm" />} />
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />
       <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
-      <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
+      {/* 허브 화면은 비로그인도 볼 수 있고(가입 전 제품 확인), 기능 실행 시점에만 로그인을 요구한다. */}
+      <Route path="/app" element={<AppShell />}>
         <Route index element={<Navigate to="/app/experience" replace />} />
         {/* 경험정리 */}
         <Route path="experience" element={<ExperienceHub />} />
-        <Route path="experience/new" element={<TemplateSelect />} />
-        <Route path="experience/interview" element={<ExperienceInterview />} />
-        <Route path="experience/chat" element={<ExperienceChat />} />
-        <Route path="experience/result/:id" element={<ExperienceResult />} />
-        <Route path="experience/complete/:id" element={<ExperienceCompletion />} />
-        <Route path="experience/quick" element={<QuickExperienceCapture />} />
-        <Route path="experience/candidates" element={<ExperienceCandidateInbox />} />
-        <Route path="experience/edit/:id" element={<ExperienceEditor />} />
-        <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
-        <Route path="experience/analysis/:id" element={<AnalysisResult />} />
-        <Route path="experience/structured/:id" element={<StructuredResult />} />
-        <Route path="experience/dev-portfolio/:id" element={<DeveloperPortfolio />} />
+        <Route path="experience/new" element={<PrivateRoute><TemplateSelect /></PrivateRoute>} />
+        <Route path="experience/interview" element={<PrivateRoute><ExperienceInterview /></PrivateRoute>} />
+        <Route path="experience/chat" element={<PrivateRoute><ExperienceChat /></PrivateRoute>} />
+        <Route path="experience/result/:id" element={<PrivateRoute><ExperienceResult /></PrivateRoute>} />
+        <Route path="experience/complete/:id" element={<PrivateRoute><ExperienceCompletion /></PrivateRoute>} />
+        <Route path="experience/quick" element={<PrivateRoute><QuickExperienceCapture /></PrivateRoute>} />
+        <Route path="experience/candidates" element={<PrivateRoute><ExperienceCandidateInbox /></PrivateRoute>} />
+        <Route path="experience/edit/:id" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
+        <Route path="experience/edit/new/:framework" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
+        <Route path="experience/analysis/:id" element={<PrivateRoute><AnalysisResult /></PrivateRoute>} />
+        <Route path="experience/structured/:id" element={<PrivateRoute><StructuredResult /></PrivateRoute>} />
+        <Route path="experience/dev-portfolio/:id" element={<PrivateRoute><DeveloperPortfolio /></PrivateRoute>} />
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
-        <Route path="portfolio/plan" element={<PortfolioPlanBuilder />} />
-        <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
-        <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
-        <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
-        <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-        <Route path="portfolio/web-edit/:id" element={<WebPortfolioEditor />} />
-        <Route path="portfolio/web-preview/:id" element={<WebPortfolioPreview />} />
-        <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
-        <Route path="settings/credits" element={<CreditSettings />} />
-        {/* 로그인 상태에서 /app 하위의 잘못된 주소 */}
+        <Route path="portfolio/plan" element={<PrivateRoute><PortfolioPlanBuilder /></PrivateRoute>} />
+        <Route path="portfolio/new" element={<PrivateRoute><PortfolioTemplateSelect /></PrivateRoute>} />
+        <Route path="portfolio/edit/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/edit-notion/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/preview/:id" element={<PrivateRoute><NotionPortfolioPreview /></PrivateRoute>} />
+        <Route path="portfolio/web-edit/:id" element={<PrivateRoute><WebPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/web-preview/:id" element={<PrivateRoute><WebPortfolioPreview /></PrivateRoute>} />
+        <Route path="portfolio/ai-ppt/:id" element={<PrivateRoute><AiPptExport /></PrivateRoute>} />
+        <Route path="settings/credits" element={<PrivateRoute><CreditSettings /></PrivateRoute>} />
+        {/* /app 하위의 잘못된 주소 */}
         <Route path="*" element={<NotFound />} />
       </Route>
       {/* 그 외 모든 주소 */}

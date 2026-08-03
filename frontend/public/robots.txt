@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://fitpoly.kr/sitemap.xml
+Sitemap: https://www.fitpoly.kr/sitemap.xml

@@ -37,6 +37,8 @@ export default function ExperienceInterview() {
   const [current, setCurrent] = useState(0);
   const [genLoading, setGenLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+  // 정리 단계에서 지금 무슨 작업 중인지 표시 (0: AI 구조화, 1: 저장)
+  const [buildStage, setBuildStage] = useState(0);
 
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
@@ -182,6 +184,7 @@ export default function ExperienceInterview() {
       // 1차: 빠른 AI 초안 (flash 1회). 답변/자료의 노이즈를 줄인 텍스트만 전달.
       // 2차(폴백): AI 실패 시 로컬에서 즉시 초안 구성 → 속도 보장.
       let analysis;
+      setBuildStage(0);
       try {
         const draftContent = {
           ...(hasUsableSource ? { 자료: cleanedSource } : {}),
@@ -200,6 +203,7 @@ export default function ExperienceInterview() {
         });
       }
 
+      setBuildStage(1);
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
@@ -237,10 +241,34 @@ export default function ExperienceInterview() {
   /* ── 빌딩(생성/분석) ── */
   if (phase === 'building') {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">
-        <div className="mb-5"><Spinner size={40} /></div>
-        <h2 className="text-[20px] font-extrabold text-bluewood-900 mb-2">답변을 바탕으로 경험을 정리하고 있어요</h2>
-        <p className="text-[14px] text-bluewood-400 leading-relaxed">채용 담당자 기준에 맞춰 구조화하는 중이에요.<br />잠시만 기다려 주세요 (최대 1분).</p>
+      <div className="min-h-[70vh] flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-[420px] text-center">
+          <div className="mb-5 flex justify-center"><Spinner size={40} /></div>
+          <h2 className="text-[20px] font-extrabold text-bluewood-900 mb-2">답변을 바탕으로 경험을 정리하고 있어요</h2>
+          <p className="text-[14px] text-bluewood-500 leading-relaxed mb-6">보통 1분 안에 끝나요. 이 화면을 벗어나면 중단됩니다.</p>
+          <div className="space-y-2.5 text-left" aria-busy="true">
+            {[
+              { label: '답변에서 성과와 역할 뽑아내기', desc: '채용 담당자가 보는 기준으로 문장을 다시 세우고 있어요' },
+              { label: '경험 카드로 저장', desc: '정리한 내용을 내 경험 목록에 넣고 있어요' },
+            ].map((s, i) => (
+              <div key={s.label} className="flex items-start gap-3 rounded-xl bg-surface-50 px-4 py-3 text-[14px]">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
+                  {buildStage > i
+                    ? <span className="text-[15px] font-bold text-caribbean-700" aria-hidden="true">✓</span>
+                    : buildStage === i
+                      ? <Spinner size={15} />
+                      : <span className="h-2 w-2 rounded-full bg-surface-300" aria-hidden="true" />}
+                </span>
+                <div className="min-w-0">
+                  <span className={buildStage < i ? 'text-bluewood-500' : 'font-semibold text-bluewood-800'}>{s.label}</span>
+                  {buildStage === i && (
+                    <p className="mt-0.5 text-[12.5px] leading-snug text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{s.desc}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

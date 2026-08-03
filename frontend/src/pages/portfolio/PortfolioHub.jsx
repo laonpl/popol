@@ -2,6 +2,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Plus, FileText, Trash2, Edit, Download, Search, Star, ExternalLink, ChevronDown, ArrowUpDown } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
+import useAuthGate from '../../hooks/useAuthGate';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
@@ -116,7 +117,8 @@ export default function PortfolioHub() {
   const { user } = useAuthStore();
   // updatePortfolio는 내보내기 모달의 "링크 공개" 토글에서 쓰인다.
   // (예전엔 여기서 구조 분해를 빠뜨려 토글 시 ReferenceError로 공개 설정이 불가능했다)
-  const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, updatePortfolio, loading } = usePortfolioStore();
+  const { isGuest, requireAuth } = useAuthGate();
+  const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, updatePortfolio, loading, loadError } = usePortfolioStore();
   const { experiences, fetchExperiences } = useExperienceStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -161,8 +163,11 @@ export default function PortfolioHub() {
     }
   };
 
+  // 비로그인은 목록을 렌더하지 않는다. 스토어는 그대로 두므로 로그인 사용자의 데이터에 영향이 없다.
+  const visiblePortfolios = isGuest ? [] : portfolios;
+
   // 검색 필터
-  const filtered = portfolios.filter(p => {
+  const filtered = visiblePortfolios.filter(p => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -203,23 +208,66 @@ export default function PortfolioHub() {
         <div>
           <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">포트폴리오</h1>
           <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-primary-600 font-bold">{portfolios.length}</span>개의 포트폴리오가 있습니다
+            <span className="text-primary-600 font-bold">{visiblePortfolios.length}</span>개의 포트폴리오가 있습니다
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to="/app/portfolio/plan"
+          <button
+            type="button"
+            onClick={() => requireAuth(() => navigate('/app/portfolio/new'))}
+            className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+          >
+            <Plus size={16} />
+            빠르게 만들기
+          </button>
+          <button
+            type="button"
+            onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} />
             포트폴리오 플랜
-          </Link>
+          </button>
         </div>
       </div>
 
-      <div className="mb-6">
-        <PortfolioReadinessBoard experiences={experiences} compact />
-      </div>
+      {/* 비로그인 안내 — 화면은 보되 저장·생성은 로그인 후 */}
+      {isGuest && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
+          <p className="text-[14px] font-medium text-bluewood-700">
+            둘러보는 중이에요. 포트폴리오를 만들고 저장하려면 로그인이 필요합니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => requireAuth(() => {})}
+            className="rounded-lg bg-primary-600 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-700"
+          >
+            로그인하고 시작하기
+          </button>
+        </div>
+      )}
+
+      {/* 불러오기 실패 — '데이터 없음'과 구분해서 보여준다 */}
+      {loadError && !isGuest && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <p className="text-[14px] font-medium text-red-700">
+            포트폴리오를 불러오지 못했어요. 데이터가 사라진 것이 아니라 불러오기에 실패한 상태입니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => user?.uid && fetchPortfolios(user.uid)}
+            className="rounded-lg bg-red-600 px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-red-700"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
+
+      {!isGuest && (
+        <div className="mb-6">
+          <PortfolioReadinessBoard experiences={experiences} compact />
+        </div>
+      )}
 
       {/* 경험 내보내기 배너 */}
       {exportConfig && (
@@ -239,7 +287,7 @@ export default function PortfolioHub() {
       )}
 
       {/* 검색 & 정렬 바 */}
-      {portfolios.length > 0 && (
+      {visiblePortfolios.length > 0 && (
         <div className="flex items-center gap-3 mb-5">
           <div className="relative flex-1 max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
@@ -285,13 +333,13 @@ export default function PortfolioHub() {
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
-      ) : portfolios.length === 0 ? (
+      ) : visiblePortfolios.length === 0 ? (
         <div className="text-center py-20">
           <FileText size={40} className="text-bluewood-200 mx-auto mb-3" />
           <h3 className="text-[18px] font-bold text-primary-600 mb-2">아직 포트폴리오가 없습니다</h3>
           <p className="text-bluewood-400 text-[14px] mb-6">경험을 먼저 정리한 후 포트폴리오를 작성해보세요</p>
           <button
-            onClick={handleCreate}
+            onClick={() => requireAuth(handleCreate)}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> 첫 포트폴리오 만들기

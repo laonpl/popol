@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, User, ExternalLink } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
@@ -39,6 +39,7 @@ function openExternalBrowser() {
 // ── 메인 로그인 페이지 ───────────────────────────────────
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithKakao, sendPasswordReset } = useAuthStore();
   const user = useAuthStore(s => s.user);
 
@@ -58,12 +59,15 @@ export default function Login() {
   const handledAutoLogin = useRef(false);
   const browserContext = getBrowserContext();
 
+  // 허브에서 기능을 누르다 로그인으로 온 경우 원래 보던 화면으로 되돌린다.
+  const redirectTo = location.state?.from || '/app';
+
   useEffect(() => {
     if (user && !handledAutoLogin.current && !isFormSubmit.current) {
       handledAutoLogin.current = true;
-      navigate('/app');
+      navigate(redirectTo);
     }
-  }, [user, navigate]);
+  }, [user, navigate, redirectTo]);
 
   // 회원가입 / 로그인 폼 제출
   const handleSubmit = async (e) => {
@@ -81,7 +85,7 @@ export default function Login() {
       if (step === 'login') {
         await signInWithEmail(email, password);
         toast.success('로그인 성공!');
-        navigate('/app');
+        navigate(redirectTo);
       } else {
         await signUpWithEmail(email, password, displayName.trim());
         toast.success('회원가입 완료!');
