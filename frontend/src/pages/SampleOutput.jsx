@@ -52,7 +52,7 @@ export default function SampleOutput() {
         </Link>
 
         <header className="mt-4">
-          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.2em] text-bluewood-300">Sample Output</p>
+          <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.2em] text-bluewood-300">Sample Output</p>
           <h1 className="mt-1.5 text-[26px] font-black leading-tight text-bluewood-900">개선된 산출물 예시</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-bluewood-500">
             인사담당자 피드백을 반영해 수정한 결과물입니다. 아래 카드와 텍스트는 실제 서비스와
@@ -65,7 +65,7 @@ export default function SampleOutput() {
           <ul className="mt-3 space-y-2">
             {CHANGES.map((c, i) => (
               <li key={i} className="flex gap-2.5 text-[12.5px] leading-[1.65] text-bluewood-600">
-                <span className={`mt-0.5 h-fit flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black ${
+                <span className={`mt-0.5 h-fit flex-shrink-0 rounded px-1.5 py-0.5 text-[11.5px] font-black ${
                   c.tag === '버그' ? 'bg-rose-50 text-rose-600' : 'bg-caribbean-50 text-caribbean-700'
                 }`}>{c.tag}</span>
                 <span>{c.text}</span>
@@ -76,7 +76,7 @@ export default function SampleOutput() {
 
         {/* 직군 전환 — 같은 화면이 직군마다 어떻게 달라지는지가 핵심 */}
         <div className="mt-7">
-          <p className="mb-2 text-[11px] font-bold text-bluewood-400">직군을 바꿔 보세요 — 경험의 단위와 카드 구조가 달라집니다</p>
+          <p className="mb-2 text-[12px] font-bold text-bluewood-400">직군을 바꿔 보세요 — 경험의 단위와 카드 구조가 달라집니다</p>
           <div className="flex flex-wrap gap-1.5">
             {SAMPLE_JOBS.map(opt => (
               <button
@@ -94,7 +94,7 @@ export default function SampleOutput() {
         </div>
 
         <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-surface-200 bg-white px-4 py-3">
-          <span className="rounded-md bg-primary-50 px-2 py-1 text-[11px] font-black text-primary-600">
+          <span className="rounded-md bg-primary-50 px-2 py-1 text-[12px] font-black text-primary-600">
             {STAGE_LABEL[exp.stage] || exp.stage}
           </span>
           <p className="text-[11.5px] leading-snug text-bluewood-400">
@@ -140,7 +140,7 @@ export default function SampleOutput() {
                     <section key={target} className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
                       <div className="border-b border-surface-100 bg-surface-50/70 px-4 py-2.5">
                         <p className="text-[12px] font-extrabold text-bluewood-800">{target}</p>
-                        <p className="mt-0.5 font-mono text-[10.5px] font-bold" style={{ color: accent }}>
+                        <p className="mt-0.5 font-mono text-[11.5px] font-bold" style={{ color: accent }}>
                           {plan.narrative}
                           {plan.artifactVariant && <span className="ml-1.5 rounded bg-white px-1.5 py-0.5 text-bluewood-600">{plan.artifactVariant}</span>}
                         </p>
@@ -148,7 +148,7 @@ export default function SampleOutput() {
                       <div className="space-y-3 px-4 py-3.5">
                         <p className="text-[11.5px] leading-relaxed text-bluewood-500">{plan.narrativeReason}</p>
                         {plan.artifactReason && (
-                          <p className="text-[11px] leading-relaxed text-bluewood-400">히어로 비주얼 · {plan.artifactReason}</p>
+                          <p className="text-[12px] leading-relaxed text-bluewood-400">히어로 비주얼 · {plan.artifactReason}</p>
                         )}
                         {plan.artifactRecipe && (
                           <div className="overflow-hidden rounded-xl border border-surface-200">
@@ -159,24 +159,24 @@ export default function SampleOutput() {
                           <p className="rounded-lg bg-surface-50 px-3 py-2 text-[12px] font-bold text-bluewood-800">“{plan.headline}”</p>
                         )}
                         <div>
-                          <p className="mb-1.5 text-[10.5px] font-bold text-bluewood-400">섹션 구성 · 순서</p>
+                          <p className="mb-1.5 text-[11.5px] font-bold text-bluewood-400">섹션 구성 · 순서</p>
                           <ol className="space-y-1.5">
                             {plan.sections.map((s, i) => (
                               <li key={s.source} className="text-[11.5px] leading-snug text-bluewood-600">
                                 <span className="mr-1.5 font-mono font-black" style={{ color: accent }}>{String(i + 1).padStart(2, '0')}</span>
                                 <strong className="text-bluewood-800">{s.title}</strong>
                                 {s.emphasis === 'high' && <span className="ml-1 rounded bg-caribbean-50 px-1 text-[9.5px] font-black text-caribbean-700">강조</span>}
-                                <span className="ml-1 font-mono text-[10px] text-bluewood-300">{s.source}</span>
-                                {s.why && <span className="block pl-6 text-[10.5px] text-bluewood-400">{s.why}</span>}
+                                <span className="ml-1 font-mono text-[11.5px] text-bluewood-300">{s.source}</span>
+                                {s.why && <span className="block pl-6 text-[11.5px] text-bluewood-400">{s.why}</span>}
                               </li>
                             ))}
                           </ol>
                         </div>
                         {plan.omitted?.length > 0 && (
                           <div>
-                            <p className="mb-1 text-[10.5px] font-bold text-bluewood-400">뺀 항목</p>
+                            <p className="mb-1 text-[11.5px] font-bold text-bluewood-400">뺀 항목</p>
                             {plan.omitted.map(o => (
-                              <p key={o.source} className="text-[10.5px] leading-snug text-bluewood-400">
+                              <p key={o.source} className="text-[11.5px] leading-snug text-bluewood-400">
                                 <span className="font-mono">{o.source}</span> — {o.reason}
                               </p>
                             ))}
@@ -184,9 +184,9 @@ export default function SampleOutput() {
                         )}
                         {plan.jdAlignment?.length > 0 && (
                           <div className="border-t border-surface-100 pt-2.5">
-                            <p className="mb-1.5 text-[10.5px] font-bold text-bluewood-400">공고 요건 대응 (약점도 정직하게 표시)</p>
+                            <p className="mb-1.5 text-[11.5px] font-bold text-bluewood-400">공고 요건 대응 (약점도 정직하게 표시)</p>
                             {plan.jdAlignment.map((a, i) => (
-                              <p key={i} className="text-[11px] leading-snug text-bluewood-600">
+                              <p key={i} className="text-[12px] leading-snug text-bluewood-600">
                                 <span className={`mr-1.5 font-black ${
                                   a.strength === 'strong' ? 'text-caribbean-700' : a.strength === 'missing' ? 'text-rose-500' : 'text-amber-600'
                                 }`}>
@@ -202,7 +202,7 @@ export default function SampleOutput() {
                     </section>
                   ))}
                 </div>
-                <p className="mt-4 text-center text-[11px] leading-relaxed text-bluewood-300">
+                <p className="mt-4 text-center text-[12px] leading-relaxed text-bluewood-300">
                   실제로는 프로젝트 모달의 <strong className="text-bluewood-500">맞춤 구성</strong> 버튼이
                   <span className="font-mono"> POST /job/compose-experience </span>로 이 계획을 받아 캔버스를 조립합니다.
                 </p>
@@ -214,7 +214,7 @@ export default function SampleOutput() {
         {tab === 'card' && (
           <div className="mt-5 rounded-2xl bg-white p-5">
             <JobExperienceCard job={job} exp={exp} index={0} accent={accent} />
-            <p className="mt-4 text-center text-[11px] leading-relaxed text-bluewood-300">
+            <p className="mt-4 text-center text-[12px] leading-relaxed text-bluewood-300">
               카드 하단의 <strong className="text-bluewood-500">판단 지도 · 말투와 증거 보기</strong>를 펼치면
               대안 비교·선택 기준·사용자 원문·증거 자료가 나옵니다.
               그 아래 <strong className="text-bluewood-500">Honest Review</strong>가 새로 추가된 솔직 회고입니다.
@@ -228,19 +228,19 @@ export default function SampleOutput() {
               <section key={s.key} className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
                 <div className="flex items-center justify-between border-b border-surface-100 bg-surface-50/70 px-4 py-2.5">
                   <p className="text-[12px] font-extrabold text-bluewood-800">{s.label}</p>
-                  <span className="font-mono text-[10px] text-bluewood-300">{s.key}</span>
+                  <span className="font-mono text-[11.5px] text-bluewood-300">{s.key}</span>
                 </div>
                 <pre className="overflow-x-auto whitespace-pre-wrap px-4 py-3.5 text-[12px] leading-[1.75] text-bluewood-600">{s.content}</pre>
               </section>
             ))}
-            <p className="text-center text-[11px] leading-relaxed text-bluewood-300">
+            <p className="text-center text-[12px] leading-relaxed text-bluewood-300">
               위 섹션이 PDF · 노션 · 링크 공유 포트폴리오에 그대로 실립니다.
               직군을 바꾸면 <strong className="text-bluewood-500">두 번째 섹션(시그니처 산출물)</strong>의 제목과 항목이 달라집니다.
             </p>
           </div>
         )}
 
-        <p className="mt-10 text-center text-[11px] text-bluewood-300">
+        <p className="mt-10 text-center text-[12px] text-bluewood-300">
           예시 데이터는 손으로 작성한 샘플입니다. 실제 사용 시에는 사용자가 올린 자료에서 AI가 같은 구조로 추출합니다.
         </p>
       </div>

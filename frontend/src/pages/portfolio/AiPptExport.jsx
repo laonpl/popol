@@ -395,7 +395,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                   {/* 호버 툴팁 */}
                   <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden group-hover:block bg-gray-900 text-white text-xs px-3 py-2 rounded-xl shadow-2xl" style={{ minWidth: 160 }}>
                     <div className="font-semibold text-white">{p.name}</div>
-                    <div className="text-gray-400 mt-0.5 text-[10px] leading-snug">{p.description}</div>
+                    <div className="text-gray-400 mt-0.5 text-[11.5px] leading-snug">{p.description}</div>
                   </div>
                 </div>
               ))}
@@ -408,7 +408,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                   <Check size={11} className="text-primary-500" />
                   <span className="text-xs font-semibold text-gray-700">{selectedPalette.name}</span>
                 </div>
-                <p className="text-[10px] text-gray-400 leading-snug">{selectedPalette.description}</p>
+                <p className="text-[11.5px] text-gray-400 leading-snug">{selectedPalette.description}</p>
               </div>
             )}
 
@@ -422,7 +422,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
               >
                 <Upload size={12} /> 파일 선택
               </button>
-              <p className="mt-1.5 text-[10px] text-gray-400 leading-snug">
+              <p className="mt-1.5 text-[11.5px] text-gray-400 leading-snug">
                 업로드한 PPT의 디자인(배경·도형·이미지·폰트)을 그대로 유지하고 내용만 채웁니다.
               </p>
               {customFileName && (
@@ -465,7 +465,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                 index={0}
               />
             </div>
-            <p className="text-[10px] text-gray-400">커버 슬라이드 미리보기 · 팔레트에 마우스를 올리면 실시간으로 바뀝니다</p>
+            <p className="text-[11.5px] text-gray-400">커버 슬라이드 미리보기 · 팔레트에 마우스를 올리면 실시간으로 바뀝니다</p>
           </div>
         </div>
 
@@ -502,7 +502,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
             exportFormat === 'ppt' ? 'border-primary-500 bg-primary-50/30' : 'border-surface-200 hover:border-surface-300 bg-white'
           }`}
         >
-          <div className={`w-14 h-9 rounded-md border-2 grid place-items-center flex-shrink-0 text-[9px] font-bold ${
+          <div className={`w-14 h-9 rounded-md border-2 grid place-items-center flex-shrink-0 text-[10.5px] font-bold ${
             exportFormat === 'ppt' ? 'border-primary-500 text-primary-600' : 'border-surface-300 text-gray-400'
           }`}>16:9</div>
           <div>
@@ -519,7 +519,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
             exportFormat === 'pdf' ? 'border-rose-500 bg-rose-50/30' : 'border-surface-200 hover:border-surface-300 bg-white'
           }`}
         >
-          <div className={`w-9 h-12 rounded-md border-2 grid place-items-center flex-shrink-0 text-[9px] font-bold ${
+          <div className={`w-9 h-12 rounded-md border-2 grid place-items-center flex-shrink-0 text-[10.5px] font-bold ${
             exportFormat === 'pdf' ? 'border-rose-500 text-rose-600' : 'border-surface-300 text-gray-400'
           }`}>A4</div>
           <div>
@@ -542,7 +542,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
               <li>프로젝트별 문제 정의 → 역할 → 과정 → 성과(수치 강조) + 지표 카드</li>
               <li>학력 · 수상 · 활동 · 목표와 계획</li>
             </ul>
-            <p className="text-[11px] text-gray-400 mt-3">포트폴리오에 작성된 내용이 그대로 들어갑니다. 업로드나 추가 설정 없이 약 10초 안에 완성됩니다.</p>
+            <p className="text-[12px] text-gray-400 mt-3">포트폴리오에 작성된 내용이 그대로 들어갑니다. 업로드나 추가 설정 없이 약 10초 안에 완성됩니다.</p>
           </div>
           {pdfDone && (
             <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-medium text-emerald-700">
@@ -594,7 +594,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                   tabIndex={0}
                   onClick={(e) => { e.stopPropagation(); openLayoutPreview(layout.id); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); openLayoutPreview(layout.id); } }}
-                  className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur border border-surface-200 rounded-md text-[11px] font-medium text-gray-600 hover:text-primary-600 hover:border-primary-300 shadow-sm cursor-pointer transition-colors"
+                  className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur border border-surface-200 rounded-md text-[12px] font-medium text-gray-600 hover:text-primary-600 hover:border-primary-300 shadow-sm cursor-pointer transition-colors"
                 >
                   <Eye size={11} /> 미리보기
                 </span>
@@ -604,7 +604,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
             {/* 태그 */}
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-semibold text-gray-800">{layout.name}</span>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+              <span className={`text-[10.5px] px-1.5 py-0.5 rounded-full font-medium ${
                 layout.available ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-200 text-gray-400'
               }`}>
                 {layout.tag}
@@ -642,7 +642,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
         const pl = SLIDE_LAYOUTS.find(l => l.id === previewLayoutId);
         const previewTmpl = getComposedTemplate(previewLayoutId, templateId);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPreviewLayoutId(null)}>
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPreviewLayoutId(null)}>
             <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full mx-4 max-h-[92vh] overflow-hidden border border-surface-200" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 bg-surface-50/60">
                 <div>
@@ -668,7 +668,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                     {previewDeck.map((s, i) => (
                       <div key={s.id || i} className="rounded-lg border border-surface-200 overflow-hidden shadow-sm bg-white">
                         <LayoutPreviewThumb template={previewTmpl} sampleSlide={s} index={i} />
-                        <div className="px-3 py-1.5 border-t border-surface-100 flex items-center justify-between text-[11px]">
+                        <div className="px-3 py-1.5 border-t border-surface-100 flex items-center justify-between text-[12px]">
                           <span className="font-medium text-gray-500 truncate">{i + 1}. {s.title || s.sectionLabel || '슬라이드'}</span>
                         </div>
                       </div>

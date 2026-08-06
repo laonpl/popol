@@ -127,7 +127,7 @@ export default function ExperienceEditor() {
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
-      navigate(`/app/experience/result/${experienceId}`, {
+      navigate(`/app/experience/complete/${experienceId}`, {
         state: {
           analysis,
           title,
@@ -304,7 +304,7 @@ export default function ExperienceEditor() {
         <div className="space-y-4">
           {JOB_CATEGORIES.map(group => (
             <div key={group.group}>
-              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-widest text-gray-300">{group.group}</p>
+              <p className="mb-2 text-[11.5px] font-bold uppercase tracking-widest text-gray-300">{group.group}</p>
               <div className="flex flex-wrap gap-2">
                 {group.items.map(opt => {
                   const selected = jobCategory === opt.value;
@@ -333,7 +333,7 @@ export default function ExperienceEditor() {
 
       {/* ── 필수 7개 섹션 (공통) ── */}
       <div className="mb-2 flex items-center gap-2 px-1">
-        <span className="text-[10.5px] font-bold uppercase tracking-widest text-gray-300">필수 섹션</span>
+        <span className="text-[11.5px] font-bold uppercase tracking-widest text-gray-300">필수 섹션</span>
         <div className="flex-1 h-px bg-surface-100" />
       </div>
       <div className="space-y-4 mb-6">
@@ -365,7 +365,7 @@ export default function ExperienceEditor() {
       {JOB_SPECIFIC_FIELDS[jobCategory]?.length > 0 && (
         <>
           <div className="mb-2 flex items-center gap-2 px-1">
-            <span className="text-[10.5px] font-bold uppercase tracking-widest text-primary-400">
+            <span className="text-[11.5px] font-bold uppercase tracking-widest text-primary-400">
               {JOB_CATEGORIES.flatMap(g => g.items).find(i => i.value === jobCategory)?.label} 특화 섹션
             </span>
             <div className="flex-1 h-px bg-primary-100" />

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CheckCircle2, Circle, Loader2, X, Download, AlertTriangle } from 'lucide-react';
 import usePortfolioStore from '../stores/portfolioStore';
 
+import useModalBehavior from '../hooks/useModalBehavior';
 const checklistItems = [
   { key: 'fileSize', label: '파일 용량', desc: '20MB 이하 확인 및 자동 압축', icon: '📦' },
   { key: 'format', label: '포맷 검증', desc: '기업 요구 형태(PDF/웹) 매칭', icon: '📄' },
@@ -12,6 +13,7 @@ const checklistItems = [
 ];
 
 export default function ChecklistModal({ portfolioId, onClose, onExport }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const { checklist, exportReady, runChecklist } = usePortfolioStore();
   const [running, setRunning] = useState(false);
 
@@ -24,8 +26,8 @@ export default function ChecklistModal({ portfolioId, onClose, onExport }) {
   const passedCount = Object.values(checklist).filter(v => v.passed).length;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-fadeIn">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[110]" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="점검 목록" tabIndex={-1} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-fadeIn">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-surface-200">
           <div>

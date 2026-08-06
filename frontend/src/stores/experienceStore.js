@@ -260,6 +260,7 @@ const useExperienceStore = create((set, get) => ({
       content: data.content || {},
       images: data.images || [],
       keywords: data.keywords || [],
+      lifecycleStatus: data.lifecycleStatus || (data.structuredResult ? 'needs_confirmation' : 'captured'),
     });
     const { data: newExp } = await api.post('/experience', payload);
     set(state => ({ experiences: [newExp, ...state.experiences] }));
@@ -329,7 +330,7 @@ const useExperienceStore = create((set, get) => ({
     const { data } = await api.post('/experience/analyze', payload, { timeout: 300000 });
     set(state => ({
       experiences: state.experiences.map(e =>
-        e.id === experienceId ? { ...e, structuredResult: data, keywords: data.keywords || [] } : e
+        e.id === experienceId ? { ...e, structuredResult: data, keywords: data.keywords || [], lifecycleStatus: 'needs_confirmation' } : e
       ),
     }));
     return data;

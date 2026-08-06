@@ -231,7 +231,7 @@ export default function PublicPortfolioView() {
         </div>
 
         {/* Quick Menu */}
-        <div className="px-10 py-4 border-b border-gray-100 flex gap-3 overflow-x-auto">
+        <div className="px-10 py-4 border-b border-gray-100 flex gap-3 overflow-x-auto scrollbar-none">
           {['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관'].map(menu => (
             <a key={menu} href={`#pub-${menu}`}
               className="px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-gray-600 font-medium whitespace-nowrap transition-colors">
@@ -361,12 +361,12 @@ export default function PublicPortfolioView() {
                     </div>
                     <div className="p-3 flex-1 flex flex-col">
                       <h4 className="text-sm font-bold text-gray-800 line-clamp-2 mb-1">{e.title || '(제목 없음)'}</h4>
-                      {cardRole && <p className="text-[11px] text-blue-600 font-medium mb-1 truncate">{cardRole}</p>}
-                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mb-1.5">{cardSummary}</p>}
+                      {cardRole && <p className="text-[12px] text-blue-600 font-medium mb-1 truncate">{cardRole}</p>}
+                      {cardSummary && <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mb-1.5">{cardSummary}</p>}
                       {cardTech.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
                           {cardTech.slice(0, 3).map((t, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium border border-green-100">
+                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[11.5px] font-medium border border-green-100">
                               {typeof t === 'string' ? t : t?.name || ''}
                             </span>
                           ))}
@@ -585,12 +585,12 @@ export default function PublicPortfolioView() {
                       <div className="p-3 flex-1 flex flex-col">
                         <VHtml as="h4" className="text-sm font-bold text-gray-800 line-clamp-1 mb-1" value={e.title || '(제목 없음)'} />
                         {false && <p className="text-xs text-gray-400">{e.date || ''}</p>}
-                        {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
-                        {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                        {cardRole && <p className="text-[12px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
+                        {cardSummary && <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
                         {cardTech.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {cardTech.slice(0, 3).map((t, ti) => (
-                              <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
+                              <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[11.5px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
                             ))}
                           </div>
                         )}
@@ -724,11 +724,11 @@ export default function PublicPortfolioView() {
                       <div className="p-3 flex-1 flex flex-col">
                         <VHtml as="h4" className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1" value={e.title || '(제목 없음)'} />
                         {false && <p className="text-xs text-[#8a8578]">{e.date || ''}</p>}
-                        {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
-                        {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                        {cardRole && <p className="text-[12px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
+                        {cardSummary && <p className="text-[12px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
                         {false && (e.classify || []).length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
+                            <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[11.5px]">{t}</span>
                           ))}</div>
                         )}
                       </div>
@@ -841,7 +841,7 @@ export default function PublicPortfolioView() {
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
                           <p className="text-xs text-gray-400">{exp.period || exp.date || ''} {cardRole ? `· ${cardRole}` : ''}</p>
-                          {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-1">{cardSummary}</p>}
+                          {cardSummary && <p className="text-[12px] text-gray-500 mt-1 leading-relaxed line-clamp-1">{cardSummary}</p>}
                         </div>
                       </div>
                     );

@@ -405,10 +405,10 @@ function PortfolioBlockViewer({ blocks = [], compact = false }) {
             <div key={block.id} className="rounded-xl border border-primary-100 bg-[#f7f9fb] p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 border-b border-surface-200 pb-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{block.kicker || block.label || 'SLIDE'}</p>
+                  <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-300">{block.kicker || block.label || 'SLIDE'}</p>
                   <h3 className="mt-1 break-words text-[17px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</h3>
                 </div>
-                {block.slideKey && <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-primary-600 ring-1 ring-primary-100">{block.slideKey}</span>}
+                {block.slideKey && <span className="rounded-full bg-white px-2 py-1 text-[12px] font-black text-primary-600 ring-1 ring-primary-100">{block.slideKey}</span>}
               </div>
               {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.7] text-bluewood-600">{block.subtitle}</p>}
               {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-[1.7] text-bluewood-500">{block.content}</p>}
@@ -416,9 +416,9 @@ function PortfolioBlockViewer({ blocks = [], compact = false }) {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {block.cards.slice(0, 2).map((card, index) => (
                     <div key={index} className="border-l-[3px] border-primary-500 bg-white px-3 py-2 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
+                      <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
                       <p className="mt-1 text-[12px] font-extrabold leading-snug text-bluewood-900">{card.title}</p>
-                      {card.body && <p className="mt-1 text-[11px] leading-relaxed text-bluewood-500">{card.body}</p>}
+                      {card.body && <p className="mt-1 text-[12px] leading-relaxed text-bluewood-500">{card.body}</p>}
                     </div>
                   ))}
                 </div>
@@ -450,14 +450,14 @@ function PortfolioSlideDeck({ blocks = [], compact = false }) {
     <div className="rounded-xl border border-primary-100 bg-[#f7f9fb] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-surface-200 pb-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{slide.kicker || slide.label || 'SLIDE'}</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-300">{slide.kicker || slide.label || 'SLIDE'}</p>
           <h3 className="mt-1 break-words text-[17px] font-extrabold leading-snug text-bluewood-900">{slide.title || slide.label}</h3>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <button type="button" onClick={event => { event.stopPropagation(); go(-1); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-bluewood-500 ring-1 ring-surface-200 hover:bg-primary-50 hover:text-primary-600" aria-label="이전 슬라이드">
             <ChevronLeft size={15} />
           </button>
-          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-primary-600 ring-1 ring-primary-100">{activeIdx + 1}/{slides.length}</span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[12px] font-black text-primary-600 ring-1 ring-primary-100">{activeIdx + 1}/{slides.length}</span>
           <button type="button" onClick={event => { event.stopPropagation(); go(1); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-bluewood-500 ring-1 ring-surface-200 hover:bg-primary-50 hover:text-primary-600" aria-label="다음 슬라이드">
             <ChevronRight size={15} />
           </button>
@@ -469,9 +469,9 @@ function PortfolioSlideDeck({ blocks = [], compact = false }) {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {slide.cards.slice(0, compact ? 2 : 3).map((card, index) => (
             <div key={index} className="border-l-[3px] border-primary-500 bg-white px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
+              <p className="text-[11.5px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
               <p className="mt-1 break-words text-[12px] font-extrabold leading-snug text-bluewood-900">{card.title}</p>
-              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-bluewood-500">{card.body}</p>}
+              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-bluewood-500">{card.body}</p>}
             </div>
           ))}
         </div>
@@ -563,7 +563,7 @@ const EVIDENCE_TAG_SPLIT_RE = /(\[(?:사실|추정|가정|해석)\])/g;
 function EvidenceTag({ kind }) {
   const t = EVIDENCE_TAGS[kind];
   if (!t) return null;
-  return <span className={`mx-0.5 inline-flex items-center rounded px-1 py-px align-middle text-[11px] font-bold ${t.bg} ${t.text} ring-1 ${t.ring}`}>{kind}</span>;
+  return <span className={`mx-0.5 inline-flex items-center rounded px-1 py-px align-middle text-[12px] font-bold ${t.bg} ${t.text} ring-1 ${t.ring}`}>{kind}</span>;
 }
 
 /* ── 섹션 근거 바: 주장 성격(사실/추정/가정/해석) + 근거 레벨(A~D) 단일 선택 ── */
@@ -575,7 +575,7 @@ function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
         {claim && <EvidenceTag kind={claim} />}
         {level && EVIDENCE_LEVELS[level] && (
           <span
-            className={`inline-flex items-center rounded px-1.5 py-px text-[11px] font-bold ${EVIDENCE_LEVELS[level].bg} ${EVIDENCE_LEVELS[level].text} ring-1 ${EVIDENCE_LEVELS[level].ring}`}
+            className={`inline-flex items-center rounded px-1.5 py-px text-[12px] font-bold ${EVIDENCE_LEVELS[level].bg} ${EVIDENCE_LEVELS[level].text} ring-1 ${EVIDENCE_LEVELS[level].ring}`}
             title={EVIDENCE_LEVELS[level].desc}
           >
             근거 {level} · {EVIDENCE_LEVELS[level].name}
@@ -588,7 +588,7 @@ function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
       {/* 주장 성격 */}
       <div className="inline-flex items-center gap-0.5 rounded-lg border border-surface-200 bg-white p-0.5">
-        <span className="px-1.5 text-[10px] font-bold text-bluewood-300">성격</span>
+        <span className="px-1.5 text-[11.5px] font-bold text-bluewood-300">성격</span>
         {Object.keys(EVIDENCE_TAGS).map(kind => {
           const on = claim === kind;
           const t = EVIDENCE_TAGS[kind];
@@ -597,7 +597,7 @@ function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
               key={kind}
               type="button"
               onClick={() => onClaim(kind)}
-              className={`rounded-md px-2 py-1 text-[11px] font-bold transition-all ${on ? `${t.bg} ${t.text} ring-1 ${t.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
+              className={`rounded-md px-2 py-1 text-[12px] font-bold transition-all ${on ? `${t.bg} ${t.text} ring-1 ${t.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
             >
               {kind}
             </button>
@@ -606,7 +606,7 @@ function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
       </div>
       {/* 근거 레벨 */}
       <div className="inline-flex items-center gap-0.5 rounded-lg border border-surface-200 bg-white p-0.5" title="근거 강도 (A 직접증거 ~ D 추정)">
-        <span className="px-1.5 text-[10px] font-bold text-bluewood-300">근거</span>
+        <span className="px-1.5 text-[11.5px] font-bold text-bluewood-300">근거</span>
         {EVIDENCE_ORDER.map(lv => {
           const on = level === lv;
           const m = EVIDENCE_LEVELS[lv];
@@ -616,7 +616,7 @@ function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
               type="button"
               onClick={() => onLevel(lv)}
               title={`${m.name} — ${m.desc}`}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-black transition-all ${on ? `${m.bg} ${m.text} ring-1 ${m.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[12px] font-black transition-all ${on ? `${m.bg} ${m.text} ring-1 ${m.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
             >
               {lv}
             </button>
@@ -703,7 +703,7 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
       {/* ── 나의 역량 한눈에 (요약 칩) ── */}
       {(typeStats.length > 0 || topKeywords.length > 0) && (
         <div className="px-6 py-5 border-b border-surface-100 bg-surface-50/40">
-          <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">나의 역량 한눈에</p>
+          <p className="mb-3 text-[12px] font-black uppercase tracking-[0.12em] text-bluewood-400">나의 역량 한눈에</p>
           {typeStats.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {typeStats.map(s => (
@@ -717,12 +717,12 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
           )}
           {topKeywords.length > 0 && (
             <div className="mt-4">
-              <p className="mb-2 text-[11px] font-bold text-bluewood-400">발휘한 역량 키워드</p>
+              <p className="mb-2 text-[12px] font-bold text-bluewood-400">발휘한 역량 키워드</p>
               <div className="flex flex-wrap gap-1.5">
                 {topKeywords.map(([k, c]) => (
                   <span key={k} className="inline-flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-2.5 py-1 text-[12.5px] font-semibold text-bluewood-700">
                     {k}
-                    {c >= 2 && <span className="rounded-full bg-primary-50 px-1.5 py-px text-[11px] font-bold tabular-nums text-primary-700">×{c}</span>}
+                    {c >= 2 && <span className="rounded-full bg-primary-50 px-1.5 py-px text-[12px] font-bold tabular-nums text-primary-700">×{c}</span>}
                   </span>
                 ))}
               </div>
@@ -766,7 +766,7 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
 
       {relatedKeywords.length > 0 && (
         <div className="px-6 py-4 border-t border-surface-100 bg-surface-50/30">
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400 mb-2">관련 키워드 · 기술 스택</p>
+          <p className="text-[12px] font-black uppercase tracking-[0.12em] text-bluewood-400 mb-2">관련 키워드 · 기술 스택</p>
           <div className="flex flex-wrap gap-1.5">
             {relatedKeywords.map((k, i) => (
               <span key={i} className="px-2.5 py-1 rounded-full text-[12px] font-medium bg-white border border-surface-200 text-bluewood-600">{k}</span>
@@ -874,12 +874,12 @@ function CompetencyMeterCompact({ highlights = [], keywords = [], keyExperiences
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
             {topKeywords.length > 0 && (
               <div className="min-w-0 flex-1">
-                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">반복해서 드러난 역량</p>
+                <p className="mb-2 text-[12px] font-black uppercase tracking-[0.12em] text-bluewood-400">반복해서 드러난 역량</p>
                 <div className="flex flex-wrap gap-1.5">
                   {topKeywords.map(([keyword, count]) => (
                     <span key={keyword} className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-2.5 py-1 text-[12.5px] font-bold text-bluewood-700">
                       {keyword}
-                      {count >= 2 && <span className="rounded bg-primary-50 px-1.5 py-px text-[11px] font-black tabular-nums text-primary-700">x{count}</span>}
+                      {count >= 2 && <span className="rounded bg-primary-50 px-1.5 py-px text-[12px] font-black tabular-nums text-primary-700">x{count}</span>}
                     </span>
                   ))}
                 </div>
@@ -888,7 +888,7 @@ function CompetencyMeterCompact({ highlights = [], keywords = [], keyExperiences
 
             {relatedKeywords.length > 0 && (
               <div className="min-w-0 flex-1 lg:border-l lg:border-surface-200 lg:pl-5">
-                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">전체 키워드</p>
+                <p className="mb-2 text-[12px] font-black uppercase tracking-[0.12em] text-bluewood-400">전체 키워드</p>
                 <div className="flex flex-wrap gap-1.5">
                   {relatedKeywords.slice(0, 12).map((keyword, index) => (
                     <span key={`${keyword}-${index}`} className="rounded-full border border-surface-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{keyword}</span>
@@ -1193,14 +1193,14 @@ function InlineSlideImages({ sectionKey, sectionImages, allImages, imageConfig, 
             <div className="relative">
               <img src={img.url} alt={cfg.caption || img.name || '이미지'} className="block max-h-[360px] w-full object-contain" />
               {viewOnly && cfg.role && (
-                <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white">{cfg.role}</span>
+                <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[12px] font-bold text-white">{cfg.role}</span>
               )}
               {!viewOnly && (
                 <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
                     type="button"
                     onClick={() => cycleSize(cfgKey, sizeKey)}
-                    className="rounded bg-black/65 px-2 py-1 text-[11px] font-black text-white hover:bg-black/80"
+                    className="rounded bg-black/65 px-2 py-1 text-[12px] font-black text-white hover:bg-black/80"
                     title="사진 크기 변경"
                   >
                     {size.label}
@@ -1228,7 +1228,7 @@ function InlineSlideImages({ sectionKey, sectionImages, allImages, imageConfig, 
                             key={role}
                             type="button"
                             onClick={() => updateCfg(cfgKey, { role: on ? '' : role })}
-                            className={`rounded px-1.5 py-0.5 text-[10.5px] font-bold transition-colors ${on ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-400 hover:bg-surface-200'}`}
+                            className={`rounded px-1.5 py-0.5 text-[11.5px] font-bold transition-colors ${on ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-400 hover:bg-surface-200'}`}
                           >
                             {role}
                           </button>
@@ -1325,7 +1325,7 @@ function SlideImageLayer({ sectionKey, sectionImages, allImages, imageConfig, se
                 <button
                   onMouseDown={event => event.stopPropagation()}
                   onClick={event => { event.stopPropagation(); cycleSize(cfgKey, size.value); }}
-                  className="rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-black text-white hover:bg-black/80"
+                  className="rounded bg-black/65 px-1.5 py-0.5 text-[12px] font-black text-white hover:bg-black/80"
                 >
                   {size.label}
                 </button>
@@ -1360,7 +1360,7 @@ function ArtifactEvidencePanel({ analysis }) {
       <div className="border-b border-surface-200 bg-surface-50/70 px-5 py-4">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary-600">Artifact → Evidence → Experience</p>
+            <p className="text-[12px] font-black uppercase tracking-[0.16em] text-primary-600">Artifact → Evidence → Experience</p>
             <h2 className="mt-1 text-[17px] font-extrabold text-bluewood-900">자료 판독과 근거 장부</h2>
           </div>
           <p className="text-[12px] font-semibold text-bluewood-400">자료 {artifacts.length}개 · 주장 {ledger.length}개 · 경험 후보 {candidates.length}개</p>
@@ -1369,12 +1369,12 @@ function ArtifactEvidencePanel({ analysis }) {
 
       {artifacts.length > 0 && (
         <div className="border-b border-surface-100 px-5 py-4">
-          <p className="mb-2 text-[11px] font-bold text-bluewood-400">판독된 산출물</p>
+          <p className="mb-2 text-[12px] font-bold text-bluewood-400">판독된 산출물</p>
           <div className="flex flex-wrap gap-2">
             {artifacts.slice(0, 12).map((item, index) => (
               <div key={item.id || index} className="rounded-lg border border-surface-200 bg-white px-3 py-2">
                 <p className="text-[12.5px] font-bold text-bluewood-800">{clean(item.name) || item.id || `자료 ${index + 1}`}</p>
-                <p className="mt-0.5 text-[10.5px] text-bluewood-400">{[clean(item.kind), clean(item.stage), clean(item.authorRelation)].filter(Boolean).join(' · ')}</p>
+                <p className="mt-0.5 text-[11.5px] text-bluewood-400">{[clean(item.kind), clean(item.stage), clean(item.authorRelation)].filter(Boolean).join(' · ')}</p>
               </div>
             ))}
           </div>
@@ -1393,7 +1393,7 @@ function ArtifactEvidencePanel({ analysis }) {
                 <div className="min-w-0">
                   <p className="text-[13.5px] font-extrabold leading-6 text-bluewood-900">{clean(row.claim)}</p>
                   {clean(row.directObservation) && <p className="mt-1 text-[12.5px] leading-5 text-bluewood-600">{clean(row.directObservation)}</p>}
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px]">
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11.5px]">
                     {refs.map(ref => <span key={ref} className="rounded bg-surface-100 px-2 py-1 font-semibold text-bluewood-500">{ref}</span>)}
                     {clean(row.location) && <span className="rounded bg-surface-100 px-2 py-1 text-bluewood-400">{clean(row.location)}</span>}
                     {clean(row.ownership) && <span className="rounded bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">기여: {clean(row.ownership)}</span>}
@@ -2325,6 +2325,8 @@ export default function StructuredResult() {
         images: allImages,
         sectionImages,
         imageConfig,
+        lifecycleStatus: 'needs_confirmation',
+        confirmedAt: null,
         updatedAt: new Date(),
       };
       // 자세히 보기의 공통 필드를 간략 보기(caseStudy)에도 반영 (저장된 간략 보기가 있을 때만)
@@ -2340,7 +2342,7 @@ export default function StructuredResult() {
         return;
       }
       await updateDoc(ref, savePayload);
-      setExperience(prev => ({ ...prev, title: editedTitle, link: editedLink || '', notionDoc: projectNotionDoc || null, structuredResult: updatedStructured, keywords: editedKeywords, ...(syncedCaseStudy ? { caseStudy: syncedCaseStudy } : {}) }));
+      setExperience(prev => ({ ...prev, title: editedTitle, link: editedLink || '', notionDoc: projectNotionDoc || null, structuredResult: updatedStructured, keywords: editedKeywords, lifecycleStatus: 'needs_confirmation', confirmedAt: null, ...(syncedCaseStudy ? { caseStudy: syncedCaseStudy } : {}) }));
       const newEditing = {};
       SECTION_KEYS.forEach(k => {
         if (!editedContent[k]?.trim()) newEditing[k] = true;
@@ -2972,7 +2974,7 @@ export default function StructuredResult() {
                   <dl className="mb-4 grid grid-cols-2 gap-x-5 gap-y-1 rounded-lg border border-surface-200 bg-surface-50/50 px-3.5 py-2 sm:grid-cols-3">
                     {INTRO_META.map(item => (
                       <div key={item.key} className="flex min-w-0 items-baseline gap-2">
-                        <dt className="w-[48px] shrink-0 text-[11px] font-bold text-bluewood-400">{item.label}</dt>
+                        <dt className="w-[48px] shrink-0 text-[12px] font-bold text-bluewood-400">{item.label}</dt>
                         <textarea
                           rows={1}
                           ref={el => autoGrow(el)}
@@ -3092,16 +3094,24 @@ export default function StructuredResult() {
             가상 경험 예시 화면 (저장되지 않음)
           </span>
         ) : viewOnly ? (
-          <button
-            onClick={() => {
-              openAllSections();
-              navigate(`/app/experience/structured/${id}`);
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[13px] font-medium hover:bg-surface-50 transition-colors"
-          >
-            <PenLine size={14} />
-            수정하기
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => navigate(`/app/experience/complete/${id}`)}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px] font-bold text-emerald-700 hover:bg-emerald-100"
+            >
+              <Check size={14} /> 사실 확인·다음 경험
+            </button>
+            <button
+              onClick={() => {
+                openAllSections();
+                navigate(`/app/experience/structured/${id}`);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[13px] font-medium hover:bg-surface-50 transition-colors"
+            >
+              <PenLine size={14} />
+              수정하기
+            </button>
+          </div>
         ) : (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* 되돌리기/다시실행 그룹 */}
@@ -3187,7 +3197,7 @@ export default function StructuredResult() {
                 onClick={() => document.getElementById(`story-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${filled ? 'border-surface-200 bg-white text-bluewood-700 hover:border-bluewood-300' : 'border-dashed border-surface-300 bg-surface-50/50 text-bluewood-300 hover:text-bluewood-500'}`}
               >
-                <span className={`text-[11px] font-black tabular-nums ${filled ? 'text-primary-600' : 'text-bluewood-300'}`}>{meta.num}</span>
+                <span className={`text-[12px] font-black tabular-nums ${filled ? 'text-primary-600' : 'text-bluewood-300'}`}>{meta.num}</span>
                 {meta.label}
               </button>
             );
@@ -3235,7 +3245,7 @@ export default function StructuredResult() {
               return (
                 <div key={idx}>
                   <p className="mb-2 flex items-center gap-2 text-[13.5px] font-bold text-bluewood-700">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-black text-white" style={{ backgroundColor: '#002F6C' }}>{+idx + 1}</span>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[12px] font-black text-white" style={{ backgroundColor: '#002F6C' }}>{+idx + 1}</span>
                     {title}
                   </p>
                   <div className="flex flex-col gap-3">
@@ -3309,7 +3319,7 @@ export default function StructuredResult() {
                           : <X size={14} className="text-bluewood-300 mt-[1px] flex-shrink-0" />}
                         <span className={c.ok ? 'text-bluewood-600' : 'text-bluewood-400'}>
                           {c.label}
-                          {!c.ok && <span className="block text-[11px] text-amber-600/90">{c.hint}</span>}
+                          {!c.ok && <span className="block text-[12px] text-amber-600/90">{c.hint}</span>}
                         </span>
                       </div>
                     ))}
@@ -3457,7 +3467,7 @@ export default function StructuredResult() {
             {/* 시장 맥락 */}
             {(R.marketOverview || !viewOnly) && (
               <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">시장 맥락</p>
+                <p className="mb-2 text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">시장 맥락</p>
                 {viewOnly ? (
                   <p className="text-[15.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{R.marketOverview || '—'}</p>
                 ) : (
@@ -3474,7 +3484,7 @@ export default function StructuredResult() {
             {infographic.cards.length > 0 && (
               <div>
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">시장조사 인포그래픽</p>
+                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">시장조사 인포그래픽</p>
                   <span className="text-[12px] font-semibold text-bluewood-300">출처 URL이 확인된 수치만 표시</span>
                 </div>
                 <DeskResearchInfographic infographic={infographic} />
@@ -3485,7 +3495,7 @@ export default function StructuredResult() {
             {(R.impactBridges || []).length > 0 && (
               <div>
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">내 성과 × 외부 연구</p>
+                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">내 성과 × 외부 연구</p>
                   <span className="text-[12px] font-semibold text-bluewood-300">내 실제 수치는 그대로, 의미는 출처 있는 연구로 해석한 추정입니다</span>
                 </div>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
@@ -3531,7 +3541,7 @@ export default function StructuredResult() {
             {/* 의사결정 지표 — 깔끔한 목록형 */}
             {R.decisionMetrics.length > 0 && (
               <div>
-                <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">의사결정에 쓸 지표</p>
+                <p className="mb-1 text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">의사결정에 쓸 지표</p>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {R.decisionMetrics.map((metric, index) => {
                     const cm = confMeta[metric.confidence] || confMeta.medium;
@@ -3602,7 +3612,7 @@ export default function StructuredResult() {
             {/* 강조 관점 — 목록형 */}
             {R.portfolioAngles.length > 0 && (
               <div>
-                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">포트폴리오에서 강조할 관점</p>
+                <p className="mb-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">포트폴리오에서 강조할 관점</p>
                 <ul className="space-y-2.5">
                   {R.portfolioAngles.map((angle, i) => (
                     <li key={i} className="flex gap-2.5 text-[14.5px] leading-[1.7] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
@@ -3617,7 +3627,7 @@ export default function StructuredResult() {
             {/* 근거 자료 (출처) */}
             {validSources.length > 0 && (
               <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">근거 자료 {validSources.length}건</p>
+                <p className="mb-2 text-[12px] font-black uppercase tracking-[0.14em] text-primary-500">근거 자료 {validSources.length}건</p>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {validSources.map((source, index) => {
                     const hasUrl = /^https?:\/\//.test(source.url || '');
@@ -3869,7 +3879,7 @@ export default function StructuredResult() {
                     <ol className="mt-3 space-y-2.5">
                       {sentenceIdeas.map((sentence, index) => (
                         <li key={index} className="flex gap-3 text-[13.5px] leading-[1.75] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
-                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-bluewood-900 text-[11px] font-black text-white">{index + 1}</span>
+                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-bluewood-900 text-[12px] font-black text-white">{index + 1}</span>
                           <span>{sentence}</span>
                         </li>
                       ))}
@@ -3917,7 +3927,7 @@ export default function StructuredResult() {
                     <div className="rounded-lg border border-primary-100 bg-primary-50/60 p-4">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-[17px] font-extrabold text-bluewood-900">예시 자소서 문단</h4>
-                        <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-primary-600 ring-1 ring-primary-100">직무역량 문항 기준</span>
+                        <span className="rounded-md bg-white px-2 py-0.5 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">직무역량 문항 기준</span>
                       </div>
                       <div className="mt-3 space-y-3">
                         {draftParagraphs.map((p, i) => (
@@ -4138,13 +4148,13 @@ export default function StructuredResult() {
                         </div>
                         {a.answer30 && (
                           <div className="mt-3.5 rounded-lg bg-indigo-50/60 px-4 py-3 ring-1 ring-indigo-100/70">
-                            <p className="text-[11px] font-black uppercase tracking-wide text-indigo-500">30초 · 핵심</p>
+                            <p className="text-[12px] font-black uppercase tracking-wide text-indigo-500">30초 · 핵심</p>
                             <p className="mt-1 text-[14.5px] font-bold leading-[1.7] text-indigo-950" style={{ wordBreak: 'keep-all' }}>{a.answer30}</p>
                           </div>
                         )}
                         {(a.answer60 || a.answer180) && (
                           <div className="mt-2.5">
-                            <p className="text-[11px] font-black uppercase tracking-wide text-bluewood-400">1~3분 · 상세</p>
+                            <p className="text-[12px] font-black uppercase tracking-wide text-bluewood-400">1~3분 · 상세</p>
                             <p className="mt-1 text-[14px] leading-[1.85] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{[a.answer60, a.answer180].filter(Boolean).join(' ')}</p>
                           </div>
                         )}
@@ -4326,7 +4336,7 @@ export default function StructuredResult() {
                 <circle cx="20" cy="20" r="17" fill="none" strokeWidth="3.5" className="stroke-surface-100" />
                 <circle cx="20" cy="20" r="17" fill="none" strokeWidth="3.5" strokeLinecap="round" className="stroke-primary-600 transition-all duration-500" strokeDasharray={2 * Math.PI * 17} strokeDashoffset={2 * Math.PI * 17 * (1 - qualityPct / 100)} />
               </svg>
-              <span className="absolute text-[11px] font-black tabular-nums text-primary-700">{qualityPct}</span>
+              <span className="absolute text-[12px] font-black tabular-nums text-primary-700">{qualityPct}</span>
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13.5px] font-extrabold text-bluewood-700">작성 완성도</p>
@@ -4380,11 +4390,11 @@ export default function StructuredResult() {
               <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-surface-100" />
               <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-primary-600 transition-all duration-500" strokeDasharray={2 * Math.PI * 15} strokeDashoffset={2 * Math.PI * 15 * (1 - qualityPct / 100)} />
             </svg>
-            <span className="absolute text-[10px] font-black tabular-nums text-primary-700">{qualityPct}</span>
+            <span className="absolute text-[11.5px] font-black tabular-nums text-primary-700">{qualityPct}</span>
           </span>
           <span className="text-left leading-tight">
             <span className="block text-[13px] font-extrabold text-bluewood-700">작성 완성도</span>
-            <span className="block text-[11px] font-semibold text-bluewood-300">{passedChecks}/{qualityChecks.length}개 완료</span>
+            <span className="block text-[12px] font-semibold text-bluewood-300">{passedChecks}/{qualityChecks.length}개 완료</span>
           </span>
         </button>
       )}
@@ -4402,7 +4412,7 @@ export default function StructuredResult() {
 
       {/* ── 포트폴리오 내보내기 모달 ── */}
       {showExportPanel && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bluewood-900/45 backdrop-blur-sm p-2 sm:p-4" onClick={() => setShowExportPanel(false)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-bluewood-900/45 backdrop-blur-sm p-2 sm:p-4" onClick={() => setShowExportPanel(false)}>
           <div
             className="h-[94vh] w-full max-w-[calc(100vw-32px)] bg-white rounded-[18px] shadow-2xl flex flex-col overflow-hidden border border-surface-200"
             onClick={e => e.stopPropagation()}
@@ -4437,7 +4447,7 @@ export default function StructuredResult() {
                 <div className="px-4 pt-4 pb-3 flex-shrink-0 border-b border-surface-100">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <p className="text-[13px] font-extrabold text-bluewood-800">페이지 구성</p>
-                    <button onClick={resetExportSectionsFromPage} className="text-[11px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">
+                    <button onClick={resetExportSectionsFromPage} className="text-[12px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">
                       초기화
                     </button>
                   </div>
@@ -4460,7 +4470,7 @@ export default function StructuredResult() {
                         return (
                           <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-surface-200 bg-white p-1 shadow-lg">
                             {avail.length === 0 ? (
-                              <p className="px-2 py-3 text-center text-[11px] text-bluewood-400">추가할 섹션이 없습니다.<br />모두 목록에 있어요.</p>
+                              <p className="px-2 py-3 text-center text-[12px] text-bluewood-400">추가할 섹션이 없습니다.<br />모두 목록에 있어요.</p>
                             ) : avail.map(s => (
                               <button
                                 key={s.key}
@@ -4478,7 +4488,7 @@ export default function StructuredResult() {
                       })()}
                     </div>
                   </div>
-                  <p className="mt-2 text-[10px] text-bluewood-300 text-center">⠿ 드래그로 순서 변경 · 체크로 표시 여부 설정</p>
+                  <p className="mt-2 text-[11.5px] text-bluewood-300 text-center">⠿ 드래그로 순서 변경 · 체크로 표시 여부 설정</p>
                 </div>
                 <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
                   {normalizedExportSections.map((section, index) => {
@@ -4519,11 +4529,11 @@ export default function StructuredResult() {
                           >
                             {enabled && <Check size={9} strokeWidth={3.5} />}
                           </button>
-                          <span className="text-[10px] font-black text-bluewood-200 tabular-nums flex-shrink-0">{String(index + 1).padStart(2, '0')}</span>
+                          <span className="text-[11.5px] font-black text-bluewood-200 tabular-nums flex-shrink-0">{String(index + 1).padStart(2, '0')}</span>
                           <span className={`flex-1 text-[12px] font-semibold truncate min-w-0 ${active ? 'text-primary-700' : 'text-bluewood-700'}`}>
                             {section.label || '제목 없는 섹션'}
                           </span>
-                          <span className={`flex-shrink-0 text-[10px] font-bold ${typeColor}`}>{typeLabel}</span>
+                          <span className={`flex-shrink-0 text-[11.5px] font-bold ${typeColor}`}>{typeLabel}</span>
                           <button
                             type="button"
                             onClick={e => { e.stopPropagation(); removeExportSection(section.key); }}
@@ -4584,7 +4594,7 @@ export default function StructuredResult() {
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button
                               onClick={() => updateExportSection(activeExportSection.key, { enabled: activeExportSection.enabled === false })}
-                              className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${activeExportSection.enabled === false ? 'bg-surface-100 text-bluewood-400' : 'bg-primary-50 text-primary-600'}`}
+                              className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-bold transition-colors ${activeExportSection.enabled === false ? 'bg-surface-100 text-bluewood-400' : 'bg-primary-50 text-primary-600'}`}
                             >
                               {activeExportSection.enabled === false ? <EyeOff size={11} /> : <Eye size={11} />}
                               {activeExportSection.enabled === false ? '숨김' : '표시'}
@@ -4625,7 +4635,7 @@ export default function StructuredResult() {
                                 return (
                                   <div key={block.id} className="rounded-xl border border-surface-200 bg-white">
                                     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-surface-100">
-                                      <span className="text-[10px] font-black uppercase tracking-wider text-bluewood-300">{block.type === 'image' ? '사진' : block.type === 'slide' ? '슬라이드' : '텍스트'}</span>
+                                      <span className="text-[11.5px] font-black uppercase tracking-wider text-bluewood-300">{block.type === 'image' ? '사진' : block.type === 'slide' ? '슬라이드' : '텍스트'}</span>
                                       <div className="flex items-center gap-0.5">
                                         <button onClick={() => moveExportBlock(activeExportSection.key, block.id, -1)} disabled={isFirst} className="inline-flex h-6 w-6 items-center justify-center rounded text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveUp size={11} /></button>
                                         <button onClick={() => moveExportBlock(activeExportSection.key, block.id, 1)} disabled={isLast} className="inline-flex h-6 w-6 items-center justify-center rounded text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveDown size={11} /></button>
@@ -4638,15 +4648,15 @@ export default function StructuredResult() {
                                           <img src={block.content} alt={block.alt || ''} className="max-h-40 w-full rounded-lg border border-surface-200 object-contain" />
                                           <div className="flex items-center gap-1">
                                             {['45%', '70%', '100%'].map(width => (
-                                              <button key={width} onClick={() => updateExportBlock(activeExportSection.key, block.id, { width })} className={`rounded px-2 py-0.5 text-[10px] font-bold ${block.width === width ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}>{width}</button>
+                                              <button key={width} onClick={() => updateExportBlock(activeExportSection.key, block.id, { width })} className={`rounded px-2 py-0.5 text-[11.5px] font-bold ${block.width === width ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}>{width}</button>
                                             ))}
                                           </div>
                                         </div>
                                       ) : block.type === 'slide' ? (
                                         <div className="rounded-lg bg-surface-50 p-2.5 ring-1 ring-surface-200">
-                                          <p className="text-[10px] font-black uppercase text-bluewood-300">{block.kicker || block.label}</p>
+                                          <p className="text-[11.5px] font-black uppercase text-bluewood-300">{block.kicker || block.label}</p>
                                           <p className="mt-0.5 text-[13px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</p>
-                                          {block.subtitle && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-bluewood-500">{block.subtitle}</p>}
+                                          {block.subtitle && <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-bluewood-500">{block.subtitle}</p>}
                                         </div>
                                       ) : (
                                         <textarea
@@ -4676,31 +4686,31 @@ export default function StructuredResult() {
                       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-100 bg-surface-50/60">
                         <div>
                           <p className="text-[13px] font-extrabold text-bluewood-800">슬라이드 추가</p>
-                          <p className="text-[11px] text-bluewood-400 mt-0.5">{slideDeckBlocks.length > 0 ? `${slideDeckBlocks.length}개 구성됨` : '아직 없음'}</p>
+                          <p className="text-[12px] text-bluewood-400 mt-0.5">{slideDeckBlocks.length > 0 ? `${slideDeckBlocks.length}개 구성됨` : '아직 없음'}</p>
                         </div>
                         <button
                           type="button"
                           onClick={addAllExportSlideBlocks}
-                          className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[12px] font-bold text-white hover:bg-primary-700 transition-colors"
                         >
                           <LayoutGrid size={11} /> 전체 자동 구성
                         </button>
                       </div>
 
                       <div className="p-3 space-y-1">
-                        <div className="flex items-center gap-2 px-2 pb-2 text-[10px] font-bold text-bluewood-300 border-b border-surface-100 mb-1">
+                        <div className="flex items-center gap-2 px-2 pb-2 text-[11.5px] font-bold text-bluewood-300 border-b border-surface-100 mb-1">
                           <span className="flex-1">섹션</span>
                           <span className="w-14 text-center text-primary-500">개별 추가</span>
                           <span className="w-8 text-center text-bluewood-400">덱 +</span>
                         </div>
                         {SECTION_KEYS.map(slideKey => (
                           <div key={slideKey} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-50 group transition-colors">
-                            <span className="text-[10px] font-black text-bluewood-200 tabular-nums w-5">{SECTION_META[slideKey].num}</span>
+                            <span className="text-[11.5px] font-black text-bluewood-200 tabular-nums w-5">{SECTION_META[slideKey].num}</span>
                             <span className="flex-1 text-[12px] font-semibold text-bluewood-600 truncate">{SECTION_META[slideKey].label}</span>
                             <button
                               type="button"
                               onClick={() => addExportSlideBlock(slideKey, 'new')}
-                              className="w-14 rounded-lg border border-surface-200 py-1 text-[11px] font-bold text-bluewood-500 hover:bg-white hover:border-primary-200 hover:text-primary-600 transition-colors text-center"
+                              className="w-14 rounded-lg border border-surface-200 py-1 text-[12px] font-bold text-bluewood-500 hover:bg-white hover:border-primary-200 hover:text-primary-600 transition-colors text-center"
                             >
                               개별
                             </button>
@@ -4718,10 +4728,10 @@ export default function StructuredResult() {
 
                       {slideDeckBlocks.length > 0 && (
                         <div className="border-t border-surface-100 px-3 pb-3 pt-2 space-y-1.5">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-bluewood-300 px-1 pb-1">구성된 슬라이드</p>
+                          <p className="text-[11.5px] font-black uppercase tracking-wider text-bluewood-300 px-1 pb-1">구성된 슬라이드</p>
                           {slideDeckBlocks.map((block, index) => (
                             <div key={block.id} className="flex items-center gap-2 rounded-lg border border-surface-100 bg-surface-50 px-2.5 py-1.5">
-                              <span className="text-[10px] font-black text-bluewood-200 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                              <span className="text-[11.5px] font-black text-bluewood-200 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
                               <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-bluewood-700">{block.title || block.label || '슬라이드'}</p>
                               <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, -1)} disabled={index === 0} className="inline-flex h-5 w-5 items-center justify-center rounded text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveUp size={10} /></button>
                               <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, 1)} disabled={index === slideDeckBlocks.length - 1} className="inline-flex h-5 w-5 items-center justify-center rounded text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveDown size={10} /></button>
@@ -4777,7 +4787,7 @@ export default function StructuredResult() {
                           className="flex-1 bg-transparent text-[28px] font-extrabold leading-tight text-primary-700 outline-none placeholder:text-bluewood-200"
                           placeholder="프로젝트 제목"
                         />
-                        <span className="flex-shrink-0 mb-1 text-[11px] font-semibold text-bluewood-300 whitespace-nowrap">⠿ 드래그로 순서 변경</span>
+                        <span className="flex-shrink-0 mb-1 text-[12px] font-semibold text-bluewood-300 whitespace-nowrap">⠿ 드래그로 순서 변경</span>
                       </div>
 
                       <div className="space-y-4">

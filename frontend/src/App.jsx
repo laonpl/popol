@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Loader2 } from 'lucide-react';
 
 // ── 초기 로드 필수 (로그인 전 접근 가능) ──────────────────────────
@@ -16,6 +17,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import NotFound from './pages/NotFound';
 
 // ── 코드 스플리팅: 인증 후에만 필요한 페이지 ─────────────────────
 const ProfileSetup          = lazy(() => import('./pages/ProfileSetup'));
@@ -24,11 +26,15 @@ const TemplateSelect        = lazy(() => import('./pages/experience/TemplateSele
 const ExperienceInterview   = lazy(() => import('./pages/experience/ExperienceInterview'));
 const ExperienceChat        = lazy(() => import('./pages/experience/ExperienceChat'));
 const ExperienceResult      = lazy(() => import('./pages/experience/ExperienceResult'));
+const ExperienceCompletion  = lazy(() => import('./pages/experience/ExperienceCompletion'));
+const QuickExperienceCapture = lazy(() => import('./pages/experience/QuickExperienceCapture'));
+const ExperienceCandidateInbox = lazy(() => import('./pages/experience/ExperienceCandidateInbox'));
 const ExperienceEditor      = lazy(() => import('./pages/experience/ExperienceEditor'));
 const AnalysisResult        = lazy(() => import('./pages/experience/AnalysisResult'));
 const StructuredResult      = lazy(() => import('./pages/experience/StructuredResult'));
 const DeveloperPortfolio    = lazy(() => import('./pages/experience/DeveloperPortfolio'));
 const PortfolioHub          = lazy(() => import('./pages/portfolio/PortfolioHub'));
+const PortfolioPlanBuilder  = lazy(() => import('./pages/portfolio/PortfolioPlanBuilder'));
 const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTemplateSelect'));
 const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
 const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfolioPreview'));
@@ -44,6 +50,7 @@ const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioP
 const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
+const ServiceDeck           = lazy(() => import('./pages/ServiceDeck')); // 슬라이드형 서비스 소개서 (/deck)
 const Resultt               = lazy(() => import('./pages/Resultt')); // 직무별 경험정리 결과 예시
 
 function PageLoader() {
@@ -88,22 +95,26 @@ function RootLayout() {
   }, [init]);
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
+    // ErrorBoundary: 화면 렌더 중 오류가 나도 백지가 되지 않도록 감싼다.
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
 // 데이터 라우터 — useBlocker(이탈 방지)가 동작하려면 createBrowserRouter가 필요하다.
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route element={<RootLayout />}>
+    <Route element={<RootLayout />} errorElement={<NotFound />}>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
+      <Route path="/deck" element={<ServiceDeck />} />
       <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
@@ -127,6 +138,9 @@ const router = createBrowserRouter(
         <Route path="experience/interview" element={<PrivateRoute><ExperienceInterview /></PrivateRoute>} />
         <Route path="experience/chat" element={<PrivateRoute><ExperienceChat /></PrivateRoute>} />
         <Route path="experience/result/:id" element={<PrivateRoute><ExperienceResult /></PrivateRoute>} />
+        <Route path="experience/complete/:id" element={<PrivateRoute><ExperienceCompletion /></PrivateRoute>} />
+        <Route path="experience/quick" element={<PrivateRoute><QuickExperienceCapture /></PrivateRoute>} />
+        <Route path="experience/candidates" element={<PrivateRoute><ExperienceCandidateInbox /></PrivateRoute>} />
         <Route path="experience/edit/:id" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
         <Route path="experience/edit/new/:framework" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
         <Route path="experience/analysis/:id" element={<PrivateRoute><AnalysisResult /></PrivateRoute>} />
@@ -134,6 +148,7 @@ const router = createBrowserRouter(
         <Route path="experience/dev-portfolio/:id" element={<PrivateRoute><DeveloperPortfolio /></PrivateRoute>} />
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
+        <Route path="portfolio/plan" element={<PrivateRoute><PortfolioPlanBuilder /></PrivateRoute>} />
         <Route path="portfolio/new" element={<PrivateRoute><PortfolioTemplateSelect /></PrivateRoute>} />
         <Route path="portfolio/edit/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
         <Route path="portfolio/edit-notion/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
@@ -142,7 +157,11 @@ const router = createBrowserRouter(
         <Route path="portfolio/web-preview/:id" element={<PrivateRoute><WebPortfolioPreview /></PrivateRoute>} />
         <Route path="portfolio/ai-ppt/:id" element={<PrivateRoute><AiPptExport /></PrivateRoute>} />
         <Route path="settings/credits" element={<PrivateRoute><CreditSettings /></PrivateRoute>} />
+        {/* /app 하위의 잘못된 주소 */}
+        <Route path="*" element={<NotFound />} />
       </Route>
+      {/* 그 외 모든 주소 */}
+      <Route path="*" element={<NotFound />} />
     </Route>
   )
 );

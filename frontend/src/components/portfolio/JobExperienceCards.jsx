@@ -18,7 +18,7 @@ function Shell({ kicker, index, title, accent, right, children }) {
     <div className="rounded-2xl border border-surface-200 p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{kicker} {String(index + 1).padStart(2, '0')}</p>
+          <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{kicker} {String(index + 1).padStart(2, '0')}</p>
           <h3 className="mt-1 text-[15.5px] font-extrabold leading-snug text-bluewood-900">{title}</h3>
         </div>
         {right}
@@ -84,7 +84,7 @@ function CardFootnote({ exp, accent }) {
       {scopeChips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {scopeChips.map(c => (
-            <span key={c.label} className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2 py-1 text-[11px] text-bluewood-600">
+            <span key={c.label} className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2 py-1 text-[12px] text-bluewood-600">
               <span className="font-bold text-bluewood-400">{c.label}</span>
               <span className="font-semibold">{c.text.length > 46 ? `${c.text.slice(0, 45)}…` : c.text}</span>
             </span>
@@ -93,7 +93,7 @@ function CardFootnote({ exp, accent }) {
       )}
       {hasDeepRecord && (
         <details className="group rounded-xl bg-surface-50 px-3.5 py-3">
-          <summary className="cursor-pointer list-none text-[11px] font-black text-bluewood-600">
+          <summary className="cursor-pointer list-none text-[12px] font-black text-bluewood-600">
             <span style={{ color: accent }}>판단 지도</span>
             <span className="mx-1.5 text-surface-300">·</span>말투와 증거 보기
           </summary>
@@ -102,7 +102,7 @@ function CardFootnote({ exp, accent }) {
               <div className="grid gap-2 sm:grid-cols-2">
                 {decisionSteps.map((item, index) => (
                   <div key={`${item.label}-${index}`} className="rounded-lg bg-white p-2.5">
-                    <p className="text-[10px] font-bold" style={{ color: accent }}>{item.label}</p>
+                    <p className="text-[11.5px] font-bold" style={{ color: accent }}>{item.label}</p>
                     <p className="mt-1 text-[12px] leading-[1.6] text-bluewood-600">{item.text}</p>
                   </div>
                 ))}
@@ -112,13 +112,13 @@ function CardFootnote({ exp, accent }) {
               <div className="grid gap-2 sm:grid-cols-2">
                 {alternatives.length > 0 && (
                   <div>
-                    <p className="mb-1 text-[10px] font-bold text-bluewood-400">검토한 대안</p>
+                    <p className="mb-1 text-[11.5px] font-bold text-bluewood-400">검토한 대안</p>
                     {alternatives.map((text, index) => <p key={index} className="text-[12px] leading-[1.6] text-bluewood-600">· {text}</p>)}
                   </div>
                 )}
                 {criteria.length > 0 && (
                   <div>
-                    <p className="mb-1 text-[10px] font-bold text-bluewood-400">선택 기준</p>
+                    <p className="mb-1 text-[11.5px] font-bold text-bluewood-400">선택 기준</p>
                     {criteria.map((text, index) => <p key={index} className="text-[12px] leading-[1.6] text-bluewood-600">· {text}</p>)}
                   </div>
                 )}
@@ -127,12 +127,12 @@ function CardFootnote({ exp, accent }) {
             {s(voice.originalQuote) && (
               <blockquote className="rounded-lg border-l-2 bg-white px-3 py-2.5" style={{ borderColor: accent }}>
                 <p className="text-[12.5px] leading-[1.65] text-bluewood-700">“{s(voice.originalQuote)}”</p>
-                {s(voice.aiMeaning) && <p className="mt-1 text-[10.5px] text-bluewood-400">AI 해석 · {s(voice.aiMeaning)}</p>}
+                {s(voice.aiMeaning) && <p className="mt-1 text-[11.5px] text-bluewood-400">AI 해석 · {s(voice.aiMeaning)}</p>}
               </blockquote>
             )}
             {evidence.length > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-bold text-bluewood-400">연결된 증거</p>
+                <p className="mb-1 text-[11.5px] font-bold text-bluewood-400">연결된 증거</p>
                 <div className="space-y-1">
                   {evidence.map((item, index) => (
                     <p key={index} className="text-[11.5px] leading-[1.55] text-bluewood-600">
@@ -155,7 +155,7 @@ function CardFootnote({ exp, accent }) {
       {learning && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{learning}</p>}
       {rows.length > 0 && (
         <div className="space-y-1.5">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-bluewood-300">Honest Review</p>
+          <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">Honest Review</p>
           {rows.map(r => (
             <p key={r.key} className="text-[12px] leading-[1.65] text-bluewood-500">
               <span className="font-bold" style={{ color: accent }}>{r.label}</span>
@@ -172,7 +172,7 @@ function Row({ label, color, children, strong = false }) {
   if (!children) return null;
   return (
     <div>
-      <p className="mb-1 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <p className="mb-1 text-[12px] font-bold" style={{ color }}>{label}</p>
       <p className={`text-[13px] leading-[1.7] ${strong ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`}>{children}</p>
     </div>
   );
@@ -219,7 +219,7 @@ function DecisionCard({ exp, index, accent }) {
       <Row label="문제 상황" color="#314157">{s(exp.context)}</Row>
       {decision && (
         <div className="rounded-xl p-3.5" style={{ backgroundColor: tint(accent, 0.93), borderLeft: `3px solid ${accent}` }}>
-          <p className="text-[11px] font-bold" style={{ color: accent }}>내린 결정</p>
+          <p className="text-[12px] font-bold" style={{ color: accent }}>내린 결정</p>
           <p className="mt-1 text-[13.5px] font-bold leading-[1.65] text-bluewood-900">{decision}</p>
           {s(jd.alternatives) && <p className="mt-1.5 text-[12px] leading-[1.6] text-bluewood-500">↳ 검토한 대안: {s(jd.alternatives)}</p>}
         </div>
@@ -247,7 +247,7 @@ function IterationCard({ exp, index, accent }) {
       <div className={`grid gap-2 ${panels.length === 3 ? 'sm:grid-cols-3' : panels.length === 2 ? 'sm:grid-cols-2' : ''}`}>
         {panels.map((p, i) => (
           <div key={i} className="rounded-xl p-3.5" style={{ backgroundColor: p.bg }}>
-            <p className="font-mono text-[10px] font-bold tracking-[0.14em]" style={{ color: p.color }}>{p.label}</p>
+            <p className="font-mono text-[11.5px] font-bold tracking-[0.14em]" style={{ color: p.color }}>{p.label}</p>
             <p className="mt-1.5 text-[12.5px] leading-[1.65] text-bluewood-700">{p.text}</p>
           </div>
         ))}
@@ -265,7 +265,7 @@ function AnalysisCard({ exp, index, accent }) {
     <Shell kicker="ANALYSIS" index={index} title={s(exp.title) || `분석 ${index + 1}`} accent={accent}>
       {(s(jd.hypothesis) || s(exp.context)) && (
         <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 flex-shrink-0 rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] font-black" style={{ color: accent }}>H₁</span>
+          <span className="mt-0.5 flex-shrink-0 rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[12px] font-black" style={{ color: accent }}>H₁</span>
           <p className="text-[13.5px] font-semibold leading-[1.65] text-bluewood-800">{s(jd.hypothesis) || s(exp.context)}</p>
         </div>
       )}
@@ -277,7 +277,7 @@ function AnalysisCard({ exp, index, accent }) {
       )}
       {finding && (
         <div className="rounded-xl p-3.5" style={{ backgroundColor: tint(accent, 0.93) }}>
-          <p className="text-[11px] font-bold" style={{ color: accent }}>발견</p>
+          <p className="text-[12px] font-bold" style={{ color: accent }}>발견</p>
           <p className="mt-1 text-[13.5px] font-bold leading-[1.65] text-bluewood-900">{finding}</p>
         </div>
       )}
@@ -337,7 +337,7 @@ function ExperimentCard({ exp, index, accent }) {
   return (
     <Shell kicker="EXPERIMENT" index={index} title={s(exp.title) || `실험 ${index + 1}`} accent={accent}>
       {(s(jd.dataset) || s(jd.model)) && (
-        <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+        <div className="flex flex-wrap gap-1.5 font-mono text-[12px]">
           {s(jd.dataset) && <span className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2 py-1 font-semibold text-bluewood-600"><Database size={11} /> {s(jd.dataset)}</span>}
           {s(jd.model) && <span className="rounded-md px-2 py-1 font-bold text-white" style={{ backgroundColor: accent }}>{s(jd.model)}</span>}
         </div>
@@ -345,7 +345,7 @@ function ExperimentCard({ exp, index, accent }) {
       <Row label="문제 · 데이터" color="#314157">{s(exp.context)}</Row>
       {s(jd.whyModel) && (
         <div className="rounded-xl p-3" style={{ backgroundColor: tint(accent, 0.94) }}>
-          <p className="text-[11px] font-bold" style={{ color: accent }}>왜 이 모델인가</p>
+          <p className="text-[12px] font-bold" style={{ color: accent }}>왜 이 모델인가</p>
           <p className="mt-1 text-[12.5px] leading-[1.65] text-bluewood-700">{s(jd.whyModel)}</p>
         </div>
       )}
@@ -383,7 +383,7 @@ function OpsCard({ exp, index, accent }) {
             {i < chain.length - 1 && <span className="absolute left-[7px] top-5 bottom-0 w-px bg-surface-200" />}
             <span className="mt-1 h-[15px] w-[15px] flex-shrink-0 rounded-full border-[3px] bg-white" style={{ borderColor: c.color }} />
             <div className="min-w-0">
-              <span className="font-mono text-[10.5px] font-bold uppercase tracking-wide" style={{ color: c.color }}>{c.label}</span>
+              <span className="font-mono text-[11.5px] font-bold uppercase tracking-wide" style={{ color: c.color }}>{c.label}</span>
               <p className={`text-[13px] leading-[1.65] ${i === chain.length - 1 ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`}>{c.text}</p>
             </div>
           </div>

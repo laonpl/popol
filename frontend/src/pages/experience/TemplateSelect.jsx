@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
+import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.pptx,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.sql,.zip,.hwp,.hwpx,.jpg,.jpeg,.png,.webp';
 const TUTORIAL_PROJECT = {
@@ -153,11 +154,11 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
   return (
     <div className="mt-3 border-l-2 border-surface-100 pl-3 py-1 space-y-2">
       <p className="text-[15px] text-bluewood-700 leading-relaxed font-medium">{question}</p>
-      {reason && <p className="text-[11px] text-bluewood-400 leading-relaxed">{reason}</p>}
+      {reason && <p className="text-[12px] text-bluewood-400 leading-relaxed">{reason}</p>}
 
       {mode === 'intro' && (
         <div className="space-y-2">
-          <p className="text-[11px] text-bluewood-400">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
+          <p className="text-[12px] text-bluewood-400">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setMode('guided')}
               className="flex-1 py-1.5 rounded-lg bg-primary-600 text-white text-[15px] font-medium hover:bg-primary-700 transition-colors">
@@ -177,30 +178,30 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             {suggestions.map((sg, si) => (
               <button key={si} type="button"
                 onClick={() => { setDraft(sg); setMode('free'); }}
-                className="px-2 py-0.5 rounded-md border border-surface-200 text-[10px] text-bluewood-600 hover:bg-surface-50 transition-colors">
+                className="px-2 py-0.5 rounded-md border border-surface-200 text-[11.5px] text-bluewood-600 hover:bg-surface-50 transition-colors">
                 {sg}
               </button>
             ))}
           </div>
           <div className="border border-surface-100 rounded-lg px-2 py-1.5 space-y-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-bluewood-300 w-16 shrink-0">이전 (선택)</span>
+              <span className="text-[11.5px] text-bluewood-300 w-16 shrink-0">이전 (선택)</span>
               <input value={beforeVal} onChange={e => setBeforeVal(e.target.value)}
                 placeholder="ex. 800"
                 className="flex-1 text-[15px] text-bluewood-600 border-b border-surface-200 px-1 py-0.5 focus:outline-none focus:border-bluewood-300 bg-transparent" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-bluewood-700 w-16 shrink-0 font-medium">이후 *</span>
+              <span className="text-[11.5px] text-bluewood-700 w-16 shrink-0 font-medium">이후 *</span>
               <input value={afterVal} onChange={e => setAfterVal(e.target.value)}
                 placeholder="ex. 480"
                 className="flex-1 text-[15px] text-bluewood-800 border-b border-surface-200 px-1 py-0.5 focus:outline-none focus:border-bluewood-400 bg-transparent" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-bluewood-300 w-16 shrink-0">단위</span>
+              <span className="text-[11.5px] text-bluewood-300 w-16 shrink-0">단위</span>
               <div className="flex gap-1 flex-wrap">
                 {unitOptions.map(u => (
                   <button key={u} type="button" onClick={() => setUnit(u)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                    className={`px-2 py-0.5 rounded-full text-[11.5px] border transition-colors ${
                       unit === u
                         ? 'bg-primary-600 text-white border-primary-600'
                         : 'border-surface-200 text-bluewood-400 hover:border-bluewood-300'
@@ -210,19 +211,19 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             </div>
           </div>
           {afterVal && (
-            <p className="text-[11px] text-bluewood-700 bg-surface-50 rounded-lg px-2.5 py-1.5 border border-surface-100">
+            <p className="text-[12px] text-bluewood-700 bg-surface-50 rounded-lg px-2.5 py-1.5 border border-surface-100">
               ✦ {buildPreview()}
             </p>
           )}
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => setMode('free')}
-              className="text-[10px] text-bluewood-400 hover:underline">
+              className="text-[11.5px] text-bluewood-400 hover:underline">
               직접 입력으로 전환
             </button>
             <button type="button"
               onClick={() => handleApply(buildPreview())}
               disabled={!afterVal.trim()}
-              className="px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="px-2 py-1.5 rounded-lg text-[12px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
@@ -235,7 +236,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             {suggestions.map((sg, si) => (
               <button key={si} type="button"
                 onClick={() => setDraft(sg)}
-                className="px-2 py-0.5 rounded-md border border-surface-200 text-[10px] text-bluewood-600 hover:bg-surface-50 transition-colors">
+                className="px-2 py-0.5 rounded-md border border-surface-200 text-[11.5px] text-bluewood-600 hover:bg-surface-50 transition-colors">
                 {sg}
               </button>
             ))}
@@ -251,12 +252,12 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             <button type="button"
               onClick={() => handleApply(draft)}
               disabled={!draft.trim()}
-              className="self-end px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="self-end px-2 py-1.5 rounded-lg text-[12px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
           <button type="button" onClick={() => setMode('guided')}
-            className="text-[10px] text-bluewood-400 hover:underline">
+            className="text-[11.5px] text-bluewood-400 hover:underline">
             수치 입력으로 전환
           </button>
         </div>
@@ -352,7 +353,7 @@ function InlineKeywordInput({ onAdd }) {
           if (kw) { onAdd(kw); setVal(''); }
         }
       }}
-      className="mt-1.5 text-[11px] text-bluewood-500 bg-transparent border-b border-surface-200 outline-none w-full placeholder:text-surface-300 transition-colors focus:border-bluewood-200"
+      className="mt-1.5 text-[12px] text-bluewood-500 bg-transparent border-b border-surface-200 outline-none w-full placeholder:text-surface-300 transition-colors focus:border-bluewood-200"
       placeholder="키워드 추가 (Enter로 확인)"
     />
   );
@@ -481,6 +482,14 @@ export default function TemplateSelect() {
   const { visible: createTutorialVisible, dismiss: dismissCreateTutorial } = useOnboarding(createTutorialKey, { force: forceCreateTutorial });
 
   const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩(추출), 4: 추출 결과 검토, 5: 리서치/섹션 생성
+
+  // AI 처리 중(3·5단계)에는 실수로 화면을 벗어나 작업이 통째로 날아가지 않도록 막는다.
+  // 이 작업은 최대 5분이 걸리고 중간에 이탈하면 크레딧만 쓰고 결과를 잃는다.
+  const isProcessing = step === 3 || step === 5;
+  useUnsavedChanges(
+    isProcessing,
+    'AI가 아직 분석 중이에요.\n지금 나가면 진행 중인 작업이 취소되고 결과를 받을 수 없습니다.\n\n정말 나가시겠어요?'
+  );
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -1131,7 +1140,7 @@ export default function TemplateSelect() {
 
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
       // 모든 직군이 케이스 스터디로 진입 — 개발 직군은 케이스 스터디 안에서 GitHub 기반 개발 임팩트를 보여준다
-      navigate(`/app/experience/result/${experienceId}`, {
+      navigate(`/app/experience/complete/${experienceId}`, {
         state: {
           analysis: draftWithStats,
           title: title.trim(),
@@ -1270,7 +1279,7 @@ export default function TemplateSelect() {
         {activeStep && (
           <div className="flex items-center gap-2 mb-6">
             <Loader2 size={9} className="text-bluewood-400 animate-spin flex-shrink-0" />
-            <span className="text-[11px] font-semibold text-bluewood-700">{activeStep.label}</span>
+            <span className="text-[12px] font-semibold text-bluewood-700">{activeStep.label}</span>
           </div>
         )}
 
@@ -1283,18 +1292,19 @@ export default function TemplateSelect() {
                 {s.status === 'loading' && <Loader2 size={11} className="text-bluewood-400 animate-spin" />}
                 {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
               </div>
-              <span className={`text-[11px] transition-all ${
+              <span className={`text-[12px] transition-all ${
                 s.status === 'loading' ? 'font-semibold text-primary-600' :
                 s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
                 'text-bluewood-200'
               }`}>{s.label}</span>
-              {s.status === 'done' && <span className="ml-auto text-[11px] font-bold text-emerald-500">완료</span>}
+              {s.status === 'done' && <span className="ml-auto text-[12px] font-bold text-emerald-500">완료</span>}
             </div>
           ))}
         </div>
 
-        <p className="text-[11px] text-bluewood-200 mt-9 leading-relaxed">
-          자료량에 따라 최대 5분 소요 · 페이지 이탈 시 분석이 중단됩니다
+        <p className="text-[12px] text-bluewood-200 mt-9 leading-relaxed">
+          자료량에 따라 최대 5분 정도 걸릴 수 있어요. 이 화면을 열어둔 채 기다려주세요.
+          {' '}창을 닫거나 뒤로 가면 분석이 취소되고 결과를 받을 수 없어요.
         </p>
       </div>
       </>
@@ -1332,7 +1342,7 @@ export default function TemplateSelect() {
         {activeStep && (
           <div className="flex items-center gap-2 mb-6">
             <Loader2 size={9} className="text-bluewood-400 animate-spin flex-shrink-0" />
-            <span className="text-[11px] font-semibold text-bluewood-700">{activeStep.label}</span>
+            <span className="text-[12px] font-semibold text-bluewood-700">{activeStep.label}</span>
           </div>
         )}
 
@@ -1345,18 +1355,19 @@ export default function TemplateSelect() {
                 {s.status === 'loading' && <Loader2 size={11} className="text-bluewood-400 animate-spin" />}
                 {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
               </div>
-              <span className={`text-[11px] transition-all ${
+              <span className={`text-[12px] transition-all ${
                 s.status === 'loading' ? 'font-semibold text-primary-600' :
                 s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
                 'text-bluewood-200'
               }`}>{s.label}</span>
-              {s.status === 'done' && <span className="ml-auto text-[11px] font-bold text-emerald-500">완료</span>}
+              {s.status === 'done' && <span className="ml-auto text-[12px] font-bold text-emerald-500">완료</span>}
             </div>
           ))}
         </div>
 
-        <p className="text-[11px] text-bluewood-200 mt-9 leading-relaxed">
-          실제 자료와 검증 가능한 시장/지표 맥락을 함께 정리합니다 · 최대 5분 소요 · 페이지 이탈 시 작업이 중단됩니다
+        <p className="text-[12px] text-bluewood-200 mt-9 leading-relaxed">
+          실제 자료와 검증 가능한 시장·지표 맥락을 함께 정리하고 있어요. 최대 5분 정도 걸릴 수 있습니다.
+          {' '}이 화면을 열어둔 채 기다려주세요. 창을 닫거나 뒤로 가면 작업이 취소됩니다.
         </p>
       </div>
       </>
@@ -1397,7 +1408,7 @@ export default function TemplateSelect() {
         {/* 뒤로가기 */}
         <button
           onClick={() => setStep(2)}
-          className="inline-flex items-center gap-1.5 text-[11px] text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
+          className="inline-flex items-center gap-1.5 text-[12px] text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
         >
           <ArrowLeft size={10} /> 자료 수집으로
         </button>
@@ -1408,10 +1419,10 @@ export default function TemplateSelect() {
           <div className="flex items-end justify-between gap-2">
             <div>
               <h1 className="text-[21px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">경험 검토</h1>
-              <p className="mt-1.5 text-[11px] text-bluewood-400">AI가 추출한 경험을 먼저 확인하고, 필요한 내용을 수정한 뒤 포트폴리오 섹션 생성을 시작하세요.</p>
+              <p className="mt-1.5 text-[12px] text-bluewood-400">AI가 추출한 경험을 먼저 확인하고, 필요한 내용을 수정한 뒤 포트폴리오 섹션 생성을 시작하세요.</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-[11px] text-bluewood-300 tabular-nums">
+              <span className="text-[12px] text-bluewood-300 tabular-nums">
                 {moments.length === 0 ? '0' : isCreatingNew ? '새 경험' : safeIdx + 1} / {moments.length}{isCreatingNew ? '+1' : ''}
               </span>
               <div className="flex items-center gap-1.5">
@@ -1421,7 +1432,7 @@ export default function TemplateSelect() {
                   { label: '추출 결과 검토', active: true },
                 ].map((s, idx, arr) => (
                   <div key={idx} className="flex items-center gap-1.5">
-                    <span className={`text-[11px] font-semibold ${s.active ? 'text-primary-600' : 'text-bluewood-300'}`}>
+                    <span className={`text-[12px] font-semibold ${s.active ? 'text-primary-600' : 'text-bluewood-300'}`}>
                       {s.done && <Check size={10} className="inline mr-0.5" strokeWidth={3} />}{s.label}
                     </span>
                     {idx < arr.length - 1 && <span className="text-bluewood-200 text-[15px]">/</span>}
@@ -1434,7 +1445,7 @@ export default function TemplateSelect() {
 
         {/* 빈 상태 */}
         {moments.length === 0 && !isCreatingNew ? (
-          <div className="border border-surface-100 p-9 text-center text-bluewood-300 text-[11px] mb-5">
+          <div className="border border-surface-100 p-9 text-center text-bluewood-300 text-[12px] mb-5">
             추출된 경험이 없습니다. 자료 수집 단계로 돌아가거나 아래에서 직접 경험을 추가해주세요.
           </div>
         ) : (
@@ -1443,7 +1454,7 @@ export default function TemplateSelect() {
 
             {/* 사이드바 */}
             <div className="w-[180px] flex-shrink-0" data-tour="create-moment-list">
-              <p className="text-[11px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
+              <p className="text-[12px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
               <div className="flex flex-col gap-px mb-2">
                 {moments.map((m, idx) => {
                   const isMissing = m.description?.includes('(미확인');
@@ -1504,9 +1515,9 @@ export default function TemplateSelect() {
                   <div className="flex items-center justify-between px-2 py-1.5 border-b border-surface-100">
                     <div className="flex items-center gap-2">
                       <h3 className="text-[15px] font-semibold text-primary-600">새 경험 직접 작성</h3>
-                      <span className="text-[10px] text-bluewood-400 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200">CARL 구조</span>
+                      <span className="text-[11.5px] text-bluewood-400 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200">CARL 구조</span>
                     </div>
-                    <button onClick={() => setIsCreatingNew(false)} className="text-[9px] text-bluewood-400 hover:text-bluewood-700 border border-surface-200 px-2.5 py-1 rounded-lg hover:bg-surface-50 transition-colors">
+                    <button onClick={() => setIsCreatingNew(false)} className="text-[10.5px] text-bluewood-400 hover:text-bluewood-700 border border-surface-200 px-2.5 py-1 rounded-lg hover:bg-surface-50 transition-colors">
                       닫기
                     </button>
                   </div>
@@ -1514,18 +1525,18 @@ export default function TemplateSelect() {
                   <div className="px-2 py-1.5 space-y-4">
                     {/* 제목 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 제목 <span className="text-red-400">*</span></label>
+                      <label className="block text-[12px] font-semibold text-bluewood-600 mb-1.5">경험 제목 <span className="text-red-400">*</span></label>
                       <input
                         value={newExp.title}
                         onChange={e => setNewExp(p => ({ ...p, title: e.target.value }))}
                         placeholder="예: 실시간 이상 감지 파이프라인 개발"
-                        className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 pt-1 text-[11px] text-primary-600 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
+                        className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 pt-1 text-[12px] text-primary-600 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
                       />
                     </div>
 
                     {/* 유형 선택 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 유형</label>
+                      <label className="block text-[12px] font-semibold text-bluewood-600 mb-1.5">경험 유형</label>
                       <div className="flex flex-wrap gap-1.5">
                         {Object.entries(MOMENT_TYPE_DESC).map(([key, desc]) => (
                           <button
@@ -1533,7 +1544,7 @@ export default function TemplateSelect() {
                             type="button"
                             onClick={() => setNewExp(p => ({ ...p, type: p.type === key ? '' : key }))}
                             title={desc}
-                            className={`px-2 py-1 text-[11px] rounded-md border transition-colors ${
+                            className={`px-2 py-1 text-[12px] rounded-md border transition-colors ${
                               newExp.type === key
                                 ? 'bg-primary-600 text-white border-primary-600'
                                 : 'border-surface-200 text-bluewood-500 hover:border-bluewood-300 hover:bg-surface-50'
@@ -1551,7 +1562,7 @@ export default function TemplateSelect() {
                       { key: 'learning', label: '배운 점 Learning', placeholder: '이 경험에서 무엇을 배웠고 어떻게 성장했나요?', required: false, rows: 2 },
                     ].map(f => (
                       <div key={f.key}>
-                        <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">
+                        <label className="block text-[12px] font-semibold text-bluewood-600 mb-1.5">
                           {f.label}
                           {f.required && <span className="text-red-400 ml-1">*</span>}
                         </label>
@@ -1567,10 +1578,10 @@ export default function TemplateSelect() {
 
                     {/* 키워드 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">역량 키워드</label>
+                      <label className="block text-[12px] font-semibold text-bluewood-600 mb-1.5">역량 키워드</label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(newExp.keywords || []).map((kw, ki) => (
-                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11px] rounded-md border border-surface-200">
+                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[12px] rounded-md border border-surface-200">
                             {kw}
                             <button
                               onClick={() => setNewExp(p => ({ ...p, keywords: p.keywords.filter((_, j) => j !== ki) }))}
@@ -1590,7 +1601,7 @@ export default function TemplateSelect() {
                             }
                           }}
                           placeholder="키워드 입력 후 Enter"
-                          className="flex-1 border-b border-surface-200 bg-transparent py-1.5 text-[11px] text-bluewood-700 outline-none focus:border-bluewood-400"
+                          className="flex-1 border-b border-surface-200 bg-transparent py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-bluewood-400"
                         />
                       </div>
                     </div>
@@ -1599,12 +1610,12 @@ export default function TemplateSelect() {
                     <div className="flex justify-end gap-2 pt-1">
                       <button
                         onClick={() => setIsCreatingNew(false)}
-                        className="px-2 py-1.5 text-[9px] text-bluewood-500 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
+                        className="px-2 py-1.5 text-[10.5px] text-bluewood-500 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
                       >취소</button>
                       <button
                         onClick={createTutorialVisible && tutorialCurrentStep === 6 ? () => { addTutorialManualExperience(); tutorialRef.current?.next(); } : handleAddNewExp}
                         disabled={!newExp.title.trim() || !newExp.action.trim()}
-                        className="px-2 py-1.5 text-[9px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-2 py-1.5 text-[10.5px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >경험 추가하기</button>
                     </div>
                   </div>
@@ -1639,7 +1650,7 @@ export default function TemplateSelect() {
                                 {typeKey}
                               </span>
                               {MOMENT_TYPE_DESC[typeKey] && (
-                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-primary-600 text-white text-[11px] leading-relaxed px-2 py-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-primary-600 text-white text-[12px] leading-relaxed px-2 py-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
                                   {MOMENT_TYPE_DESC[typeKey]}
                                   <span className="absolute top-full left-3 border-4 border-transparent border-t-bluewood-900" />
                                 </span>
@@ -1675,14 +1686,14 @@ export default function TemplateSelect() {
                   {/* 본문 */}
                   <div className="px-6 py-5">
                     {!currentM._git && (
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-bluewood-300">프로젝트 소개 · 핵심 경험</p>
+                      <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.14em] text-bluewood-300">프로젝트 소개 · 핵심 경험</p>
                     )}
                     {/* GitHub 커밋 분석 결과 전용 뷰 */}
                     {currentM._git ? (
                       <div className="space-y-3 text-[15px]">
                         {currentM._git.problem_definition?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-red-500 mb-1.5 flex items-center gap-1">🔴 문제 상황 (AS-IS)</p>
+                            <p className="text-[12px] font-bold text-red-500 mb-1.5 flex items-center gap-1">🔴 문제 상황 (AS-IS)</p>
                             <ul className="space-y-1">
                               {currentM._git.problem_definition.map((p, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-red-400 flex-shrink-0">•</span>{p}</li>
@@ -1692,7 +1703,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.code_changes?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-purple-600 mb-1.5 flex items-center gap-1">🟣 코드 변경 내용</p>
+                            <p className="text-[12px] font-bold text-purple-600 mb-1.5 flex items-center gap-1">🟣 코드 변경 내용</p>
                             <ul className="space-y-1">
                               {currentM._git.code_changes.map((c, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-purple-400 flex-shrink-0 font-mono">±</span>{c}</li>
@@ -1702,7 +1713,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.troubleshooting?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">🟠 트러블슈팅</p>
+                            <p className="text-[12px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">🟠 트러블슈팅</p>
                             <ul className="space-y-1">
                               {currentM._git.troubleshooting.map((t, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-orange-400 flex-shrink-0">→</span>{t}</li>
@@ -1712,7 +1723,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.action_and_solution?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">🔵 실행 전략</p>
+                            <p className="text-[12px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">🔵 실행 전략</p>
                             <ul className="space-y-1">
                               {currentM._git.action_and_solution.map((a, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-blue-400 flex-shrink-0">→</span>{a}</li>
@@ -1722,7 +1733,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.learning_items?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-emerald-600 mb-1.5 flex items-center gap-1">🟢 인사이트 & 성장</p>
+                            <p className="text-[12px] font-bold text-emerald-600 mb-1.5 flex items-center gap-1">🟢 인사이트 & 성장</p>
                             <ul className="space-y-1">
                               {currentM._git.learning_items.map((l, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-emerald-400 flex-shrink-0">✓</span>{l}</li>
@@ -1730,7 +1741,7 @@ export default function TemplateSelect() {
                             </ul>
                           </div>
                         )}
-                        <div className="pt-2 border-t border-surface-100 flex items-center gap-2 text-[11px] text-bluewood-400">
+                        <div className="pt-2 border-t border-surface-100 flex items-center gap-2 text-[12px] text-bluewood-400">
                           <span>기술스택: <span className="font-medium text-bluewood-600">{currentM._git.core_tech_stack}</span></span>
                           {currentM._git.period && <span>기간: {currentM._git.period}</span>}
                           <span>커밋 {currentM._git.totalCommits}개 분석</span>
@@ -1752,10 +1763,10 @@ export default function TemplateSelect() {
                   {/* 키워드 */}
                   {(currentM.keywords || []).length > 0 && (
                     <div className="px-6 pb-6 pt-4 border-t border-surface-100">
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-bluewood-300">역량 키워드</p>
+                      <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.14em] text-bluewood-300">역량 키워드</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(currentM.keywords || []).map((kw, ki) => (
-                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11px] rounded-md border border-surface-200">
+                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[12px] rounded-md border border-surface-200">
                             {kw}
                             {editingMomentId === currentM.id && (
                               <button
@@ -1819,7 +1830,7 @@ export default function TemplateSelect() {
                 <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
                   <div className="flex items-center gap-2 px-2 py-1.5 border-b border-surface-100">
                     <span className="text-[15px] font-semibold text-bluewood-800">내용 심화하기</span>
-                    <span className="text-[10px] text-bluewood-500 bg-surface-100 border border-surface-200 px-1.5 py-0.5 rounded font-medium">
+                    <span className="text-[11.5px] text-bluewood-500 bg-surface-100 border border-surface-200 px-1.5 py-0.5 rounded font-medium">
                       {deepQuestions.filter(dq => !deepQAnswers[`${currentM.id}-${dq.id}`]).length}개 질문
                     </span>
                   </div>
@@ -1832,14 +1843,14 @@ export default function TemplateSelect() {
                       return (
                         <div key={dq.id} className="pt-4">
                           <div className="mb-2">
-                            <p className="text-[11px] font-semibold text-bluewood-400 mb-0.5">{qi + 1}. {dq.label}</p>
+                            <p className="text-[12px] font-semibold text-bluewood-400 mb-0.5">{qi + 1}. {dq.label}</p>
                             <p className="text-[15px] font-semibold text-bluewood-800 leading-snug">{dq.q}</p>
-                            {dq.hint && <p className="text-[10px] text-bluewood-400 mt-0.5 leading-relaxed">{dq.hint}</p>}
+                            {dq.hint && <p className="text-[11.5px] text-bluewood-400 mt-0.5 leading-relaxed">{dq.hint}</p>}
                           </div>
 
                           {isAnswered ? (
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-50 border border-surface-200 rounded-lg">
-                              <span className="text-[11px] text-bluewood-600 flex-1">{deepQAnswers[ansKey]}</span>
+                              <span className="text-[12px] text-bluewood-600 flex-1">{deepQAnswers[ansKey]}</span>
                               <button
                                 onClick={() => setDeepQAnswers(prev => { const n = { ...prev }; delete n[ansKey]; return n; })}
                                 className="text-[15px] text-bluewood-400 hover:text-red-400 transition-colors flex-shrink-0"
@@ -1853,7 +1864,7 @@ export default function TemplateSelect() {
                                     key={ci}
                                     type="button"
                                     onClick={() => setDeepQDraft(prev => ({ ...prev, [ansKey]: chip }))}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${
+                                    className={`px-2.5 py-1 rounded-md text-[12px] border transition-colors ${
                                       draft === chip
                                         ? 'bg-primary-600 border-primary-600 text-white font-medium'
                                         : 'bg-white border-surface-200 text-bluewood-500 hover:bg-surface-50'
@@ -1867,12 +1878,12 @@ export default function TemplateSelect() {
                                   onChange={e => setDeepQDraft(prev => ({ ...prev, [ansKey]: e.target.value }))}
                                   onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) handleApplyDeepQ(currentM.id, dq.id, draft); }}
                                   placeholder="직접 입력 또는 위에서 선택 후 추가"
-                                  className="flex-1 border-b border-surface-200 bg-transparent py-1.5 text-[11px] text-bluewood-700 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
+                                  className="flex-1 border-b border-surface-200 bg-transparent py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
                                 />
                                 <button
                                   onClick={() => handleApplyDeepQ(currentM.id, dq.id, draft)}
                                   disabled={!draft.trim()}
-                                  className="px-2.5 py-1.5 text-[11px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                  className="px-2.5 py-1.5 text-[12px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                                 >추가</button>
                               </div>
                             </div>
@@ -1889,7 +1900,7 @@ export default function TemplateSelect() {
 
         {/* 요약 + 하단 액션 */}
         <div className="mt-6 pt-6 border-t border-surface-100 flex items-center justify-between gap-2 pb-6">
-          <div className="flex items-center gap-2 text-[11px] text-bluewood-400">
+          <div className="flex items-center gap-2 text-[12px] text-bluewood-400">
             <span><span className="font-bold text-bluewood-700">{moments.length}</span>개 경험</span>
             <span className="text-surface-200">·</span>
             <span><span className="font-bold text-bluewood-700">{totalKeywords}</span>개 역량 키워드</span>
@@ -1903,7 +1914,7 @@ export default function TemplateSelect() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => setStep(2)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[12px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
             >
               <ChevronLeft size={10} /> 자료 수집으로
             </button>
@@ -1912,7 +1923,7 @@ export default function TemplateSelect() {
               data-tour="create-final-submit"
               onClick={createTutorialVisible && tutorialCurrentStep === 7 ? runTutorialFinalSubmit : handleFinalSubmit}
               disabled={moments.length === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[12px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {moments.length}개 경험으로 시장/지표 보강 시작
               <ChevronRight size={11} />
@@ -1927,32 +1938,32 @@ export default function TemplateSelect() {
     <>
     {createTutorialOverlay}
     <div className="animate-fadeIn mx-auto max-w-4xl px-1 pb-6" >
-      <Link to="/app/experience" className="mb-6 inline-flex items-center gap-2 text-[11px] text-bluewood-400 hover:text-bluewood-600">
+      <Link to="/app/experience" className="mb-6 inline-flex items-center gap-2 text-[12px] text-bluewood-400 hover:text-bluewood-600">
         <ArrowLeft size={9} /> 경험 정리로 돌아가기
       </Link>
 
       {/* 스텝 인디케이터 */}
       <div className="mb-9 flex items-center gap-2 px-1">
-        <div className={`flex min-w-[84px] items-center justify-center gap-2 rounded-full px-2 py-1.5 text-[11px] font-semibold transition-all ${
+        <div className={`flex min-w-[84px] items-center justify-center gap-2 rounded-full px-2 py-1.5 text-[12px] font-semibold transition-all ${
           step === 1 ? 'bg-primary-500 text-white shadow-sm shadow-primary-200/70' : 'bg-white text-bluewood-400 border border-surface-200'
         }`}>
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[9px] font-bold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10.5px] font-bold">
             {step > 1 ? <Check size={9} /> : '1'}
           </span>
           기본 정보
         </div>
         <div className="h-px flex-1 bg-surface-300" />
-        <div className={`flex min-w-[84px] items-center justify-center gap-2 rounded-full px-2 py-1.5 text-[11px] font-semibold transition-all ${
+        <div className={`flex min-w-[84px] items-center justify-center gap-2 rounded-full px-2 py-1.5 text-[12px] font-semibold transition-all ${
           step === 2 ? 'bg-primary-500 text-white shadow-sm shadow-primary-200/70' : 'bg-white text-bluewood-400 border border-surface-200'
         }`}>
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[9px] font-bold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10.5px] font-bold">
             {step > 2 ? <Check size={9} /> : '2'}
           </span>
           자료 수집
         </div>
         <div className="h-px flex-1 bg-surface-300" />
-        <div className="flex min-w-[84px] items-center justify-center gap-2 rounded-full border border-surface-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-bluewood-400">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-100 text-[9px] font-bold">3</span>
+        <div className="flex min-w-[84px] items-center justify-center gap-2 rounded-full border border-surface-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-bluewood-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-100 text-[10.5px] font-bold">3</span>
           추출 결과 검토
         </div>
       </div>
@@ -1964,7 +1975,7 @@ export default function TemplateSelect() {
           <div className="mb-6">
             <p className="text-[15px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Project Registration · Step 1 of 3</p>
             <h1 className="text-[21px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">프로젝트 기본 정보</h1>
-            <p className="mt-2 text-[11px] text-bluewood-400 leading-relaxed">
+            <p className="mt-2 text-[12px] text-bluewood-400 leading-relaxed">
               직군을 선택하면 해당 직군에 최적화된 분석 섹션이 자동으로 구성됩니다.
             </p>
           </div>
@@ -1977,8 +1988,8 @@ export default function TemplateSelect() {
               <div className="flex items-start gap-2 pt-0.5">
                 <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">01</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">프로젝트명 <span className="text-red-400">*</span></p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">서비스 또는 프로젝트 이름</p>
+                  <p className="text-[12px] font-semibold text-bluewood-700">프로젝트명 <span className="text-red-400">*</span></p>
+                  <p className="text-[12px] text-bluewood-300 mt-0.5">서비스 또는 프로젝트 이름</p>
                 </div>
               </div>
               <input
@@ -1987,7 +1998,7 @@ export default function TemplateSelect() {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="예) 커머스 앱 리뉴얼, 데이터 파이프라인 구축"
-                className="w-full border-0 border-b-2 border-surface-200 bg-transparent pb-2 pt-1 text-[11px] font-medium text-primary-600 outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+                className="w-full border-0 border-b-2 border-surface-200 bg-transparent pb-2 pt-1 text-[12px] font-medium text-primary-600 outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
               />
             </div>
 
@@ -1996,8 +2007,8 @@ export default function TemplateSelect() {
               <div className="flex items-start gap-2 pt-0.5">
                 <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">02</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">프로젝트 기간 <span className="text-red-400">*</span></p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">시작 ~ 종료 연월</p>
+                  <p className="text-[12px] font-semibold text-bluewood-700">프로젝트 기간 <span className="text-red-400">*</span></p>
+                  <p className="text-[12px] text-bluewood-300 mt-0.5">시작 ~ 종료 연월</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -2032,11 +2043,11 @@ export default function TemplateSelect() {
                     ))}
                   </select>
 
-                  <span className="text-bluewood-200 text-[9px] px-2 font-light">—</span>
+                  <span className="text-bluewood-200 text-[10.5px] px-2 font-light">—</span>
 
                   {/* 종료 */}
                   {isOngoing ? (
-                    <div className="flex-[2] py-1.5 text-[11px] font-semibold text-primary-500 border-b-2 border-primary-200">진행 중</div>
+                    <div className="flex-[2] py-1.5 text-[12px] font-semibold text-primary-500 border-b-2 border-primary-200">진행 중</div>
                   ) : (
                     <>
                       <select
@@ -2077,7 +2088,7 @@ export default function TemplateSelect() {
                     onChange={e => { setIsOngoing(e.target.checked); if (e.target.checked) setEndDate(''); }}
                     className="w-3.5 h-3.5 rounded accent-primary-500"
                   />
-                  <span className="text-[11px] text-bluewood-400">현재 진행 중인 프로젝트</span>
+                  <span className="text-[12px] text-bluewood-400">현재 진행 중인 프로젝트</span>
                 </label>
               </div>
             </div>
@@ -2087,14 +2098,14 @@ export default function TemplateSelect() {
               <div className="flex items-start gap-2 pt-0.5">
                 <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">03</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">직군 선택 <span className="text-red-400">*</span></p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">1개 선택</p>
+                  <p className="text-[12px] font-semibold text-bluewood-700">직군 선택 <span className="text-red-400">*</span></p>
+                  <p className="text-[12px] text-bluewood-300 mt-0.5">1개 선택</p>
                 </div>
               </div>
               <div>
                 {JOB_CATEGORIES.map((group, gi) => (
                   <div key={group.group} className={gi > 0 ? 'mt-7' : ''}>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.20em] text-bluewood-200 pb-2 border-b border-surface-100 mb-1">{group.group}</p>
+                    <p className="text-[11.5px] font-bold uppercase tracking-[0.20em] text-bluewood-200 pb-2 border-b border-surface-100 mb-1">{group.group}</p>
                     <div className="divide-y divide-surface-50">
                       {group.items.map(opt => {
                         const selected = jobCategory === opt.value;
@@ -2114,7 +2125,7 @@ export default function TemplateSelect() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className={`block text-[13px] font-semibold leading-tight ${selected ? 'text-primary-600' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
-                              <span className={`block text-[11px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
+                              <span className={`block text-[12px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
                             </div>
                           </button>
                         );
@@ -2130,8 +2141,8 @@ export default function TemplateSelect() {
               <div className="flex items-start gap-2 pt-0.5">
                 <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">04</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">경력 단계</p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">눈높이를 맞춰 정리해요</p>
+                  <p className="text-[12px] font-semibold text-bluewood-700">경력 단계</p>
+                  <p className="text-[12px] text-bluewood-300 mt-0.5">눈높이를 맞춰 정리해요</p>
                 </div>
               </div>
               <div>
@@ -2152,13 +2163,13 @@ export default function TemplateSelect() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className={`block text-[13px] font-semibold leading-tight ${selected ? 'text-primary-600' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
-                          <span className={`block text-[11px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
+                          <span className={`block text-[12px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
                         </div>
                       </button>
                     );
                   })}
                 </div>
-                <p className="mt-3 text-[11px] leading-relaxed text-bluewood-300">
+                <p className="mt-3 text-[12px] leading-relaxed text-bluewood-300">
                   {careerStage === 'lead'
                     ? '직접 한 일과 다른 사람이 하게 만든 일(위임·기준 설계·조직 변화)을 나눠서 정리합니다.'
                     : careerStage === 'experienced'
@@ -2191,7 +2202,7 @@ export default function TemplateSelect() {
 
           {/* 하단 액션 */}
           <div className="mt-6 flex items-center justify-between border-t border-surface-100 pt-6">
-            <p className="text-[11px] text-bluewood-300">
+            <p className="text-[12px] text-bluewood-300">
               {[title.trim() && '프로젝트명', startDate && '기간', jobCategory && '직군'].filter(Boolean).join(' · ') || '필수 항목을 입력해주세요'}
               {canNext1 && <span className="ml-2 text-primary-400 font-medium">✓ 모두 입력됨</span>}
             </p>
@@ -2199,7 +2210,7 @@ export default function TemplateSelect() {
               data-tour="create-to-data"
               onClick={createTutorialVisible && tutorialCurrentStep === 1 ? () => { moveTutorialToDataStep(); tutorialRef.current?.next(); } : () => setStep(2)}
               disabled={createTutorialVisible && tutorialCurrentStep === 1 ? false : !canNext1}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[12px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
               자료 수집으로
               <ChevronRight size={11} />
@@ -2233,7 +2244,7 @@ export default function TemplateSelect() {
                     <Github size={15} />
                   </span>
                   <div>
-                    <p className="text-[14px] font-extrabold text-bluewood-950">GitHub 연동 <span className="text-[10px] font-bold text-sky-600 align-middle">추천</span></p>
+                    <p className="text-[14px] font-extrabold text-bluewood-950">GitHub 연동 <span className="text-[11.5px] font-bold text-sky-600 align-middle">추천</span></p>
                     <p className="text-[12px] text-bluewood-500 mt-1">커밋 자동 분석 → 초안 생성</p>
                   </div>
                 </div>
@@ -2297,7 +2308,7 @@ export default function TemplateSelect() {
                       <div key={i} className="flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2">
                         <CheckCircle2 size={10} className="text-emerald-400 flex-shrink-0" />
                         <p className="flex-1 text-[12px] font-semibold text-bluewood-800 truncate">{f.name}</p>
-                        <span className="text-[11px] text-bluewood-500">{(f.size / 1024).toFixed(0)} KB</span>
+                        <span className="text-[12px] text-bluewood-500">{(f.size / 1024).toFixed(0)} KB</span>
                         <button onClick={() => removeFile(i)} className="p-1 text-bluewood-200 hover:text-red-400 transition-colors flex-shrink-0">
                           <X size={10} />
                         </button>
@@ -2327,7 +2338,7 @@ export default function TemplateSelect() {
                   className="w-full resize-none rounded-xl border border-primary-100 bg-primary-50/30 px-4 py-3 text-[15px] leading-relaxed text-bluewood-900 outline-none transition-all placeholder:text-bluewood-400 focus:border-primary-400 focus:bg-white focus:ring-4 focus:ring-primary-100"
                 />
                 {textInput && (
-                  <p className="text-[11px] text-bluewood-500 text-right mt-1">{textInput.length}자</p>
+                  <p className="text-[12px] text-bluewood-500 text-right mt-1">{textInput.length}자</p>
                 )}
               </div>
             </div>
@@ -2430,14 +2441,14 @@ export default function TemplateSelect() {
           {hasInput && (
             <div className="mt-6 flex items-start gap-2 rounded-2xl border border-primary-100 bg-primary-50/40 px-4 py-3">
               <div className="flex flex-wrap gap-2 flex-1">
-                {files.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 파일 {files.length}개</span>}
-                {textInput.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 텍스트</span>}
-                {notionUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> Notion</span>}
-                {githubUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> GitHub</span>}
-                {blogUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 블로그</span>}
-                {linkInputs.filter(l => l.trim()).length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개</span>}
+                {files.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 파일 {files.length}개</span>}
+                {textInput.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 텍스트</span>}
+                {notionUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> Notion</span>}
+                {githubUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> GitHub</span>}
+                {blogUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 블로그</span>}
+                {linkInputs.filter(l => l.trim()).length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개</span>}
               </div>
-              <p className="text-[11px] text-bluewood-500 leading-relaxed text-right flex-shrink-0">자료량에 따라 최대 5분 소요<br/>분석 중 페이지 이탈 금지</p>
+              <p className="text-[12px] text-bluewood-500 leading-relaxed text-right flex-shrink-0">자료량에 따라 최대 5분 소요<br/>분석 중 페이지 이탈 금지</p>
             </div>
           )}
 
@@ -2445,17 +2456,17 @@ export default function TemplateSelect() {
           <div className="mt-6 flex items-center justify-between border-t border-surface-100 pt-6">
             <button
               onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[12px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
             >
               <ChevronLeft size={10} /> 기본 정보로
             </button>
             <div className="flex items-center gap-2">
-              <p className="text-[11px] text-bluewood-300">AI는 입력 자료만으로 정리합니다</p>
+              <p className="text-[12px] text-bluewood-300">AI는 입력 자료만으로 정리합니다</p>
               <button
                 data-tour="create-extract"
                 onClick={createTutorialVisible && tutorialCurrentStep === 3 ? runTutorialExtraction : handleSubmit}
                 disabled={!hasInput}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-2 py-1.5 text-[12px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 AI 경험 추출
                 <ChevronRight size={11} />

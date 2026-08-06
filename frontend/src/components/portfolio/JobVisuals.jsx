@@ -37,7 +37,7 @@ export function SelfNote({ rows }) {
   const n = countSelf(rows);
   if (!n) return null;
   return (
-    <p className="mt-3 border-t border-dashed border-surface-200 pt-2 text-[10.5px] text-bluewood-400">
+    <p className="mt-3 border-t border-dashed border-surface-200 pt-2 text-[11.5px] text-bluewood-400">
       이 중 {n}개 값은 본인이 직접 기재한 수치입니다 (원본 자료 미연결)
     </p>
   );
@@ -73,10 +73,10 @@ export function KpiTileRow({ title, items, accent }) {
                   <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: tint(accent, 0.85) }}>
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: accent }} />
                   </div>
-                  <p className="mt-1 text-[10.5px] text-bluewood-400">목표 {k.target} 대비 {Math.round(pct)}%</p>
+                  <p className="mt-1 text-[11.5px] text-bluewood-400">목표 {k.target} 대비 {Math.round(pct)}%</p>
                 </div>
               )}
-              {k.note && pct == null && <p className="mt-1.5 text-[10.5px] text-bluewood-400">{k.note}</p>}
+              {k.note && pct == null && <p className="mt-1.5 text-[11.5px] text-bluewood-400">{k.note}</p>}
               {isSelfReported(k) && <SelfTag />}
             </div>
           );
@@ -103,7 +103,7 @@ export function FunnelChart({ title, stages, accent }) {
             return (
               <div key={i}>
                 {conv != null && (
-                  <p className="py-0.5 pl-[112px] text-[10.5px] text-bluewood-400">↓ 전환율 {conv}%</p>
+                  <p className="py-0.5 pl-[112px] text-[11.5px] text-bluewood-400">↓ 전환율 {conv}%</p>
                 )}
                 <div className="flex items-center gap-3">
                   <span className="w-[100px] flex-shrink-0 truncate text-right text-[12px] font-semibold text-bluewood-700">{s.label}</span>
@@ -171,11 +171,11 @@ export function DumbbellCompare({ title, rows, accent }) {
                   {/* Before 점 (표면 링 2px) */}
                   <span className="absolute top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full"
                     style={{ left: `${pos(b)}%`, backgroundColor: BEFORE_DOT, boxShadow: '0 0 0 2px #fff' }} />
-                  <span className="absolute top-0 -translate-x-1/2 text-[10.5px] font-semibold text-bluewood-400" style={{ left: `${pos(b)}%` }}>{fmt(b, r.before)}</span>
+                  <span className="absolute top-0 -translate-x-1/2 text-[11.5px] font-semibold text-bluewood-400" style={{ left: `${pos(b)}%` }}>{fmt(b, r.before)}</span>
                   {/* After 점 */}
                   <span className="absolute top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full"
                     style={{ left: `${pos(a)}%`, backgroundColor: accent, boxShadow: '0 0 0 2px #fff' }} />
-                  <span className="absolute bottom-0 -translate-x-1/2 text-[10.5px] font-black text-bluewood-800" style={{ left: `${pos(a)}%` }}>{fmt(a, r.after)}</span>
+                  <span className="absolute bottom-0 -translate-x-1/2 text-[11.5px] font-black text-bluewood-800" style={{ left: `${pos(a)}%` }}>{fmt(a, r.after)}</span>
                 </div>
               </div>
             );
@@ -228,7 +228,7 @@ export function GoalBoard({ title, goals, accent }) {
               {g.achieved
                 ? <CheckCircle2 size={15} style={{ color: '#0ca30c' }} />
                 : <XCircle size={15} style={{ color: '#d03b3b' }} />}
-              <span className={`text-[11px] font-bold ${g.achieved ? 'text-emerald-700' : 'text-red-600'}`}>{g.achieved ? '달성' : '미달성'}</span>
+              <span className={`text-[12px] font-bold ${g.achieved ? 'text-emerald-700' : 'text-red-600'}`}>{g.achieved ? '달성' : '미달성'}</span>
             </div>
             <p className="mt-1.5 text-[13.5px] font-bold leading-snug text-bluewood-900">{g.label}</p>
             {(g.target || g.actual) && (
@@ -265,7 +265,7 @@ function ArcGauge({ label, value, unit, target, accent, self = false }) {
         <text x="60" y="52" textAnchor="middle" fontSize="20" fontWeight="900" fill={accent}>{value}{unit && !/%|[가-힣a-z]/i.test(String(value)) ? unit : ''}</text>
       </svg>
       <p className="mt-1 text-center text-[12px] font-semibold text-bluewood-700">{label}</p>
-      {target && <p className="mt-0.5 text-[10.5px] text-bluewood-400">목표 {target}</p>}
+      {target && <p className="mt-0.5 text-[11.5px] text-bluewood-400">목표 {target}</p>}
       {self && <SelfTag />}
     </div>
   );

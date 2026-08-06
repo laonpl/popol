@@ -8,8 +8,10 @@
 import { useMemo } from 'react';
 import { X, Printer, FileText } from 'lucide-react';
 import { buildOnePager } from '../utils/onePager';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 export default function OnePagerPanel({ exp, profile, onClose }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const data = useMemo(() => buildOnePager({
     profile: profile || {},
     experiences: [exp],
@@ -17,8 +19,8 @@ export default function OnePagerPanel({ exp, profile, onClose }) {
   }), [exp, profile]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 print:static print:bg-white print:p-0" onClick={onClose}>
-      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl print:max-h-none print:shadow-none" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/40 p-4 print:static print:bg-white print:p-0" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="원페이저" tabIndex={-1} className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl print:max-h-none print:shadow-none" onClick={e => e.stopPropagation()}>
 
         <header className="flex items-start justify-between gap-3 border-b border-surface-200 px-6 py-4 print:hidden">
           <div className="min-w-0">
@@ -58,10 +60,10 @@ export default function OnePagerPanel({ exp, profile, onClose }) {
                   <div className="min-w-0">
                     <p className="text-[13.5px] font-extrabold leading-snug text-bluewood-900" style={{ wordBreak: 'keep-all' }}>
                       {line.requirement}
-                      {line.confirmed && <span className="ml-2 align-middle text-[10px] font-bold text-caribbean-700">근거 확인</span>}
+                      {line.confirmed && <span className="ml-2 align-middle text-[11.5px] font-bold text-caribbean-700">근거 확인</span>}
                     </p>
                     <p className="mt-1 text-[13px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{line.proof}</p>
-                    {line.source && <p className="mt-0.5 text-[11px] text-bluewood-300">확인: {line.source}</p>}
+                    {line.source && <p className="mt-0.5 text-[12px] text-bluewood-300">확인: {line.source}</p>}
                   </div>
                 </li>
               ))}

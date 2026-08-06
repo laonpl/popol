@@ -420,7 +420,7 @@ export function ArchitectureEditorCanvas({ nodes, edges, canvas, onMoveNode, onR
                   className="w-full bg-transparent text-center text-[12.5px] font-bold text-bluewood-900 outline-none placeholder:text-bluewood-300" />
                 <input value={n.tech || ''} onChange={(e) => onUpdateNode(n.id, { tech: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()} placeholder="기술·역할"
-                  className="w-full bg-transparent text-center text-[10.5px] text-bluewood-500 outline-none placeholder:text-bluewood-300" />
+                  className="w-full bg-transparent text-center text-[11.5px] text-bluewood-500 outline-none placeholder:text-bluewood-300" />
               </div>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemoveNode(n.id)}
                 className="absolute -right-2 -top-2 hidden h-5 w-5 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 shadow-sm hover:text-red-500 group-hover:flex">
@@ -457,7 +457,7 @@ export function ArchitectureEditorCanvas({ nodes, edges, canvas, onMoveNode, onR
               <input value={e.label || ''} onChange={(ev) => onUpdateEdge(i, { label: ev.target.value })}
                 onPointerDown={(ev) => ev.stopPropagation()} placeholder="라벨"
                 style={{ width: `${Math.max(46, (e.label || '').length * 7 + 16)}px` }}
-                className="bg-transparent text-center text-[10.5px] text-bluewood-600 outline-none placeholder:text-bluewood-300" />
+                className="bg-transparent text-center text-[11.5px] text-bluewood-600 outline-none placeholder:text-bluewood-300" />
               <button onPointerDown={(ev) => ev.stopPropagation()} onClick={() => onRemoveEdge(i)}
                 className="hidden text-bluewood-300 hover:text-red-500 group-hover:block"><X size={10} /></button>
             </div>

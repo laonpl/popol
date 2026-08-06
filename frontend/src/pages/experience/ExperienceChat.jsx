@@ -396,6 +396,9 @@ const STARTERS = [
 
 /* 사용자가 인지하는 진행 단계 (내부 phase는 그대로 유지하고 UI만 묶어서 보여준다) */
 const FLOW_STEPS = ['경험 선택', '자료 입력', 'AI 인터뷰', '결과 완성'];
+/* phase → 표시 단계.
+   [주의] 새 phase를 추가하면 여기에도 반드시 매핑을 넣어야 한다.
+   빠지면 0으로 폴백해 진행률이 "1/4 경험 선택"으로 되돌아간 것처럼 보인다. */
 const PHASE_STEP = {
   field: 0,
   mkField: 0,
@@ -404,6 +407,7 @@ const PHASE_STEP = {
   extracting: 1,
   moments: 1,
   building: 2,
+  reviewDraft: 2,
   fill: 2,
   saving: 3,
 };
@@ -711,7 +715,12 @@ function UserBubble({ children }) {
 
 /* 진행 단계 스테퍼 — 지금 어디쯤인지 한눈에 */
 function FlowStepper({ phase }) {
-  const current = PHASE_STEP[phase] ?? 0;
+  // 매핑에 없는 phase가 들어와도 0으로 떨어뜨리지 않는다.
+  // (0으로 폴백하면 사용자에겐 "진행이 초기화됐다"로 읽힌다)
+  const lastStepRef = useRef(0);
+  const mapped = PHASE_STEP[phase];
+  if (mapped !== undefined) lastStepRef.current = mapped;
+  const current = mapped ?? lastStepRef.current;
   const percent = ((current + 1) / FLOW_STEPS.length) * 100;
   return (
     <nav aria-label="경험 정리 진행 단계" className="space-y-2.5">
@@ -731,7 +740,7 @@ function FlowStepper({ phase }) {
                   active ? 'text-primary-700' : done ? 'text-bluewood-600' : 'text-bluewood-300'
                 }`}
               >
-                {done ? <Check size={13} aria-hidden="true" /> : <span className="text-[11px]">{i + 1}</span>}
+                {done ? <Check size={13} aria-hidden="true" /> : <span className="text-[12px]">{i + 1}</span>}
                 {label}
               </li>
             );
@@ -824,7 +833,7 @@ function SelectionOption({ option, selected = false, onSelect, meta, compact = f
         </span>
         <span className="flex items-center gap-2 text-[17px] font-extrabold leading-snug text-bluewood-900">
           {option.label}
-          {selected && <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700">선택됨</span>}
+          {selected && <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[12px] font-bold text-primary-700">선택됨</span>}
         </span>
         <span className="mt-1.5 block text-[13.5px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
           {helper}
@@ -1117,7 +1126,7 @@ function ExperienceBasicsWorkspace({
                     >
                       <span className="flex items-center justify-between gap-2">
                         <span className="text-[13.5px] font-extrabold text-bluewood-900">{mode.label}</span>
-                        <span className="text-[11px] font-bold text-primary-700">{mode.time}</span>
+                        <span className="text-[12px] font-bold text-primary-700">{mode.time}</span>
                       </span>
                       <span className="mt-1 block text-[11.5px] leading-snug text-bluewood-400">{mode.desc}</span>
                     </button>
@@ -1303,7 +1312,7 @@ function InterviewProgressRail({
                   active ? 'text-primary-700' : step.done ? 'text-bluewood-700' : 'text-bluewood-300'
                 }`}
               >
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] ${
                   step.done ? 'bg-primary-600 text-white' : active ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200' : 'bg-surface-100 text-bluewood-300'
                 }`}>
                   {step.done ? <Check size={13} aria-hidden="true" /> : index + 1}
@@ -1316,7 +1325,7 @@ function InterviewProgressRail({
         <div className="mt-5 border-t border-surface-100 pt-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[12px] font-bold text-bluewood-500">경험 완성도</p>
-            <span className="text-[11px] font-bold text-primary-700">
+            <span className="text-[12px] font-bold text-primary-700">
               질문 {Math.min(answeredCount, mode.limit)} / {mode.limit}
             </span>
           </div>
@@ -1354,7 +1363,7 @@ function DraftUnderstandingCheck({ draft, onPatch, onConfirm }) {
           <label key={field.key} className="block rounded-xl border border-surface-200 bg-white p-3">
             <span className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-extrabold text-bluewood-700">{field.label}</span>
-              <span className="text-[10.5px] text-bluewood-300">{field.hint}</span>
+              <span className="text-[11.5px] text-bluewood-300">{field.hint}</span>
             </span>
             <textarea
               value={asText(field.value)}
@@ -1385,13 +1394,13 @@ function ImprovementPreview({ improvement }) {
       <p className="text-[12px] font-bold text-caribbean-700">이 답변으로 이렇게 달라졌어요</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg bg-white/70 p-3">
-          <p className="text-[10.5px] font-bold text-bluewood-300">답변 전</p>
+          <p className="text-[11.5px] font-bold text-bluewood-300">답변 전</p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">
             {improvement.before || '확인되지 않은 내용'}
           </p>
         </div>
         <div className="rounded-lg border border-caribbean-100 bg-white p-3">
-          <p className="text-[10.5px] font-bold text-caribbean-700">답변 후</p>
+          <p className="text-[11.5px] font-bold text-caribbean-700">답변 후</p>
           <p className="mt-1 text-[12.5px] font-semibold leading-relaxed text-bluewood-800">
             {improvement.after}
           </p>
@@ -1416,11 +1425,11 @@ function ProgressRing({ percent }) {
             style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1)' }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-primary-700 tabular-nums">{percent}</span>
+        <span className="absolute inset-0 flex items-center justify-center text-[10.5px] font-black text-primary-700 tabular-nums">{percent}</span>
       </div>
       <div className="leading-tight">
-        <p className="text-[11px] font-bold text-bluewood-600">완성도</p>
-        <p className="text-[10px] text-bluewood-300">{percent >= 80 ? '거의 다 됐어요!' : percent >= 50 ? '절반 넘었어요' : '채워가는 중'}</p>
+        <p className="text-[12px] font-bold text-bluewood-600">완성도</p>
+        <p className="text-[11.5px] text-bluewood-300">{percent >= 80 ? '거의 다 됐어요!' : percent >= 50 ? '절반 넘었어요' : '채워가는 중'}</p>
       </div>
     </div>
   );
@@ -1449,7 +1458,7 @@ function MetricWidget({ target, onSubmit, onSkip, bare = false }) {
       {/* 어떤 핵심 경험을 채우는지 명확하게 보여주는 대상 카드 */}
       {targetTitle && (
         <div className="rounded-xl bg-white border-l-4 border border-primary-200 border-l-primary-600 px-3.5 py-2.5">
-          <p className="text-[10.5px] font-bold text-primary-600 uppercase tracking-wider mb-1">지금 채우는 핵심 경험</p>
+          <p className="text-[11.5px] font-bold text-primary-600 uppercase tracking-wider mb-1">지금 채우는 핵심 경험</p>
           <p className="text-[13px] font-bold text-bluewood-900 leading-snug" style={{ wordBreak: 'keep-all' }}>{targetTitle}</p>
           {targetSnippet && (
             <p className="mt-1 text-[12px] text-bluewood-400 leading-relaxed line-clamp-2" style={{ wordBreak: 'keep-all' }}>{targetSnippet}</p>
@@ -1472,21 +1481,21 @@ function MetricWidget({ target, onSubmit, onSkip, bare = false }) {
       {mode === 'guided' ? (
         <div className="rounded-xl border border-surface-200 bg-white px-3.5 py-3 space-y-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-bluewood-300 w-14 flex-shrink-0">이전 (선택)</span>
+            <span className="text-[12px] text-bluewood-300 w-14 flex-shrink-0">이전 (선택)</span>
             <input value={beforeVal} onChange={e => setBeforeVal(e.target.value)} placeholder="예: 800"
               className="flex-1 text-[13px] text-bluewood-700 border-b border-surface-200 px-1 py-1 outline-none focus:border-primary-400 bg-transparent" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-bluewood-600 w-14 flex-shrink-0">이후 *</span>
+            <span className="text-[12px] font-bold text-bluewood-600 w-14 flex-shrink-0">이후 *</span>
             <input value={afterVal} onChange={e => setAfterVal(e.target.value)} placeholder="예: 480"
               className="flex-1 text-[13px] text-bluewood-800 border-b border-surface-200 px-1 py-1 outline-none focus:border-primary-400 bg-transparent" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-bluewood-300 w-14 flex-shrink-0">단위</span>
+            <span className="text-[12px] text-bluewood-300 w-14 flex-shrink-0">단위</span>
             <div className="flex flex-wrap gap-1">
               {METRIC_UNITS.map(u => (
                 <button key={u} type="button" onClick={() => setUnit(u)}
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                  className={`px-2 py-0.5 rounded-full text-[12px] font-semibold border transition-colors ${
                     unit === u ? 'bg-primary-600 text-white border-primary-600' : 'border-surface-200 text-bluewood-400 hover:border-primary-300'
                   }`}>{u}</button>
               ))}
@@ -1722,7 +1731,7 @@ function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false, showCon
                 {(m.keywords || []).length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {m.keywords.slice(0, 5).map((kw, ki) => (
-                      <span key={ki} className="px-1.5 py-0.5 rounded bg-surface-50 border border-surface-100 text-[10.5px] font-semibold text-bluewood-400">#{asText(kw)}</span>
+                      <span key={ki} className="px-1.5 py-0.5 rounded bg-surface-50 border border-surface-100 text-[11.5px] font-semibold text-bluewood-400">#{asText(kw)}</span>
                     ))}
                   </div>
                 )}
@@ -2646,7 +2655,7 @@ export default function ExperienceChat() {
         interviewMode,
       });
       toast.success('빠른 초안이 저장되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
-      navigate(`/app/experience/result/${experienceId}`, {
+      navigate(`/app/experience/complete/${experienceId}`, {
         state: {
           analysis: draftWithGit,
           title: title.trim(),
@@ -2940,14 +2949,14 @@ export default function ExperienceChat() {
                   <button
                     type="button"
                     onClick={() => setAnswerVisibility('public')}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${answerVisibility === 'public' ? 'bg-primary-600 text-white' : 'text-bluewood-400'}`}
+                    className={`rounded-md px-2.5 py-1 text-[12px] font-bold ${answerVisibility === 'public' ? 'bg-primary-600 text-white' : 'text-bluewood-400'}`}
                   >
                     포트폴리오에 반영
                   </button>
                   <button
                     type="button"
                     onClick={() => setAnswerVisibility('private')}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${answerVisibility === 'private' ? 'bg-bluewood-700 text-white' : 'text-bluewood-400'}`}
+                    className={`rounded-md px-2.5 py-1 text-[12px] font-bold ${answerVisibility === 'private' ? 'bg-bluewood-700 text-white' : 'text-bluewood-400'}`}
                   >
                     내부 기록만
                   </button>
@@ -3169,18 +3178,18 @@ export default function ExperienceChat() {
                   </button>
                 )}
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <span className="px-2 py-0.5 rounded-md bg-primary-50 border border-primary-100 text-[11px] font-bold text-primary-600">{JOB_LABELS[jobCategory] || '공통'}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-primary-50 border border-primary-100 text-[12px] font-bold text-primary-600">{JOB_LABELS[jobCategory] || '공통'}</span>
                   {(startMonth && endMonth) && (
-                    <span className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[11px] font-semibold text-bluewood-500">{startMonth} ~ {endMonth}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[12px] font-semibold text-bluewood-500">{startMonth} ~ {endMonth}</span>
                   )}
                   {asText(overview.role) && (
-                    <span className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[11px] font-semibold text-bluewood-500">{asText(overview.role)}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[12px] font-semibold text-bluewood-500">{asText(overview.role)}</span>
                   )}
                 </div>
                 {techStack.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {techStack.map((t, i) => (
-                      <span key={i} className="px-1.5 py-0.5 rounded bg-surface-50 text-[10.5px] font-semibold text-bluewood-400">{asText(t)}</span>
+                      <span key={i} className="px-1.5 py-0.5 rounded bg-surface-50 text-[11.5px] font-semibold text-bluewood-400">{asText(t)}</span>
                     ))}
                   </div>
                 )}
@@ -3195,8 +3204,8 @@ export default function ExperienceChat() {
                 return (
                   <div className="rounded-xl border border-surface-100 bg-white px-4 py-3">
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em]">채우기 진행</p>
-                      <span className="text-[11px] font-bold text-primary-600 tabular-nums">{doneCount} / {SECTION_DEFS.length} 섹션</span>
+                      <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em]">채우기 진행</p>
+                      <span className="text-[12px] font-bold text-primary-600 tabular-nums">{doneCount} / {SECTION_DEFS.length} 섹션</span>
                     </div>
                     {/* 섹션별 세그먼트 바 */}
                     <div className="mb-2.5 flex gap-1">
@@ -3252,21 +3261,21 @@ export default function ExperienceChat() {
                     {/* 포지셔닝 */}
                     {positioning && (
                       <div className="bg-primary-600 px-4 py-3">
-                        <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.14em] mb-1">Positioning</p>
+                        <p className="text-[11.5px] font-bold text-white/60 uppercase tracking-[0.14em] mb-1">Positioning</p>
                         <p className="text-[12.5px] font-semibold text-white leading-relaxed" style={{ wordBreak: 'keep-all' }}>{positioning}</p>
                       </div>
                     )}
                     <div className="px-4 py-3.5 space-y-4">
                       {/* 캠페인 스토리 퍼널 */}
                       <div>
-                        <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-2">캠페인 스토리</p>
+                        <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-2">캠페인 스토리</p>
                         <div className="space-y-1.5">
                           {FUNNEL_STEPS.map(step => {
                             const value = displayText(kit.funnel?.[step.key]);
                             const empty = needsConfirm(kit.funnel?.[step.key]);
                             return (
                               <div key={step.key} className="flex items-start gap-2">
-                                <span className={`flex-shrink-0 mt-[1px] w-11 text-center px-1 py-0.5 rounded-md text-[10.5px] font-bold ${
+                                <span className={`flex-shrink-0 mt-[1px] w-11 text-center px-1 py-0.5 rounded-md text-[11.5px] font-bold ${
                                   empty ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-primary-50 text-primary-600'
                                 }`}>{step.label}</span>
                                 <p className={`min-w-0 text-[12.5px] leading-relaxed ${empty ? 'text-amber-600/80' : 'text-bluewood-700'}`} style={{ wordBreak: 'keep-all' }}>
@@ -3281,12 +3290,12 @@ export default function ExperienceChat() {
                       {/* KPI */}
                       {(kpis.length > 0 || altMetrics.length > 0) && (
                         <div>
-                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">KPI</p>
+                          <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">KPI</p>
                           <div className="flex flex-wrap gap-1.5">
                             {kpis.map((k, i) => {
                               const unverified = needsConfirm(k.value) || asText(k.status) === '확인 필요';
                               return (
-                                <span key={i} className={`px-2 py-1 rounded-md text-[11px] font-bold border ${
+                                <span key={i} className={`px-2 py-1 rounded-md text-[12px] font-bold border ${
                                   unverified ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-primary-50 text-primary-700 border-primary-100'
                                 }`}>
                                   {asText(k.name)}{asText(k.value) ? ` ${asText(k.value)}` : ''}
@@ -3305,7 +3314,7 @@ export default function ExperienceChat() {
                       {/* 이력서 bullet */}
                       {bullets.length > 0 && (
                         <div>
-                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">이력서 Bullet</p>
+                          <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">이력서 Bullet</p>
                           <div className="space-y-1.5">
                             {bullets.map((b, i) => (
                               <p key={i} className="rounded-lg bg-surface-50 border border-surface-100 px-3 py-2 text-[12px] text-bluewood-700 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
@@ -3320,7 +3329,7 @@ export default function ExperienceChat() {
                       {jdKeywords.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {jdKeywords.slice(0, 8).map((kw, i) => (
-                            <span key={i} className="px-1.5 py-0.5 rounded bg-surface-50 border border-surface-200 text-[10.5px] font-semibold text-bluewood-500">#{asText(kw)}</span>
+                            <span key={i} className="px-1.5 py-0.5 rounded bg-surface-50 border border-surface-200 text-[11.5px] font-semibold text-bluewood-500">#{asText(kw)}</span>
                           ))}
                         </div>
                       )}
@@ -3328,7 +3337,7 @@ export default function ExperienceChat() {
                       {/* 증거 자료 체크리스트 */}
                       {evidence.length > 0 && (
                         <div>
-                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">증거 자료</p>
+                          <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">증거 자료</p>
                           <div className="space-y-1">
                             {evidence.slice(0, 6).map((ev, i) => (
                               <p key={i} className="flex items-start gap-1.5 text-[12px] text-bluewood-600 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
@@ -3361,16 +3370,16 @@ export default function ExperienceChat() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em]">
+                      <p className="flex items-center gap-1.5 text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em]">
                         {def.label}
                         {!weak && <Check size={11} className="text-caribbean-600" />}
                       </p>
                       {isCurrent ? (
-                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-primary-600 text-white text-[10px] font-bold animate-pop-in">지금 채우는 중</span>
+                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-primary-600 text-white text-[11.5px] font-bold animate-pop-in">지금 채우는 중</span>
                       ) : weak && phase === 'fill' && (
                         <button
                           onClick={() => askSection(def.key)}
-                          className="flex-shrink-0 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-600 hover:bg-amber-100 transition-colors"
+                          className="flex-shrink-0 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-600 hover:bg-amber-100 transition-colors"
                         >
                           채팅으로 채우기
                         </button>
@@ -3424,7 +3433,7 @@ export default function ExperienceChat() {
                     flashKey === 'keyExperiences' ? 'border-caribbean-300 animate-section-glow' : 'border-surface-100 bg-white'
                   }`}
                 >
-                  <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-2">핵심 경험</p>
+                  <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-2">핵심 경험</p>
                   <div className="space-y-1.5">
                     {draft.keyExperiences.slice(0, 5).map((ke, i) => {
                       const isTarget = phase === 'fill' && currentQ?.widget === 'metric' && currentQ?.keIndex === i;
@@ -3436,14 +3445,14 @@ export default function ExperienceChat() {
                             isTarget ? 'bg-primary-50/80 ring-1 ring-primary-200' : ''
                           }`}
                         >
-                          <span className={`flex-shrink-0 mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10px] font-black ${
+                          <span className={`flex-shrink-0 mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11.5px] font-black ${
                             isTarget ? 'bg-primary-600 text-white' : 'bg-primary-50 text-primary-600'
                           }`}>{i + 1}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-[12.5px] font-semibold text-bluewood-700 leading-snug" style={{ wordBreak: 'keep-all' }}>{displayText(ke.title)}</p>
                               {isTarget && (
-                                <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-primary-600 text-white text-[10px] font-bold animate-pop-in">지금 채우는 중</span>
+                                <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-primary-600 text-white text-[11.5px] font-bold animate-pop-in">지금 채우는 중</span>
                               )}
                             </div>
                             {isTarget && snippet && (
@@ -3462,21 +3471,21 @@ export default function ExperienceChat() {
                                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-100">
                                         <span className="block h-full rounded-full bg-surface-300" style={{ width: `${Math.abs(beforeNum) / maxV * 100}%`, transition: 'width 0.6s' }} />
                                       </div>
-                                      <span className="flex-shrink-0 text-[10px] font-bold text-bluewood-400 tabular-nums">{asText(ke.beforeMetric)}</span>
+                                      <span className="flex-shrink-0 text-[11.5px] font-bold text-bluewood-400 tabular-nums">{asText(ke.beforeMetric)}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       <span className="w-6 flex-shrink-0 text-[9.5px] font-bold text-primary-600">이후</span>
                                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-100">
                                         <span className="block h-full rounded-full bg-primary-500" style={{ width: `${Math.abs(afterNum) / maxV * 100}%`, transition: 'width 0.6s' }} />
                                       </div>
-                                      <span className="flex-shrink-0 text-[10px] font-bold text-primary-700 tabular-nums">{asText(ke.afterMetric || ke.metric)}</span>
+                                      <span className="flex-shrink-0 text-[11.5px] font-bold text-primary-700 tabular-nums">{asText(ke.afterMetric || ke.metric)}</span>
                                     </div>
                                   </div>
                                 );
                               }
                               const metricText = asText(ke.metric || ke.afterMetric);
                               return metricText ? (
-                                <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-primary-50 text-[10.5px] font-bold text-primary-600 animate-pop-in">{metricText}</span>
+                                <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-primary-50 text-[11.5px] font-bold text-primary-600 animate-pop-in">{metricText}</span>
                               ) : null;
                             })()}
                           </div>
@@ -3491,7 +3500,7 @@ export default function ExperienceChat() {
               {Array.isArray(draft.keywords) && draft.keywords.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {draft.keywords.slice(0, 8).map((kw, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[11px] font-semibold text-bluewood-500">#{asText(kw)}</span>
+                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-50 border border-surface-200 text-[12px] font-semibold text-bluewood-500">#{asText(kw)}</span>
                   ))}
                 </div>
               )}

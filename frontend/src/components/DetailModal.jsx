@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc } from '../services/firestoreProxy';
 import { db } from '../config/firebase';
 
+import useModalBehavior from '../hooks/useModalBehavior';
 const CARL_LABELS = {
   context:  '배경 (Context)',
   action:   '행동 (Action)',
@@ -23,6 +24,7 @@ function parseStarText(content) {
 }
 
 export default function DetailModal({ type, data, onClose, closeLabel = '닫기', onViewFull }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const [experienceMap, setExperienceMap] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -45,8 +47,8 @@ export default function DetailModal({ type, data, onClose, closeLabel = '닫기'
   if (!data) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[10000] flex items-center justify-center p-4" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="상세 보기" tabIndex={-1} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-surface-200">
           <h2 className="text-lg font-bold">{data.title || '상세 내용'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-surface-100 rounded-xl transition-colors">

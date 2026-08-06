@@ -55,7 +55,7 @@ function TerminalPanel({ label, text, mets, accent, index }) {
     <div className="overflow-hidden rounded-2xl bg-[#0e1626]">
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tint(accent, 0.45) }} />
-        <span className="font-mono text-[10.5px] text-white/40">ops/{String(index + 1).padStart(2, '0')}</span>
+        <span className="font-mono text-[11.5px] text-white/40">ops/{String(index + 1).padStart(2, '0')}</span>
       </div>
       <div className="p-5">
         <p className="font-mono text-[12px] font-bold" style={{ color: tint(accent, 0.45) }}>$ {label}</p>
@@ -99,10 +99,10 @@ function ReportPanel({ label, subtitle, text, mets, accent, index }) {
     <div className="rounded-2xl border border-surface-200 bg-white" style={{ borderTopWidth: 3, borderTopColor: accent }}>
       <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="p-5">
-          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-400">
+          <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-400">
             <span style={{ color: accent }}>FIG {index + 1}.</span> {label}
           </p>
-          {subtitle && <p className="mt-0.5 text-[11px] text-bluewood-300">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-[12px] text-bluewood-300">{subtitle}</p>}
           <div className="mt-2.5"><HighlightedText text={text} color={accent} /></div>
         </div>
         {mets.length > 0 && (
@@ -128,7 +128,7 @@ function CampaignPanel({ label, text, mets, accent, index }) {
       <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, ${tint(accent, 0.5)})` }} />
       <div className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0 flex-1">
-          <p className="text-[10.5px] font-black uppercase tracking-[0.2em]" style={{ color: accent }}>MOVE {String(index + 1).padStart(2, '0')} — {label}</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.2em]" style={{ color: accent }}>MOVE {String(index + 1).padStart(2, '0')} — {label}</p>
           <div className="mt-2.5"><HighlightedText text={text} color={accent} /></div>
           {rest.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -141,7 +141,7 @@ function CampaignPanel({ label, text, mets, accent, index }) {
         {top && (
           <div className="flex-shrink-0 rounded-2xl px-5 py-4 text-center" style={{ backgroundColor: tint(accent, 0.94) }}>
             <p className="text-[26px] font-black leading-none tracking-tight" style={{ color: accent }}>{top}</p>
-            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: tint(accent, 0.55) }}>KEY RESULT</p>
+            <p className="mt-1.5 text-[11.5px] font-bold uppercase tracking-wide" style={{ color: tint(accent, 0.55) }}>KEY RESULT</p>
           </div>
         )}
       </div>
@@ -156,7 +156,7 @@ function DealSheetPanel({ label, text, mets, accent, index }) {
     <div className="flex items-stretch overflow-hidden rounded-2xl border border-surface-200 bg-white">
       <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: accent }} />
       <div className="min-w-0 flex-1 p-5">
-        <p className="text-[10.5px] font-black uppercase tracking-[0.18em]" style={{ color: accent }}>LEDGER {String(index + 1).padStart(2, '0')} · {label}</p>
+        <p className="text-[11.5px] font-black uppercase tracking-[0.18em]" style={{ color: accent }}>LEDGER {String(index + 1).padStart(2, '0')} · {label}</p>
         <div className="mt-2.5"><HighlightedText text={text} color={accent} /></div>
       </div>
       {money && (
@@ -197,7 +197,7 @@ function BriefPanel({ label, text, mets, accent, index }) {
         {String(index + 1).padStart(2, '0')}
       </span>
       <div className="relative">
-        <p className="text-[10.5px] font-black uppercase tracking-[0.2em]" style={{ color: accent }}>BRIEF · {label}</p>
+        <p className="text-[11.5px] font-black uppercase tracking-[0.2em]" style={{ color: accent }}>BRIEF · {label}</p>
         <div className="mt-2.5 max-w-3xl"><HighlightedText text={text} color={accent} /></div>
         {mets.length > 0 && (
           <div className="mt-3.5 inline-flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl px-4 py-2.5" style={{ backgroundColor: tint(accent, 0.94) }}>

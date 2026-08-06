@@ -38,7 +38,7 @@ function MarketerHero({ p }) {
   return (
     <header className="overflow-hidden rounded-3xl text-white" style={{ background: 'linear-gradient(130deg, #001c45 0%, #002F6C 55%, #4f5f72 100%)' }}>
       <div className="p-7 sm:p-10">
-        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-white/70">{p.jobLabel} · CAMPAIGN CASE</p>
+        <p className="text-[12px] font-black uppercase tracking-[0.24em] text-white/70">{p.jobLabel} · CAMPAIGN CASE</p>
         <h1 className="mt-3 max-w-3xl text-[30px] sm:text-[40px] font-black leading-[1.1] tracking-tight">{p.title}</h1>
         {p.headline && <p className="mt-3.5 max-w-2xl text-[14.5px] sm:text-[15.5px] leading-relaxed text-white/85">{p.headline}</p>}
         <div className="mt-5"><Chips chips={p.chips} link={p.link} isGithubLink={p.isGithubLink} dark /></div>
@@ -48,7 +48,7 @@ function MarketerHero({ p }) {
           {kpis.map((k, i) => (
             <div key={i} className="bg-white/10 px-4 py-4 backdrop-blur-sm sm:px-7">
               <p className="text-[20px] sm:text-[26px] font-black leading-none">{k.value}</p>
-              <p className="mt-1.5 truncate text-[11px] font-medium text-white/70">{k.label}</p>
+              <p className="mt-1.5 truncate text-[12px] font-medium text-white/70">{k.label}</p>
             </div>
           ))}
         </div>
@@ -66,7 +66,7 @@ function SalesHero({ p }) {
       <div className="h-1.5 w-full" style={{ backgroundColor: p.accent }} />
       <div className="grid gap-6 p-7 sm:grid-cols-[minmax(0,5fr)_minmax(0,4fr)] sm:p-9">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · DEAL RECORD</p>
+          <p className="text-[12px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · DEAL RECORD</p>
           <h1 className="mt-3 text-[28px] sm:text-[34px] font-black leading-[1.12] tracking-tight text-bluewood-900">{p.title}</h1>
           {p.headline && <p className="mt-3 text-[14px] leading-relaxed text-bluewood-500">{p.headline}</p>}
           <div className="mt-4"><Chips chips={p.chips} link={p.link} isGithubLink={p.isGithubLink} /></div>
@@ -105,19 +105,19 @@ function SalesHero({ p }) {
 function HrHero({ p }) {
   return (
     <header className="rounded-3xl border border-surface-200 bg-gradient-to-br from-surface-50 to-white p-7 sm:p-9">
-      <p className="text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · PEOPLE &amp; CULTURE</p>
+      <p className="text-[12px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · PEOPLE &amp; CULTURE</p>
       <h1 className="mt-3 max-w-3xl text-[28px] sm:text-[36px] font-black leading-[1.12] tracking-tight text-bluewood-900">{p.title}</h1>
       {p.headline && <p className="mt-3.5 max-w-2xl text-[14.5px] leading-relaxed text-bluewood-500">{p.headline}</p>}
       <div className="mt-5"><Chips chips={p.chips} link={p.link} isGithubLink={p.isGithubLink} /></div>
       {p.funnel ? (
         <div className="mt-6 rounded-2xl border border-surface-200 bg-white/80 p-4">
-          <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">채용 여정</p>
+          <p className="mb-3 text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">채용 여정</p>
           <div className="flex flex-wrap items-center gap-2">
             {p.funnel.map((s, i) => (
               <span key={i} className="inline-flex items-center gap-2">
                 <span className="flex flex-col items-center rounded-xl px-3.5 py-2" style={{ backgroundColor: tint(p.accent, 0.55 * (1 - i / Math.max(1, p.funnel.length - 1))) , color: i > p.funnel.length / 2 ? '#fff' : '#314157' }}>
                   <span className="text-[15px] font-black leading-none">{s.value.toLocaleString()}</span>
-                  <span className="mt-1 text-[10.5px] font-semibold opacity-80">{s.label}</span>
+                  <span className="mt-1 text-[11.5px] font-semibold opacity-80">{s.label}</span>
                 </span>
                 {i < p.funnel.length - 1 && <ArrowRight size={14} className="text-bluewood-300" />}
               </span>
@@ -144,16 +144,16 @@ function PmHero({ p }) {
   const topKpi = p.kpis[0];
   return (
     <header>
-      <p className="text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · PRODUCT BRIEF</p>
+      <p className="text-[12px] font-black uppercase tracking-[0.24em]" style={{ color: p.accent }}>{p.jobLabel} · PRODUCT BRIEF</p>
       <h1 className="mt-3 text-[28px] sm:text-[38px] font-black leading-[1.12] tracking-tight text-bluewood-900">{p.title}</h1>
       <div className="mt-4"><Chips chips={p.chips} link={p.link} isGithubLink={p.isGithubLink} /></div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-surface-200 bg-surface-50 p-5">
-          <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-bluewood-400">Problem</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-bluewood-400">Problem</p>
           <p className="mt-2 text-[14.5px] font-semibold leading-[1.65] text-bluewood-800">{problem || '어떤 문제를 풀었는지 편집에서 채워보세요.'}</p>
         </div>
         <div className="rounded-2xl p-5 text-white" style={{ backgroundColor: p.accent }}>
-          <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-white/60">Impact</p>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-white/60">Impact</p>
           {topKpi && <p className="mt-2 text-[30px] font-black leading-none">{topKpi.value}<span className="ml-2 align-middle text-[12px] font-semibold text-white/70">{topKpi.label}</span></p>}
           {impact && <p className={`${topKpi ? 'mt-2.5 text-[12.5px] text-white/80' : 'mt-2 text-[14.5px] font-semibold'} leading-[1.65]`}>{impact}</p>}
           {!topKpi && !impact && <p className="mt-2 text-[14.5px] font-semibold leading-[1.65] text-white/90">런칭 후 달성한 변화를 편집에서 채워보세요.</p>}
@@ -172,7 +172,7 @@ function DaHero({ p }) {
   ];
   return (
     <header>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-surface-200 py-2 font-mono text-[11px] uppercase tracking-wider text-bluewood-400">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-surface-200 py-2 font-mono text-[12px] uppercase tracking-wider text-bluewood-400">
         <span style={{ color: p.accent }}>● ANALYSIS REPORT</span>
         <span>{p.jobLabel}</span>
         {p.chips.filter(c => c.v).map((c, i) => <span key={i}>{c.k}: {c.v}</span>)}
@@ -183,7 +183,7 @@ function DaHero({ p }) {
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {steps.map((s, i) => (
           <div key={i} className="rounded-2xl border border-surface-200 p-4" style={{ borderTopWidth: 3, borderTopColor: p.accent }}>
-            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: p.accent }}>
+            <p className="flex items-center gap-1.5 text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: p.accent }}>
               <s.icon size={13} /> {`0${i + 1}`} {s.label}
             </p>
             <p className="mt-2 text-[12.5px] leading-[1.6] text-bluewood-600">{s.text || <span className="text-bluewood-300">편집에서 채워보세요</span>}</p>
@@ -201,7 +201,7 @@ function DesignerHero({ p }) {
       <div className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full opacity-[0.08] blur-3xl" style={{ backgroundColor: p.accent }} />
       <div className="pointer-events-none absolute -bottom-24 -right-10 h-64 w-64 rounded-full opacity-[0.06] blur-3xl" style={{ backgroundColor: p.accent }} />
       <div className="relative">
-        <p className="text-[11px] font-black uppercase tracking-[0.3em]" style={{ color: p.accent }}>{p.jobLabel} · CASE STUDY</p>
+        <p className="text-[12px] font-black uppercase tracking-[0.3em]" style={{ color: p.accent }}>{p.jobLabel} · CASE STUDY</p>
         <h1 className="mx-auto mt-4 max-w-3xl text-[34px] sm:text-[48px] font-black leading-[1.06] tracking-tight text-bluewood-900">{p.title}</h1>
         {p.headline && <p className="mx-auto mt-4 max-w-xl text-[14.5px] leading-relaxed text-bluewood-500">{p.headline}</p>}
         <div className="mt-5 flex justify-center"><Chips chips={p.chips} link={p.link} isGithubLink={p.isGithubLink} /></div>
@@ -227,7 +227,7 @@ function AimlHero({ p }) {
   return (
     <header className="rounded-3xl p-[1.5px]" style={{ background: `linear-gradient(120deg, ${p.accent}, ${tint(p.accent, 0.5)}, ${p.accent})` }}>
       <div className="rounded-[22px] bg-white p-7 sm:p-9">
-        <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider" style={{ color: p.accent }}>
+        <div className="flex items-center gap-2 font-mono text-[12px] font-bold uppercase tracking-wider" style={{ color: p.accent }}>
           <span className="rounded px-2 py-0.5" style={{ backgroundColor: tint(p.accent, 0.92) }}>MODEL CARD</span>
           <span className="text-bluewood-300">{p.jobLabel}</span>
         </div>
@@ -257,7 +257,7 @@ function DevopsHero({ p }) {
     <header className="overflow-hidden rounded-3xl bg-[#0e1626] text-white">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3">
         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint(p.accent, 0.45) }} />
-        <span className="font-mono text-[11px] text-white/40">~/{p.jobLabel} — {p.title.slice(0, 24)}</span>
+        <span className="font-mono text-[12px] text-white/40">~/{p.jobLabel} — {p.title.slice(0, 24)}</span>
       </div>
       <div className="p-7 sm:p-9">
         <p className="font-mono text-[12px]" style={{ color: tint(p.accent, 0.5) }}>$ cat INFRA_PORTFOLIO.md</p>
@@ -278,7 +278,7 @@ function DevopsHero({ p }) {
         )}
         {p.techList.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {p.techList.slice(0, 8).map((t, i) => <span key={i} className="font-mono text-[11px] text-white/50">#{t}</span>)}
+            {p.techList.slice(0, 8).map((t, i) => <span key={i} className="font-mono text-[12px] text-white/50">#{t}</span>)}
           </div>
         )}
       </div>

@@ -133,7 +133,7 @@ export default function AdminAiUsage({ cred, onAuthError }) {
       </div>
 
       {/* 정렬 + 상세 테이블 */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
         <span className="shrink-0 text-xs font-bold text-bluewood-400">정렬</span>
         {SORTS.map(item => (
           <button
@@ -216,14 +216,14 @@ export default function AdminAiUsage({ cred, onAuthError }) {
                 <tr key={o.operation} className="hover:bg-surface-50">
                   <td className="px-4 py-3">
                     <p className="font-bold text-bluewood-800">{o.label}</p>
-                    <p className="mt-0.5 truncate text-[11px] font-medium text-bluewood-300" title={o.operation}>{o.operation}</p>
-                    {o.lastUsed && <p className="text-[11px] text-bluewood-300">최근 {formatDate(o.lastUsed)}</p>}
+                    <p className="mt-0.5 truncate text-[12px] font-medium text-bluewood-300" title={o.operation}>{o.operation}</p>
+                    {o.lastUsed && <p className="text-[12px] text-bluewood-300">최근 {formatDate(o.lastUsed)}</p>}
                   </td>
                   <td className="px-3 py-3 text-right font-bold tabular-nums text-bluewood-700">{fmt(o.count)}</td>
                   <td className="px-3 py-3 text-right font-bold tabular-nums text-primary-600">{fmt(o.avgTokens)}</td>
                   <td className="px-3 py-3 text-right tabular-nums text-bluewood-500">
                     {fmt(o.avgInput)} / {fmt(o.avgOutput)}
-                    {o.avgThinking > 0 && <span className="block text-[11px] text-bluewood-300">사고 {fmt(o.avgThinking)}</span>}
+                    {o.avgThinking > 0 && <span className="block text-[12px] text-bluewood-300">사고 {fmt(o.avgThinking)}</span>}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-bluewood-500">
                     {fmt(o.minTokens)} ~ {fmt(o.maxTokens)}
@@ -233,13 +233,13 @@ export default function AdminAiUsage({ cred, onAuthError }) {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {o.models.length === 0 ? (
-                        <span className="text-[11px] text-bluewood-300">-</span>
+                        <span className="text-[12px] text-bluewood-300">-</span>
                       ) : o.models.map(m => (
-                        <span key={m} className="rounded bg-surface-100 px-1.5 py-0.5 text-[10px] font-semibold text-bluewood-500">{m}</span>
+                        <span key={m} className="rounded bg-surface-100 px-1.5 py-0.5 text-[11.5px] font-semibold text-bluewood-500">{m}</span>
                       ))}
                     </div>
                     {o.estimatedCount > 0 && (
-                      <p className="mt-1 text-[11px] text-amber-500">추정 {o.estimatedCount}회</p>
+                      <p className="mt-1 text-[12px] text-amber-500">추정 {o.estimatedCount}회</p>
                     )}
                   </td>
                 </tr>
@@ -248,7 +248,7 @@ export default function AdminAiUsage({ cred, onAuthError }) {
           </table>
         </div>
       )}
-      <p className="text-[11px] font-medium text-bluewood-300">
+      <p className="text-[12px] font-medium text-bluewood-300">
         ※ 토큰·비용은 usage 거래 로그 기준입니다. "추정"은 실제 토큰 수가 기록되지 않아 추정 차감된 호출이며 토큰 평균에서 제외됩니다.
       </p>
     </div>

@@ -3,6 +3,7 @@ import { X, Loader2, Copy, Download, FileText, FileDown, ScrollText, Globe, Link
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { trackExport } from '../services/outcomeMetrics';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 const FORMATS = [
   {
@@ -45,8 +46,11 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const [templateFile, setTemplateFile] = useState(null);
   const [resumeFileType, setResumeFileType] = useState('pdf');
   const fileRef = useRef(null);
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
 
-  const step = result ? 2 : 1;
+  // 0단계(형식 미선택) → 1단계(선택) → 2단계(완료).
+  // 예전엔 아무것도 안 했는데 "1/2 완료"로 표시돼 이미 절반 진행된 것처럼 보였다.
+  const step = result ? 2 : format ? 1 : 0;
 
   const buildExportData = () => {
     if (type === 'portfolio') {
@@ -79,8 +83,25 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
     trackExport({ format, templateId: data?.templateType || data?.templateId, jobCategory: data?.jobCategory });
 
     if (format === 'Link') {
-      if (data.id) setResult(`https://fitpoly.kr/p/${data.id}`);
-      else toast.error('공유 링크를 생성할 수 없습니다');
+      if (!data.id) { toast.error('공유 링크를 생성할 수 없습니다'); return; }
+
+      // 안내문("공개로 설정됩니다")대로 실제 공개 처리까지 끝낸다.
+      // 예전엔 링크 문자열만 만들고 공개는 별도 토글에 맡겨서,
+      // 사용자가 링크를 보내도 상대방이 열지 못하는 상태였다.
+      if (!isPublic && onTogglePublic) {
+        setExporting(true);
+        try {
+          await onTogglePublic(true);
+          setIsPublic(true);
+        } catch {
+          setExporting(false);
+          toast.error('링크 공개 설정에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          return;
+        }
+        setExporting(false);
+      }
+
+      setResult(`${window.location.origin}/p/${data.id}`);
       return;
     }
 
@@ -173,8 +194,15 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const selectedMeta = FORMATS.find(f => f.key === format);
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[580px] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" {...backdropProps}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="내보내기"
+        tabIndex={-1}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-[580px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden outline-none"
+      >
 
         <div className="px-7 pt-6 pb-5">
           <div className="flex items-start justify-between gap-4">
@@ -188,13 +216,19 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${(step / 2) * 100}%` }} />
                 </div>
-                <span className="text-[14px] text-gray-400 whitespace-nowrap">{step}/2 완료</span>
+                <span className="text-[13px] text-gray-400 whitespace-nowrap">
+                  {step === 0 ? '형식 선택' : step === 1 ? '내보내기 준비' : '완료'}
+                </span>
               </div>
-              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600">
+              <button
+                onClick={onClose}
+                aria-label="내보내기 닫기"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
+              >
                 <X size={17} />
               </button>
             </div>
@@ -208,7 +242,7 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
             <div className="space-y-5">
               <div>
                 <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">내보내기 형식 선택</p>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {FORMATS.map(({ key, label, icon: Icon, desc }) => {
                     const selected = format === key;
                     return (
@@ -420,15 +454,25 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                 취소
               </button>
             )}
+            {/* 완료 화면에서는 모달을 닫는다.
+                예전엔 라벨만 "완료"로 바뀌고 onClick은 그대로 handleExport여서,
+                누르면 파일이 다시 생성·재과금됐다. */}
             <button
-              onClick={handleExport}
-              disabled={!format || exporting || (format === 'PPT' && !templateFile)}
+              onClick={result ? onClose : handleExport}
+              disabled={!result && (!format || exporting || (format === 'PPT' && !templateFile))}
+              title={
+                !result && format === 'PPT' && !templateFile
+                  ? 'PPTX 템플릿 파일을 먼저 업로드해주세요'
+                  : !result && !format
+                    ? '내보내기 형식을 먼저 선택해주세요'
+                    : undefined
+              }
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[15px] font-semibold rounded-xl transition-colors shadow-sm"
             >
               {exporting ? (
                 <><Loader2 size={14} className="animate-spin" /> 처리 중...</>
               ) : result ? (
-                <>완료</>
+                <><Check size={14} /> 완료</>
               ) : (
                 <><Download size={14} /> 내보내기</>
               )}

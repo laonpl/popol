@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { X, MessageSquare, AlertTriangle, Mic, Copy, Check } from 'lucide-react';
 import { buildInterviewPrep } from '../utils/interviewPrep';
+import useModalBehavior from '../hooks/useModalBehavior';
 
 const TABS = [
   { key: 'questions', label: '예상 질문', icon: MessageSquare },
@@ -26,7 +27,7 @@ function CopyButton({ text }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="inline-flex items-center gap-1 rounded-md border border-surface-200 px-2 py-1 text-[11px] font-bold text-bluewood-500 hover:border-primary-300 hover:text-primary-600"
+      className="inline-flex items-center gap-1 rounded-md border border-surface-200 px-2 py-1 text-[12px] font-bold text-bluewood-500 hover:border-primary-300 hover:text-primary-600"
     >
       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? '복사됨' : '복사'}
     </button>
@@ -34,6 +35,7 @@ function CopyButton({ text }) {
 }
 
 export default function InterviewPrepPanel({ exp, onClose }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const prep = useMemo(() => buildInterviewPrep(exp), [exp]);
   const [tab, setTab] = useState('questions');
 
@@ -44,8 +46,8 @@ export default function InterviewPrepPanel({ exp, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/40 p-4" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="면접 준비" tabIndex={-1} className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()}>
 
         <header className="flex items-start justify-between gap-3 border-b border-surface-200 px-6 py-4">
           <div className="min-w-0">
@@ -72,7 +74,7 @@ export default function InterviewPrepPanel({ exp, onClose }) {
               }`}
             >
               <Icon size={12} /> {label}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none ${
+              <span className={`rounded-full px-1.5 py-0.5 text-[11.5px] font-black leading-none ${
                 tab === key ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-400'
               }`}>{counts[key]}</span>
             </button>
@@ -89,7 +91,7 @@ export default function InterviewPrepPanel({ exp, onClose }) {
                     <div key={i} className={`rounded-xl border p-4 ${q.ready ? 'border-surface-200 bg-white' : 'border-amber-200 bg-amber-50/40'}`}>
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-[13.5px] font-extrabold leading-snug text-bluewood-900" style={{ wordBreak: 'keep-all' }}>{q.q}</p>
-                        <span className="shrink-0 rounded-md bg-surface-100 px-2 py-0.5 text-[10.5px] font-bold text-bluewood-400">{q.from}</span>
+                        <span className="shrink-0 rounded-md bg-surface-100 px-2 py-0.5 text-[11.5px] font-bold text-bluewood-400">{q.from}</span>
                       </div>
                       {q.ready ? (
                         <>
@@ -116,7 +118,7 @@ export default function InterviewPrepPanel({ exp, onClose }) {
                     <div key={i} className="rounded-xl border border-red-100 bg-red-50/40 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-[13.5px] font-extrabold leading-snug text-bluewood-900" style={{ wordBreak: 'keep-all' }}>{f.claim}</p>
-                        <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[10.5px] font-bold text-bluewood-400">{f.from}</span>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[11.5px] font-bold text-bluewood-400">{f.from}</span>
                       </div>
                       <p className="mt-2 text-[12.5px] font-semibold text-red-700">{f.reason}</p>
                       <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-600">→ {f.fix}</p>

@@ -15,6 +15,7 @@ import billingRoutes from './routes/billing.js';
 import feedbackRoutes from './routes/feedback.js';
 import adminRoutes from './routes/admin.js';
 import logsRoutes from './routes/logs.js';
+import analyticsRoutes from './routes/analytics.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
@@ -135,6 +136,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {

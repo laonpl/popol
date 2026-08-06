@@ -168,7 +168,7 @@ function BlockEditor({ block, pv, onChange, accent }) {
       </div>
       <div className="p-4">
         {rows.length > 0 && (
-          <div className="mb-1 flex items-center gap-2 px-1 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">
+          <div className="mb-1 flex items-center gap-2 px-1 text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">
             {def.cols.map(c => <span key={c.key} className={c.w}>{c.label}</span>)}
             <span className="w-7" />
           </div>

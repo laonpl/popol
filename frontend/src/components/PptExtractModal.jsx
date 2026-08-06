@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 // 슬라이드를 새로 구성해 PPTX로 다운로드한다. 답변은 백엔드 resolveComposition({qa})가
 // composer 옵션(structure/design/cover/tone/accentHex/emphasis…)으로 번역한다.
 
+import useModalBehavior from '../hooks/useModalBehavior';
 const Q_AUDIENCE = [
   { id: 'campus',    label: '교내·공모전',   desc: '대학·창업 프로그램, 경진대회' },
   { id: 'corporate', label: '기업 면접·채용', desc: '채용 담당자·면접관 대상' },
@@ -67,6 +68,7 @@ function ChoiceGrid({ options, value, onPick, cols = 2 }) {
 }
 
 export default function PptExtractModal({ portfolio, onClose }) {
+  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
   const [step, setStep] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
   const [audience, setAudience] = useState('');
@@ -141,8 +143,8 @@ export default function PptExtractModal({ portfolio, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[560px] max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" {...backdropProps}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="PPT 추출" tabIndex={-1} className="bg-white rounded-2xl shadow-2xl w-full max-w-[560px] max-h-[92vh] flex flex-col overflow-hidden">
 
         <div className="px-7 pt-6 pb-5">
           <div className="flex items-start justify-between gap-4">
@@ -229,7 +231,7 @@ export default function PptExtractModal({ portfolio, onClose }) {
                       />
                       <div className="flex-1">
                         <p className="text-[12.5px] font-semibold text-gray-700">브랜드 포인트 컬러</p>
-                        <p className="text-[11px] text-gray-400">{brandHex.toUpperCase()} — 헤더·강조·차트에 사용됩니다</p>
+                        <p className="text-[12px] text-gray-400">{brandHex.toUpperCase()} — 헤더·강조·차트에 사용됩니다</p>
                       </div>
                     </div>
                   )}

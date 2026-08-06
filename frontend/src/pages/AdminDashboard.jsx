@@ -39,7 +39,7 @@ function GoalBar({ label, value, goal, unit = '%', lowerBetter = false, hint }) 
     <div className="rounded-lg border border-surface-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline justify-between">
         <p className="text-xs font-bold text-bluewood-500">{label}</p>
-        <span className="text-[11px] font-bold" style={{ color }}>{achieved ? '달성' : near ? '근접' : '미달'}</span>
+        <span className="text-[12px] font-bold" style={{ color }}>{achieved ? '달성' : near ? '근접' : '미달'}</span>
       </div>
       <p className="mt-1 text-xl font-extrabold tabular-nums text-bluewood-900">
         {value}{unit}
@@ -48,7 +48,7 @@ function GoalBar({ label, value, goal, unit = '%', lowerBetter = false, hint }) 
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-100">
         <div className="h-full rounded-full transition-all" style={{ width: `${ratio}%`, backgroundColor: color }} />
       </div>
-      {hint && <p className="mt-1.5 text-[11px] font-medium text-bluewood-300">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[12px] font-medium text-bluewood-300">{hint}</p>}
     </div>
   );
 }
@@ -80,7 +80,7 @@ function ChartCard({ title, desc, children, height = 240 }) {
 function SectionTitle({ tag, children }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary-600">{tag}</span>
+      <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[12px] font-bold uppercase tracking-wide text-primary-600">{tag}</span>
       <h2 className="text-base font-extrabold text-bluewood-900">{children}</h2>
     </div>
   );
@@ -207,6 +207,17 @@ export default function AdminDashboard({ cred, onAuthError }) {
               <YAxis type="category" dataKey="step" width={72} tick={{ fontSize: 11, fill: '#475569' }} tickLine={false} axisLine={false} />
               <Tooltip {...tooltipStyle} formatter={(v, n, p) => [`${v}명 (${p.payload.rate}%)`, '회원']} />
               <Bar dataKey="users" fill={C.primary} radius={[0, 6, 6, 0]}>
+                <LabelList dataKey="rate" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+              </Bar>
+            </BarChart>
+          </ChartCard>
+          <ChartCard title="3~4개 검증 경험 퍼널" desc={`경험 생성자가 실제 검증 묶음과 플랜까지 도달한 순서 · 기존 확인 대기 ${data.activation.legacyNeedsConfirmation || 0}건`} height={260}>
+            <BarChart data={data.activation.experienceBundleFunnel || []} layout="vertical" margin={{ top: 5, right: 40, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.grid} horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: C.axis }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="step" width={72} tick={{ fontSize: 11, fill: '#475569' }} tickLine={false} axisLine={false} />
+              <Tooltip {...tooltipStyle} formatter={(v, n, p) => [`${v}명 (${p.payload.rate}%)`, '사용자']} />
+              <Bar dataKey="users" fill={C.blue} radius={[0, 6, 6, 0]}>
                 <LabelList dataKey="rate" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
               </Bar>
             </BarChart>
@@ -360,7 +371,7 @@ export default function AdminDashboard({ cred, onAuthError }) {
           <Stat label="누적 사용" value={fmt(data.credits.totalUsed)} />
           <Stat label="누적 탈퇴 / 이탈율" value={`${data.churn.deletedTotal}명`} sub={`이탈율 ${data.churn.churnRate}% · 오늘 ${data.churn.deletedToday}명`} />
         </div>
-        <p className="flex items-center gap-1.5 text-[11px] font-medium text-bluewood-300">
+        <p className="flex items-center gap-1.5 text-[12px] font-medium text-bluewood-300">
           <TrendingUp size={13} /> AI 원가·마진은 거래 usdCost 합계와 가정 환율·수수료로 산출한 러프 추정입니다.
         </p>
       </section>

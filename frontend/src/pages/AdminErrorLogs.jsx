@@ -18,7 +18,7 @@ function SourceBadge({ source, path }) {
   const isServer = source === 'server';
   const label = isServer ? '서버' : (path === 'window' ? '브라우저' : path === 'promise' ? 'Promise' : path === 'api' ? 'API' : '클라이언트');
   return (
-    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ${isServer ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'}`}>
+    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[12px] font-bold ${isServer ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'}`}>
       {label}
     </span>
   );
@@ -31,13 +31,13 @@ function LogRow({ log }) {
       <button type="button" onClick={() => setOpen(o => !o)} className="flex w-full items-start gap-3 text-left">
         <SourceBadge source={log.source} path={log.path} />
         {log.status != null && (
-          <span className="shrink-0 rounded-md bg-surface-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-bluewood-500">
+          <span className="shrink-0 rounded-md bg-surface-100 px-2 py-0.5 text-[12px] font-bold tabular-nums text-bluewood-500">
             {log.status}
           </span>
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-bluewood-800">{log.message}</p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] font-medium text-bluewood-300">
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] font-medium text-bluewood-300">
             <span>{formatDate(log.createdAt)}</span>
             {log.method && <span>· {log.method} {log.path}</span>}
             {log.userEmail && <span>· {log.userEmail}</span>}
@@ -57,7 +57,7 @@ function LogRow({ log }) {
             </p>
           )}
           {log.stack ? (
-            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-bluewood-900/95 p-3 text-[11px] leading-5 text-emerald-200">
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-bluewood-900/95 p-3 text-[12px] leading-5 text-emerald-200">
               {log.stack}
             </pre>
           ) : (

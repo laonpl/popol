@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/prerender.mjs",
+    "test:activation": "node --test src/utils/experienceReadiness.test.js",
     "check:jobs": "node ../scripts/check-job-sync.mjs",
     "preview": "vite preview"
   },

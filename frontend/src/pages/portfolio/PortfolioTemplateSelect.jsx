@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import VisualPortfolioRenderer from './VisualPortfolioTemplates';
 import WebPortfolioRenderer, { WEB_SAMPLE_PORTFOLIO } from './WebPortfolioTemplates';
 import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X } from 'lucide-react';
@@ -10,6 +10,7 @@ import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 import ProfileBoostStep, { hasEmptyProfileFields } from './ProfileBoostStep';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { trackActivation } from '../../services/activationMetrics';
 import useExperienceStore from '../../stores/experienceStore';
 
 const TEMPLATE_CATEGORIES = [
@@ -918,7 +919,7 @@ function TimelineFullPreview() {
       {/* Content body */}
       <div className="bg-white rounded-b-xl border border-t-0 border-gray-200">
         {/* Semester tabs */}
-        <div className="px-8 py-4 border-b border-gray-100 flex gap-2 overflow-x-auto">
+        <div className="px-8 py-4 border-b border-gray-100 flex gap-2 overflow-x-auto scrollbar-none">
           {semesters.map((s, i) => (
             <span key={s.id} className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap ${i === 2 ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>{s.label}</span>
           ))}
@@ -995,12 +996,16 @@ function TimelineFullPreview() {
 
 export default function PortfolioTemplateSelect() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const portfolioPlan = location.state?.portfolioPlan || (() => {
+    try { return JSON.parse(sessionStorage.getItem('fitpoly-pending-portfolio-plan') || 'null'); } catch { return null; }
+  })();
   const { user, profile } = useAuthStore();
   const { createPortfolio } = usePortfolioStore();
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(portfolioPlan ? 'notion' : null);
   const [creating, setCreating] = useState(false);
   // 순서: 기업 공고 연결(joblink) → 템플릿 선택(template) → 빈 섹션 채우기(boost 모달)
-  const [step, setStep] = useState('joblink');
+  const [step, setStep] = useState(portfolioPlan ? 'template' : 'joblink');
   const [jobAnalysis, setJobAnalysis] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -1107,14 +1112,17 @@ export default function PortfolioTemplateSelect() {
         location: srcProfile?.location || '',
         birthDate: srcProfile?.birthDate || '',
         // 에디터 최초 진입 시 경험을 1회 자동 채운다.
-        // 3단계를 거쳤으면 거기서 고른 것만 채우고, 하나도 안 골랐으면 자동 채움을 끈다.
-        experienceIds: selectedExpIds,
-        pendingAutofill: step === 'boost' ? selectedExpIds.length > 0 : true,
+        // 플랜에서 고른 경험을 우선하고, 일반 생성 흐름에서는 3단계의 수동·추천 선택을 사용한다.
+        experienceIds: portfolioPlan?.selectedExperienceIds || selectedExpIds,
+        pendingAutofill: portfolioPlan
+          ? (portfolioPlan.selectedExperienceIds?.length || 0) > 0
+          : step === 'boost' ? selectedExpIds.length > 0 : true,
+        portfolioPlan: portfolioPlan || undefined,
       };
 
       // 학력 자동 매칭
       if (srcProfile?.education?.length > 0) {
-        data.education = profile.education.map(e => ({
+        data.education = srcProfile.education.map(e => ({
           name: e.school,
           nameEn: '',
           period: e.period,
@@ -1128,8 +1136,21 @@ export default function PortfolioTemplateSelect() {
         data.targetPosition = finalAnalysis.position || '';
         data.jobAnalysis = finalAnalysis;
       }
+      if (portfolioPlan) {
+        data.targetCompany = portfolioPlan.targetCompany || data.targetCompany || '';
+        data.targetPosition = portfolioPlan.targetRole || data.targetPosition || '';
+      }
 
       const id = await createPortfolio(user.uid, data);
+      sessionStorage.removeItem('fitpoly-pending-portfolio-plan');
+      if (portfolioPlan) {
+        trackActivation('portfolio_generated_from_plan', {
+          portfolioId: id,
+          templateId: template.id,
+          experienceCountSelected: portfolioPlan.selectedExperienceIds?.length || 0,
+          readinessStatus: portfolioPlan.readinessStatus || 'collecting',
+        });
+      }
 
       // 웹사이트형 템플릿은 전용 에디터로
       navigate(template.isWeb ? `/app/portfolio/web-edit/${id}` : `/app/portfolio/edit-notion/${id}`);
@@ -1146,20 +1167,27 @@ export default function PortfolioTemplateSelect() {
         <ArrowLeft size={14} /> 포트폴리오 목록으로
       </Link>
 
+      {portfolioPlan && (
+        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <p className="text-[14px] font-bold text-emerald-800">경험 {portfolioPlan.selectedExperienceIds?.length || 0}개로 만든 포트폴리오 플랜을 적용합니다.</p>
+          <p className="mt-1 text-[12.5px] text-emerald-700">콘텐츠 구성이 먼저 준비되어 있어 기본 템플릿을 추천해두었습니다. 원하면 다른 디자인으로 바꿀 수 있어요.</p>
+        </div>
+      )}
+
       {/* 스텝 인디케이터 */}
       <div className="flex items-center gap-2 mb-8">
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'joblink' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
+          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
           기업 공고 연결 (선택)
         </div>
         <ArrowRight size={13} className="text-bluewood-200" />
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'template' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
+          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
           템플릿 선택
         </div>
         <ArrowRight size={13} className="text-bluewood-200" />
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'boost' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'boost' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>3</span>
+          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'boost' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>3</span>
           빈 섹션 채우기 (선택)
         </div>
       </div>
@@ -1254,7 +1282,7 @@ export default function PortfolioTemplateSelect() {
                     <p className="text-[13px] text-bluewood-400 mb-3 leading-relaxed line-clamp-2">{template.description}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {template.tags.map(tag => (
-                        <span key={tag} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                        <span key={tag} className={`px-2 py-0.5 rounded-md text-[12px] font-semibold border ${
                           isSelected
                             ? 'bg-primary-100 text-primary-600 border-primary-200'
                             : 'bg-surface-50 text-bluewood-500 border-surface-200'
@@ -1341,7 +1369,7 @@ export default function PortfolioTemplateSelect() {
       {/* 템플릿 미리보기 모달 */}
       {previewTemplate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setPreviewTemplate(null)}
         >
           <div

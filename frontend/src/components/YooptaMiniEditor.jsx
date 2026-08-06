@@ -846,11 +846,11 @@ function useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange) {
         <>
           <div className="fixed z-[400] pointer-events-none flex items-start justify-center overflow-hidden" style={{ top: zones.top, left: zones.left, width: zones.width, height: BLOCK_DRAG_SCROLL_BAND }}>
             <div className="absolute inset-0 bg-gradient-to-b from-primary-500/20 to-transparent" />
-            <div className="mt-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[11px] font-bold text-white shadow-lg">▲ 위로 스크롤</div>
+            <div className="mt-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[12px] font-bold text-white shadow-lg">▲ 위로 스크롤</div>
           </div>
           <div className="fixed z-[400] pointer-events-none flex items-end justify-center overflow-hidden" style={{ top: zones.bottom - BLOCK_DRAG_SCROLL_BAND, left: zones.left, width: zones.width, height: BLOCK_DRAG_SCROLL_BAND }}>
             <div className="absolute inset-0 bg-gradient-to-t from-primary-500/20 to-transparent" />
-            <div className="mb-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[11px] font-bold text-white shadow-lg">▼ 아래로 스크롤</div>
+            <div className="mb-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[12px] font-bold text-white shadow-lg">▼ 아래로 스크롤</div>
           </div>
         </>
       )}

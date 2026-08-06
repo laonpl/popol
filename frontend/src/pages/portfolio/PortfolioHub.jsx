@@ -7,6 +7,9 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import PortfolioReadinessBoard from '../../components/PortfolioReadinessBoard';
+import useExperienceStore from '../../stores/experienceStore';
 import api from '../../services/api';
 
 
@@ -112,11 +115,13 @@ function DoodleBackground({ templateType }) {
 
 export default function PortfolioHub() {
   const { user } = useAuthStore();
+  // updatePortfolio는 내보내기 모달의 "링크 공개" 토글에서 쓰인다.
+  // (예전엔 여기서 구조 분해를 빠뜨려 토글 시 ReferenceError로 공개 설정이 불가능했다)
   const { isGuest, requireAuth } = useAuthGate();
-  const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, loading, loadError } = usePortfolioStore();
+  const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, updatePortfolio, loading, loadError } = usePortfolioStore();
+  const { experiences, fetchExperiences } = useExperienceStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
@@ -124,10 +129,14 @@ export default function PortfolioHub() {
   const [sortMode, setSortMode] = useState('recent');
   const [exportConfig, setExportConfig] = useState(location.state?.exportConfig || null);
   const [sortDropOpen, setSortDropOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);   // 삭제 확인 대기 중인 포트폴리오
   const sortDropRef = useRef(null);
 
   useEffect(() => {
-    if (user?.uid) fetchPortfolios(user.uid);
+    if (user?.uid) {
+      fetchPortfolios(user.uid);
+      fetchExperiences(user.uid);
+    }
   }, [user?.uid]);
 
   useEffect(() => {
@@ -138,21 +147,7 @@ export default function PortfolioHub() {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const handleCreate = async () => {
-    setCreating(true);
-    try {
-      const id = await createPortfolio(user.uid, {
-        title: '새 포트폴리오',
-        userName: user.displayName || '',
-      });
-      // 경험 내보내기 중이면 새 포트폴리오에도 경험을 함께 전달해 자동 추가되게 한다.
-      if (exportConfig) navigate(`/app/portfolio/edit-notion/${id}`, { state: { exportConfig } });
-      else navigate(`/app/portfolio/edit-notion/${id}`);
-    } catch (error) {
-      console.error(error);
-    }
-    setCreating(false);
-  };
+  const handleCreate = () => navigate('/app/portfolio/plan');
 
   const handleImport = async ({ imported, structured }) => {
     try {
@@ -220,10 +215,18 @@ export default function PortfolioHub() {
           <button
             type="button"
             onClick={() => requireAuth(() => navigate('/app/portfolio/new'))}
+            className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+          >
+            <Plus size={16} />
+            빠르게 만들기
+          </button>
+          <button
+            type="button"
+            onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} />
-            새 포트폴리오
+            포트폴리오 플랜
           </button>
         </div>
       </div>
@@ -257,6 +260,12 @@ export default function PortfolioHub() {
           >
             다시 시도
           </button>
+        </div>
+      )}
+
+      {!isGuest && (
+        <div className="mb-6">
+          <PortfolioReadinessBoard experiences={experiences} compact />
         </div>
       )}
 
@@ -353,11 +362,22 @@ export default function PortfolioHub() {
               onSelect={(p) => { if (exportConfig) navigate(`/app/portfolio/edit-notion/${p.id}`, { state: { exportConfig } }); }}
               onDetail={(p) => setDetailData(p)}
               onExport={(p) => setExportData(p)}
-              onDelete={(p) => { if (confirm('이 포트폴리오를 삭제하시겠습니까?')) deletePortfolio(p.id); }}
+              onDelete={(p) => setPendingDelete(p)}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        tone="danger"
+        title={`"${pendingDelete?.title || '제목 없음'}"을(를) 삭제할까요?`}
+        message="포트폴리오에 담긴 내용과 설정이 모두 사라지고, 되돌릴 수 없어요. 공유한 링크도 열리지 않게 됩니다."
+        confirmLabel="삭제"
+        cancelLabel="그대로 두기"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => { deletePortfolio(pendingDelete.id); setPendingDelete(null); }}
+      />
 
       {showImport && (
         <ImportModal
@@ -399,7 +419,8 @@ function getDotColor(key) {
 }
 
 function PositionGroup({ positionKey, items, isLast, exportMode, onSelect, onDetail, onExport, onDelete }) {
-  const [open, setOpen] = useState(false);
+  // 기본 펼침 — 예전엔 접힌 상태로 시작해 포트폴리오가 있어도 목록이 비어 보였다.
+  const [open, setOpen] = useState(true);
   const dotColor = getDotColor(positionKey);
   const previews = items.slice(0, 3);
 
@@ -433,7 +454,7 @@ function PositionGroup({ positionKey, items, isLast, exportMode, onSelect, onDet
             </div>
           ))}
           {items.length > 3 && (
-            <div className="w-6 h-6 rounded-full border border-white bg-surface-200 flex items-center justify-center text-[11px] font-bold text-gray-500 flex-shrink-0">
+            <div className="w-6 h-6 rounded-full border border-white bg-surface-200 flex items-center justify-center text-[12px] font-bold text-gray-500 flex-shrink-0">
               +{items.length - 3}
             </div>
           )}
@@ -492,6 +513,7 @@ function CloverIcon() {
 function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, onSelect }) {
   const { id, title, targetCompany, targetPosition, status, templateType, isFavorite } = portfolio;
   const { updatePortfolio } = usePortfolioStore();
+  const navigate = useNavigate();
   const isWebTemplate = typeof templateType === 'string' && templateType.startsWith('web-');
   const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType) || (typeof templateType === 'string' && templateType.startsWith('visual-'));
 
@@ -518,16 +540,32 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
     await updatePortfolio(id, { isFavorite: next });
   };
 
+  // window.location.href는 SPA 전체를 다시 로드해 느리고 상태가 날아간다 → navigate 사용
   const handleOpen = () => {
     if (exportMode) return onSelect();
-    if (isWebTemplate) window.location.href = `/app/portfolio/web-edit/${id}`;
-    else if (isTemplate) window.location.href = `/app/portfolio/preview/${id}`;
+    if (isWebTemplate) navigate(`/app/portfolio/web-edit/${id}`);
+    else if (isTemplate) navigate(`/app/portfolio/preview/${id}`);
     else onDetail();
   };
 
+  // 카드가 무엇을 여는지 미리 알려준다 (같은 모양 카드가 3가지로 갈리던 문제 완화)
+  const openHint = exportMode
+    ? '이 포트폴리오에 추가'
+    : isWebTemplate ? '편집기 열기'
+    : isTemplate ? '미리보기 열기'
+    : '상세 정보 열기';
+
   return (
     <div
-      className="group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
+      role="button"
+      tabIndex={0}
+      aria-label={`${displayTitle} — ${openHint}`}
+      title={openHint}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;   // 내부 버튼의 Enter는 그대로 둔다
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(); }
+      }}
+      className="group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       style={{ aspectRatio: '3/4' }}
       onClick={handleOpen}
     >
@@ -543,7 +581,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
           }}
         />
         <TemplateGlyph layout={tpl.layout} ink={tpl.ink} />
-        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: tpl.ink, opacity: 0.65 }}>
+        <p className="mt-2 text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: tpl.ink, opacity: 0.65 }}>
           {tpl.label}
         </p>
       </div>
@@ -551,7 +589,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
       {/* 하단 정보 영역 */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-10 bg-gradient-to-t from-black/55 to-transparent">
         <span
-          className="mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-wide"
+          className="mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[11.5px] font-black tracking-wide"
           style={{ backgroundColor: 'rgba(255,255,255,0.16)', color: tpl.ink }}
         >
           {tpl.label}
@@ -563,7 +601,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
       {/* 상태 뱃지 (좌상단) */}
       <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-black/20 backdrop-blur-sm rounded-full">
         <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-        <span className="text-white/80 text-[11px] font-medium">{s.label}</span>
+        <span className="text-white/80 text-[12px] font-medium">{s.label}</span>
       </div>
 
       {/* 즐겨찾기 버튼 (우상단) */}
@@ -574,34 +612,67 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
         <Star size={14} className={favorited ? 'fill-amber-300 text-amber-300' : 'text-white/60'} />
       </button>
 
-      {/* 호버 오버레이: 액션 버튼 */}
+      {/* ── 액션 ──
+          예전엔 group-hover 로만 나타나서 터치 기기·키보드에서 편집/내보내기/삭제에
+          접근할 방법이 아예 없었다. 이제:
+          - 마우스가 있는 환경: 기존처럼 호버 시 오버레이
+          - 터치/키보드: 항상 보이는 아이콘 바 (hover 불가 환경은 CSS 미디어쿼리로 판별)
+          - 카드 내부 포커스 시에도 오버레이 표시(group-focus-within) */}
       {!exportMode ? (
-        <div className="absolute inset-0 bg-primary-900/75 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-200">
-          <Link
-            to={`/app/portfolio/edit-notion/${id}`}
-            onClick={e => e.stopPropagation()}
-            className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-white/30 transition-colors text-white"
-          >
-            <Edit size={17} />
-            <span className="text-[11px] font-semibold">편집</span>
-          </Link>
-          <button
-            onClick={e => { e.stopPropagation(); onExport(); }}
-            className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-white/30 transition-colors text-white"
-          >
-            <Download size={17} />
-            <span className="text-[11px] font-semibold">내보내기</span>
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-red-500/60 transition-colors text-white"
-          >
-            <Trash2 size={17} />
-            <span className="text-[11px] font-semibold">삭제</span>
-          </button>
-        </div>
+        <>
+          <div className="pointer-events-none absolute inset-0 bg-primary-900/75 flex items-center justify-center gap-3 opacity-0 transition-all duration-200 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+            <Link
+              to={`/app/portfolio/edit-notion/${id}`}
+              onClick={e => e.stopPropagation()}
+              className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-white/30 transition-colors text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <Edit size={17} />
+              <span className="text-[12px] font-semibold">편집</span>
+            </Link>
+            <button
+              onClick={e => { e.stopPropagation(); onExport(); }}
+              className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-white/30 transition-colors text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <Download size={17} />
+              <span className="text-[12px] font-semibold">내보내기</span>
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+              className="flex flex-col items-center gap-1.5 px-4 py-3 bg-white/15 rounded-xl hover:bg-red-500/60 transition-colors text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <Trash2 size={17} />
+              <span className="text-[12px] font-semibold">삭제</span>
+            </button>
+          </div>
+
+          {/* 호버가 불가능한 환경(터치)에서 늘 보이는 액션 바 */}
+          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 [@media(hover:hover)]:hidden">
+            <Link
+              to={`/app/portfolio/edit-notion/${id}`}
+              onClick={e => e.stopPropagation()}
+              aria-label="편집"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/45 text-white backdrop-blur-sm active:bg-black/65"
+            >
+              <Edit size={15} />
+            </Link>
+            <button
+              onClick={e => { e.stopPropagation(); onExport(); }}
+              aria-label="내보내기"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/45 text-white backdrop-blur-sm active:bg-black/65"
+            >
+              <Download size={15} />
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+              aria-label="삭제"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/45 text-white backdrop-blur-sm active:bg-red-500/70"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        </>
       ) : (
-        <div className="absolute inset-0 bg-primary-900/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+        <div className="pointer-events-none absolute inset-0 bg-primary-900/60 flex items-center justify-center opacity-0 transition-all duration-200 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
           <span className="px-5 py-2.5 bg-white text-primary-600 font-bold text-[14px] rounded-full shadow">추가</span>
         </div>
       )}

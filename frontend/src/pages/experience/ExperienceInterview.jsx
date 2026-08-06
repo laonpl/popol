@@ -219,7 +219,7 @@ export default function ExperienceInterview() {
         analysisMode: 'draft',
       });
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
-      navigate(`/app/experience/result/${experienceId}`, {
+      navigate(`/app/experience/complete/${experienceId}`, {
         state: {
           analysis,
           title: title.trim(),
@@ -399,7 +399,7 @@ export default function ExperienceInterview() {
             {questions.slice(0, current).map((q, i) => (
               <div key={i} className="space-y-2 opacity-70">
                 <div className="flex gap-2.5">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-50 text-primary-600 text-[10px] font-black flex items-center justify-center mt-0.5">AI</span>
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-50 text-primary-600 text-[11.5px] font-black flex items-center justify-center mt-0.5">AI</span>
                   <p className="text-[13.5px] text-bluewood-600 leading-relaxed pt-1">{q}</p>
                 </div>
                 <div className="flex justify-end">
@@ -412,7 +412,7 @@ export default function ExperienceInterview() {
 
             {/* 현재 질문 */}
             <div className="flex gap-2.5">
-              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5">AI</span>
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-600 text-white text-[11.5px] font-black flex items-center justify-center mt-0.5">AI</span>
               <p className="text-[15px] font-semibold text-bluewood-900 leading-relaxed pt-0.5">{questions[current]}</p>
             </div>
           </div>
@@ -497,9 +497,9 @@ export default function ExperienceInterview() {
               return (
                 <div key={i}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-50 text-primary-600 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-50 text-primary-600 text-[11.5px] font-black flex items-center justify-center">{i + 1}</span>
                     <p className="flex-1 text-[13.5px] font-semibold text-bluewood-700 leading-snug" style={{ wordBreak: 'keep-all' }}>{q}</p>
-                    {empty && <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-surface-50 border border-surface-200 text-[11px] font-bold text-bluewood-400">확인 필요</span>}
+                    {empty && <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-surface-50 border border-surface-200 text-[12px] font-bold text-bluewood-400">확인 필요</span>}
                   </div>
                   <textarea
                     value={answers[i] || ''}

@@ -76,7 +76,7 @@ export function CodeSnippet({ file, code, lead, explanation }) {
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#27c93f' }} />
-            {file && <span className="ml-1.5 truncate font-mono text-[11px] text-[#8b949e]">{file}</span>}
+            {file && <span className="ml-1.5 truncate font-mono text-[12px] text-[#8b949e]">{file}</span>}
             <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
               {ext && !isDiff && <span className="rounded border border-[#30363d] px-1.5 py-px font-mono text-[9.5px] font-semibold text-[#8b949e]">{ext}</span>}
               {isDiff && <span className="rounded px-1.5 py-px font-mono text-[9.5px] font-bold text-[#3fb950]" style={{ backgroundColor: 'rgba(63,185,80,0.15)' }}>DIFF</span>}
@@ -127,7 +127,7 @@ export function GitProjectCard({ exp, index }) {
 
   const Block = ({ label, color, lines }) => (lines.length ? (
     <div>
-      <p className="mb-1 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <p className="mb-1 text-[12px] font-bold" style={{ color }}>{label}</p>
       <ul className="space-y-1">
         {lines.map((l, i) => <li key={i} className="text-[13px] leading-[1.6] text-bluewood-600">• {l}</li>)}
       </ul>
@@ -138,17 +138,17 @@ export function GitProjectCard({ exp, index }) {
     <div className="rounded-2xl border border-surface-200 p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2.5">
-          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT }}>{index + 1}</span>
+          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[11.5px] font-black text-white" style={{ backgroundColor: ACCENT }}>{index + 1}</span>
           <div className="min-w-0">
             <h3 className="text-[15px] font-extrabold leading-snug text-bluewood-900">{clean(exp.project_name) || `프로젝트 ${index + 1}`}</h3>
-            {exp.period && <p className="text-[11px] text-bluewood-400">{clean(exp.period)}</p>}
+            {exp.period && <p className="text-[12px] text-bluewood-400">{clean(exp.period)}</p>}
           </div>
         </div>
       </div>
 
       {tags.length > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-1.5 pl-[30px]">
-          {tags.slice(0, 8).map((t, i) => <span key={i} className="rounded bg-surface-100 px-1.5 py-0.5 text-[10.5px] font-medium text-bluewood-500">#{t}</span>)}
+          {tags.slice(0, 8).map((t, i) => <span key={i} className="rounded bg-surface-100 px-1.5 py-0.5 text-[11.5px] font-medium text-bluewood-500">#{t}</span>)}
         </div>
       )}
 
@@ -158,19 +158,19 @@ export function GitProjectCard({ exp, index }) {
 
         {clean(exp.core_impact) && (
           <div className="rounded-lg border border-caribbean-100 bg-caribbean-50/60 px-3 py-2">
-            <p className="mb-0.5 text-[11px] font-bold text-caribbean-700">성과</p>
+            <p className="mb-0.5 text-[12px] font-bold text-caribbean-700">성과</p>
             <p className="text-[13px] font-semibold leading-[1.6] text-caribbean-800">{clean(exp.core_impact)}</p>
           </div>
         )}
 
         {snippets.length > 0 ? (
           <div>
-            <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
+            <p className="mb-1.5 text-[12px] font-bold text-bluewood-700">코드 변경</p>
             {snippets.map((s, i) => <CodeSnippet key={i} file={s.file} code={s.code} explanation={s.why || s.change} />)}
           </div>
         ) : codeChanges.length > 0 ? (
           <div>
-            <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
+            <p className="mb-1.5 text-[12px] font-bold text-bluewood-700">코드 변경</p>
             <ul className="space-y-1">
               {codeChanges.map((l, i) => <li key={i} className="text-[12.5px] leading-[1.5] text-bluewood-600">• {l}</li>)}
             </ul>
@@ -180,7 +180,7 @@ export function GitProjectCard({ exp, index }) {
         {/* 트러블슈팅 — 코드 + 설명 조합 (없으면 텍스트) */}
         {troubleSnippets.length > 0 ? (
           <div>
-            <p className="mb-1.5 text-[11px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
+            <p className="mb-1.5 text-[12px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
             {troubleSnippets.map((s, i) => <CodeSnippet key={i} lead={s.issue} file={s.file} code={s.code} explanation={s.solution} />)}
           </div>
         ) : (
@@ -189,7 +189,7 @@ export function GitProjectCard({ exp, index }) {
 
         {learning.length > 0 && (
           <div>
-            <p className="mb-1 text-[11px] font-bold text-bluewood-300">배운 점</p>
+            <p className="mb-1 text-[12px] font-bold text-bluewood-300">배운 점</p>
             <ul className="space-y-1">
               {learning.map((l, i) => <li key={i} className="text-[12.5px] italic leading-[1.55] text-bluewood-400">• {l}</li>)}
             </ul>
@@ -243,14 +243,14 @@ export function ContributionStats({ stats }) {
           <div className="h-2.5 w-full bg-surface-100 rounded-full overflow-hidden">
             <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: ACCENT }} />
           </div>
-          <p className="mt-1.5 text-[10.5px] text-bluewood-300">* GitHub 기여자 통계(기본 브랜치 기준) 기반</p>
+          <p className="mt-1.5 text-[11.5px] text-bluewood-300">* GitHub 기여자 통계(기본 브랜치 기준) 기반</p>
         </div>
       )}
 
       {/* 근거: 활동 기간 + 커밋 유형 분포 */}
       {(stats.activePeriod || (stats.commitTypes || []).length > 0) && (
         <div className="mt-5 border-t border-surface-100 pt-4">
-          <p className="mb-2.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">기여 근거</p>
+          <p className="mb-2.5 text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">기여 근거</p>
           {stats.activePeriod && (
             <p className="mb-2.5 text-[12px] text-bluewood-500">
               활동 기간 <span className="font-semibold text-bluewood-700">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span>
@@ -272,7 +272,7 @@ export function ContributionStats({ stats }) {
       {/* 언어 비율 */}
       {langs.length > 0 && (
         <div className="mt-5">
-          <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">언어 구성</p>
+          <p className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.16em] text-bluewood-300">언어 구성</p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {langs.map((l, i) => (
               <div key={i} style={{ width: `${l.pct}%`, backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} title={`${l.name} ${l.pct}%`} />

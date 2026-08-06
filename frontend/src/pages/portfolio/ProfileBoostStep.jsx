@@ -92,7 +92,7 @@ function SuggestRow({ label, suggestions, items, onAdd }) {
   if (!remaining.length) return null;
   return (
     <div className="mt-2.5">
-      <p className="text-[11px] font-bold text-bluewood-500 mb-1.5">{label}</p>
+      <p className="text-[12px] font-bold text-bluewood-500 mb-1.5">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {remaining.map(s => (
           <button
@@ -116,7 +116,7 @@ function BoostSection({ title, desc, tailored, children }) {
         <span className="w-1 h-4 bg-primary-500 rounded-full shrink-0" />
         <h3 className="font-bold text-[15px] text-bluewood-800">{title}</h3>
         {tailored && (
-          <span className="px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-600 text-[10.5px] font-bold border border-primary-100">맞춤 추천</span>
+          <span className="px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-600 text-[11.5px] font-bold border border-primary-100">맞춤 추천</span>
         )}
       </div>
       {desc && <p className="text-[12px] text-bluewood-400 mb-3 ml-3 leading-relaxed">{desc}</p>}

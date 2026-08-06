@@ -20,6 +20,8 @@ import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import PortfolioReadinessBoard from '../../components/PortfolioReadinessBoard';
 import { stripMd } from '../../utils/textUtils';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
@@ -183,7 +185,7 @@ function TutorialBuildPreview({ status }) {
           const active = currentIndex === index && status !== 'ready';
           return (
             <div key={step.key} className="flex items-center gap-2 text-[13px]">
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold ${
                 done ? 'bg-primary-600 text-white' : active ? 'bg-primary-100 text-primary-700' : 'bg-white text-bluewood-300 border border-surface-200'
               }`}>
                 {done ? <Check size={12} /> : active ? <span className="h-2 w-2 rounded-full bg-primary-600 animate-pulse" /> : index + 1}
@@ -223,6 +225,7 @@ export default function ExperienceHub() {
   const [exportData, setExportData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [tutorialDemoExperience, setTutorialDemoExperience] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);   // 삭제 확인 대기 중인 경험
 
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -406,7 +409,14 @@ export default function ExperienceHub() {
       toast.success('가상 경험을 지웠습니다');
       return;
     }
-    if (!window.confirm(`"${stripMd(exp.title)}" 경험을 삭제하시겠습니까?`)) return;
+    // 브라우저 기본 confirm 대신 브랜드 확인 다이얼로그로 (무엇이 지워지는지 명확히)
+    setPendingDelete(exp);
+  }, []);
+
+  const confirmDeleteExperience = useCallback(async () => {
+    const exp = pendingDelete;
+    if (!exp) return;
+    setPendingDelete(null);
     // Firestore 삭제가 끝난 뒤에만 성공 처리. 실패 시 안내(낙관적 토스트로 삭제된 것처럼 보이는 문제 방지)
     try {
       await deleteExperience(exp.id);
@@ -416,7 +426,7 @@ export default function ExperienceHub() {
       console.error('경험 삭제 실패:', err);
       toast.error('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
-  }, [deleteExperience, selectedId]);
+  }, [deleteExperience, selectedId, pendingDelete]);
 
   /* ── 날짜 미입력 경험에 기간 추가 → 타임라인 자동 편입 ── */
   const handleAddPeriod = useCallback(async (exp, startM, endM) => {
@@ -538,9 +548,11 @@ export default function ExperienceHub() {
 
   const experienceTutorialSteps = useMemo(() => [
     {
-      selector: '[data-tour="experience-new"]',
-      title: '새 경험 추가를 눌러서 작성 화면으로 들어가보세요',
-      body: '이 버튼을 누르면 실제 새 경험 작성 화면으로 이동하고, 다음 화면에서 가상 경험이 만들어지는 과정을 이어서 보여드립니다.',
+      // 이 튜토리얼이 이어서 보여주는 화면은 "자료로 만들기"(TemplateSelect)다.
+      // 따라서 하이라이트도 그 버튼을 가리켜야 배운 대로 다시 찾아갈 수 있다.
+      selector: '[data-tour="experience-import"]',
+      title: '자료로 만들기를 눌러보세요',
+      body: '경험을 만드는 방법은 두 가지예요. 파일·링크 같은 자료가 있다면 "자료로 만들기", 자료 없이 대화하며 정리하려면 "새 경험 추가"를 누르면 됩니다. 지금은 자료로 만드는 흐름을 보여드릴게요.',
       preview: <p>실제 저장이나 AI 호출 없이, 작성 화면 안에서 샘플 경험 생성 흐름을 확인합니다.</p>,
     },
     {
@@ -711,10 +723,10 @@ export default function ExperienceHub() {
         {(compTags.length > 0 || styleTags.length > 0) && (
           <div className="flex flex-wrap gap-1">
             {compTags.slice(0, 3).map((t, i) => (
-              <span key={`c${i}`} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${COMPETENCY_CHIP}`}>{t}</span>
+              <span key={`c${i}`} className={`px-2 py-0.5 rounded-md text-[12px] font-semibold ${COMPETENCY_CHIP}`}>{t}</span>
             ))}
             {styleTags.slice(0, 2).map((t, i) => (
-              <span key={`s${i}`} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${WORKSTYLE_CHIP}`}>{t}</span>
+              <span key={`s${i}`} className={`px-2 py-0.5 rounded-md text-[12px] font-semibold ${WORKSTYLE_CHIP}`}>{t}</span>
             ))}
           </div>
         )}
@@ -754,7 +766,27 @@ export default function ExperienceHub() {
                 : <><span className="text-primary-600 font-bold text-[18px]">{headerSummary.count}</span>{headerSummary.suffix}</>}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          {/* 경험을 만드는 방법은 두 가지다.
+              예전엔 "자료로 만들기"(TemplateSelect) 화면이 튜토리얼에서만 열려서,
+              튜토리얼로 그 화면을 배운 사용자가 실제로는 절대 다시 갈 수 없었다. */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-tour="experience-import"
+              onClick={() => requireAuth(() => {
+                if (tutorialVisible && tutorialCurrentStep === 0) {
+                  dismissTutorial(false);
+                  setTutorialDemoExperience(null);
+                  setTutorialDemoBuildStep('idle');
+                  navigate('/app/experience/new?tutorial=1');
+                  return;
+                }
+                navigate('/app/experience/new');
+              })}
+              className="flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14.5px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            >
+              <FolderOpen size={16} /> 자료로 만들기
+            </button>
             <button
               type="button"
               data-tour="experience-new"
@@ -805,6 +837,11 @@ export default function ExperienceHub() {
             >
               로그인하고 시작하기
             </button>
+          </div>
+        )}
+        {!isGuest && experiences.length > 0 && (
+          <div className="mb-6">
+            <PortfolioReadinessBoard experiences={experiences} />
           </div>
         )}
         {/* 컨트롤 바 */}
@@ -954,12 +991,12 @@ export default function ExperienceHub() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-6 py-3">
-                <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-gray-300">활동 유형</span>
+                <span className="mr-1 text-[11.5px] font-extrabold uppercase tracking-[0.12em] text-gray-300">활동 유형</span>
                 <button
                   type="button"
                   onClick={() => setTimelineCategoryFilter('')}
                   aria-pressed={!timelineCategoryFilter}
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                  className={`rounded-full border px-2.5 py-1 text-[11.5px] font-extrabold transition ${
                     !timelineCategoryFilter
                       ? 'border-primary-300 bg-primary-600 text-white'
                       : 'border-gray-200 bg-white text-gray-400 hover:border-primary-200 hover:text-primary-600'
@@ -976,7 +1013,7 @@ export default function ExperienceHub() {
                       type="button"
                       onClick={() => setTimelineCategoryFilter(active ? '' : category)}
                       aria-pressed={active}
-                      className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                      className={`rounded-full border px-2.5 py-1 text-[11.5px] font-extrabold transition ${
                         active
                           ? 'border-primary-300 bg-primary-50 text-primary-700 ring-2 ring-primary-100'
                           : 'border-gray-200 bg-white text-gray-500 hover:border-primary-200 hover:text-primary-600'
@@ -1041,35 +1078,35 @@ export default function ExperienceHub() {
                                 />
                                 <div className="flex flex-col gap-1.5 mb-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">시작</span>
+                                    <span className="text-[12px] text-gray-400 w-6 flex-shrink-0">시작</span>
                                     <select
                                       value={editStart.split('-')[0] || ''}
                                       onChange={e => setEditStart(prev => updateYearMonth(prev, 'year', e.target.value))}
-                                      className="w-20 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                      className="w-20 text-[12px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
                                     >
                                       {PERIOD_YEAR_OPTIONS.map(year => <option key={year} value={year}>{year}년</option>)}
                                     </select>
                                     <select
                                       value={editStart.split('-')[1] || ''}
                                       onChange={e => setEditStart(prev => updateYearMonth(prev, 'month', e.target.value))}
-                                      className="w-14 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                      className="w-14 text-[12px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
                                     >
                                       {MONTH_VALUES.map(month => <option key={month} value={month}>{Number(month)}월</option>)}
                                     </select>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">종료</span>
+                                    <span className="text-[12px] text-gray-400 w-6 flex-shrink-0">종료</span>
                                     <select
                                       value={editEnd.split('-')[0] || ''}
                                       onChange={e => setEditEnd(prev => updateYearMonth(prev, 'year', e.target.value))}
-                                      className="w-20 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                      className="w-20 text-[12px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
                                     >
                                       {PERIOD_YEAR_OPTIONS.map(year => <option key={year} value={year}>{year}년</option>)}
                                     </select>
                                     <select
                                       value={editEnd.split('-')[1] || ''}
                                       onChange={e => setEditEnd(prev => updateYearMonth(prev, 'month', e.target.value))}
-                                      className="w-14 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                      className="w-14 text-[12px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
                                     >
                                       {MONTH_VALUES.map(month => <option key={month} value={month}>{Number(month)}월</option>)}
                                     </select>
@@ -1114,7 +1151,7 @@ export default function ExperienceHub() {
                                       disabled={categorySavingId === exp.id}
                                       aria-label={`${stripMd(exp.title)} 활동 유형 변경`}
                                       title="클릭해서 활동 유형 변경"
-                                      className={`min-w-0 cursor-pointer appearance-none truncate rounded-md border-0 px-2 py-[3px] text-[10px] font-bold outline-none disabled:cursor-wait disabled:opacity-60 ${theme.chip}`}
+                                      className={`min-w-0 cursor-pointer appearance-none truncate rounded-md border-0 px-2 py-[3px] text-[11.5px] font-bold outline-none disabled:cursor-wait disabled:opacity-60 ${theme.chip}`}
                                     >
                                       <option value="">{UNCATEGORIZED}</option>
                                       {EXPERIENCE_CATEGORIES.map(category => (
@@ -1122,7 +1159,7 @@ export default function ExperienceHub() {
                                       ))}
                                     </select>
                                     <span
-                                      className={`max-w-[45%] shrink-0 truncate rounded-md px-2 py-[3px] text-[10px] font-bold ${theme.chipJob}`}
+                                      className={`max-w-[45%] shrink-0 truncate rounded-md px-2 py-[3px] text-[11.5px] font-bold ${theme.chipJob}`}
                                       title={`직무 · ${readJobCategoryLabel(exp)}`}
                                     >
                                       {readJobCategoryLabel(exp)}
@@ -1209,7 +1246,7 @@ export default function ExperienceHub() {
                 {/* 좌측 폴더 메뉴 */}
                 <aside className="self-start md:sticky md:top-4">
                   <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-2">
-                    <p className="px-3 pt-2 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-300">폴더</p>
+                    <p className="px-3 pt-2 pb-1.5 text-[12px] font-bold uppercase tracking-wider text-gray-300">폴더</p>
                     {folderItems.map(it => {
                       const on = activeFolder === it.key;
                       return (
@@ -1224,7 +1261,7 @@ export default function ExperienceHub() {
                             <span className={`h-3.5 w-1 rounded-full ${on ? 'bg-primary-600' : 'bg-transparent'}`} />
                             <span className="truncate">{it.label}</span>
                           </span>
-                          <span className={`text-[11px] tabular-nums ${on ? 'text-primary-500' : 'text-gray-300'}`}>{it.count}</span>
+                          <span className={`text-[12px] tabular-nums ${on ? 'text-primary-500' : 'text-gray-300'}`}>{it.count}</span>
                         </button>
                       );
                     })}
@@ -1257,6 +1294,17 @@ export default function ExperienceHub() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        tone="danger"
+        title={`"${stripMd(pendingDelete?.title || '제목 없음')}" 경험을 삭제할까요?`}
+        message="정리한 내용과 AI가 만든 구조화 결과가 모두 사라지고, 되돌릴 수 없어요. 이 경험을 담고 있는 포트폴리오에서도 빠집니다."
+        confirmLabel="삭제"
+        cancelLabel="그대로 두기"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDeleteExperience}
+      />
 
       {showImport && (
         <ImportModal targetType="experience" onClose={() => setShowImport(false)} onImport={handleImport} />
@@ -1384,7 +1432,7 @@ function ResumeSectionTitle({ ko, en }) {
   return (
     <div className="mb-4 flex items-baseline gap-2 border-b border-gray-200 pb-2.5">
       <h3 className="text-[16px] font-extrabold tracking-tight text-primary-700">{ko}</h3>
-      {en && <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-300">{en}</span>}
+      {en && <span className="text-[11.5px] font-bold uppercase tracking-[0.18em] text-gray-300">{en}</span>}
     </div>
   );
 }
@@ -2010,7 +2058,7 @@ function ProfileView({ experiences, user, profile }) {
                             className="flex flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 hover:bg-gray-50"
                           >
                             <img src={ic.src} alt={ic.label} className="h-7 w-7 object-contain" />
-                            <span className="w-full truncate text-center text-[9px] text-gray-400">{ic.label}</span>
+                            <span className="w-full truncate text-center text-[10.5px] text-gray-400">{ic.label}</span>
                           </button>
                         ))}
                       </div>
@@ -2404,7 +2452,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
                           {job.requiredCompetencies.map((comp, ci) => (
                             <div key={comp.keyword} className="rounded-xl border border-gray-100 bg-gray-50/70 px-5 py-4">
                               <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-[11px] font-bold text-white">{ci + 1}</span>
+                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-[12px] font-bold text-white">{ci + 1}</span>
                                 <h5 className="text-[15px] font-extrabold text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{comp.keyword}</h5>
                               </div>
                               {comp.whatItMeans?.length > 0 && (
