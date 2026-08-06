@@ -20,6 +20,7 @@ import {
   generateExperienceTags,
 } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
+import { logError } from '../services/errorLogger.js';
 
 const router = Router();
 
@@ -252,8 +253,33 @@ router.post('/extract-product', authMiddleware, requireCredits, aiRateLimiter, a
       console.warn('[extract-product] 다이어그램 추출 실패(무시):', e.message);
       return { architectureDiagram: null, flowDiagram: null };
     });
-    const [product, diagrams] = await Promise.all([extractProduct(material), diagramsPromise]);
-    res.json({ product, architectureDiagram: diagrams.architectureDiagram || null, flowDiagram: diagrams.flowDiagram || null });
+    // product도 best-effort로 취급한다. 이 경로는 전체 초안이 비었을 때의 보강용이고,
+    // 호출부(ExperienceChat)는 실패를 이미 무시한다. 여기서 502를 내면 사용자 화면은
+    // 그대로인데 오류 로그만 쌓였다(2026-08 오류로그). 실패는 warn으로만 남긴다.
+    const productPromise = extractProduct(material).catch((e) => {
+      // 쿼터 초과만은 사용자에게 알려야 하므로 그대로 던져 아래 429 분기를 태운다.
+      const m = e.message || '';
+      if (m.includes('429') || m.includes('quota') || m.includes('RESOURCE_EXHAUSTED') || m.includes('요청 한도')) {
+        throw e;
+      }
+      console.warn('[extract-product] 서비스 설명 추출 실패(폴백 없음):', m);
+      logError({
+        source: 'server',
+        level: 'warn',
+        path: '/experience/extract-product',
+        method: 'POST',
+        message: `서비스 설명 추출 실패: ${e.message}`,
+        userId: req.user?.uid,
+        userEmail: req.user?.email,
+      });
+      return null;
+    });
+    const [product, diagrams] = await Promise.all([productPromise, diagramsPromise]);
+    res.json({
+      product,
+      architectureDiagram: diagrams.architectureDiagram || null,
+      flowDiagram: diagrams.flowDiagram || null,
+    });
   } catch (error) {
     const msg = error.message || '';
     if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {

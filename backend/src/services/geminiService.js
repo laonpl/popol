@@ -943,13 +943,17 @@ ${materialText}
 
 아래 JSON만 출력 (설명·마크다운·코드블록 금지):
 { "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] } }`;
+  // ⚠ 내부 재시도 예산이 바깥 타임아웃보다 크면 안 된다.
+  // (45초 × 2모델 × 2회 = 180초 > 60초였던 탓에 flash 한 번만 느려도 flash-lite 폴백이
+  //  실행되기 전에 60초 타임아웃이 터져 502가 났다. 2026-08 오류로그.)
+  // 모델당 1회 · 20초로 잡아 최악 42초 — 대기열 대기까지 더해도 60초 안에 폴백까지 끝난다.
   const text = await withTimeout(
     generateWithRetry(prompt, {
       models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-      retries: 2,
+      retries: 1,
       delayMs: 1200,
       rateLimitDelayMs: 4000,
-      callTimeoutMs: 45000,
+      callTimeoutMs: 20000,
     }),
     60000,
     'ExtractProduct'
@@ -1993,7 +1997,10 @@ export async function extractMoments(rawText, title) {
 
   try {
     const prompt = buildExtractMomentsPrompt(rawText, title);
-    const text = await callProFirst(prompt, 'ExtractMoments');
+    // 총 소요 시간 상한. callProFirst는 Pro 4회 + Lite 4회 재시도라 상한이 없으면
+    // 수 분간 매달려 있다가 커넥션이 끊긴다(프론트 타임아웃 120초). 90초를 넘기면
+    // 아래 결정론적 폴백으로 내려가 200으로 응답한다.
+    const text = await withTimeout(callProFirst(prompt, 'ExtractMoments'), 90000, 'ExtractMoments');
     const parsed = parseJSON(text);
     const moments = Array.isArray(parsed.moments) ? parsed.moments : [];
 

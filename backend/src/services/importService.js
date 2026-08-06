@@ -17,12 +17,24 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
     throw err;
   }
 
+  // 호출 1회 45초 · 전체 100초 상한.
+  // 상한이 없으면 2모델 × 2회 × 기본 90초로 최대 6분을 매달려 있다가 프록시가
+  // 커넥션을 끊어 502/Network Error가 된다(2026-08 오류로그). 상한 안에서 실패하면
+  // 호출부(structureFallback 등)가 폴백으로 응답을 만들 수 있다.
+  const CALL_TIMEOUT_MS = 45000;
+  const deadline = Date.now() + 100000;
+
   try {
     let lastError;
     for (const modelName of MODEL_FALLBACKS) {
+      if (Date.now() > deadline) break;
       for (let attempt = 0; attempt < retries; attempt++) {
+        if (Date.now() > deadline) {
+          lastError = lastError || new Error('AI 응답 대기 시간이 초과되었습니다.');
+          break;
+        }
         try {
-          return await callGeminiModel(modelName, parts);
+          return await callGeminiModel(modelName, parts, CALL_TIMEOUT_MS);
         } catch (err) {
           lastError = err;
           const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
@@ -44,13 +56,17 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
           } else if ([404, 400].includes(status)) {
             console.warn(`[Import Gemini] ${modelName} ${status} - 다음 모델로 전환`);
             break;
+          } else if (msg === 'GEMINI_TIMEOUT') {
+            // 타임아웃은 모델 문제일 수 있으므로 더 빠른 다음 모델로 넘긴다.
+            console.warn(`[Import Gemini] ${modelName} 타임아웃 - 다음 모델로 전환`);
+            break;
           } else throw err;
         }
       }
     }
 
-    // 모든 재시도 소진 후 GitHub Models 폴백 사용
-    if (lastError) {
+    // 모든 재시도 소진 후 GitHub Models 폴백 사용 (상한을 이미 넘겼으면 생략)
+    if (lastError && Date.now() <= deadline) {
       console.error('[Import Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...');
       try {
         const promptString = Array.isArray(parts) 
@@ -679,7 +695,15 @@ async function extractWithTesseractOCR(buffer) {
 /**
  * Gemini Vision API로 문서/이미지에서 텍스트 추출 (OCR)
  */
+// Gemini inline data 요청 한도는 20MB. base64는 원본의 약 1.34배라
+// 12MB를 넘기면 어차피 실패하고, 그 전에 512MB 인스턴스의 메모리를 먼저 밀어낸다.
+// (OOM은 throw되지 않고 프로세스를 죽여 프록시 502가 된다 — 2026-08 오류로그)
+const VISION_MAX_BYTES = 12 * 1024 * 1024;
+
 async function extractWithGeminiVision(buffer, mimeType) {
+  if (buffer.length > VISION_MAX_BYTES) {
+    throw new Error(`이미지·스캔 문서는 ${Math.floor(VISION_MAX_BYTES / 1024 / 1024)}MB까지 읽을 수 있습니다. 파일을 압축하거나 나눠서 올려주세요.`);
+  }
   const base64 = buffer.toString('base64');
   return await geminiGenerate([
     {
