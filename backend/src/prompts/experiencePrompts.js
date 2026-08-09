@@ -823,7 +823,19 @@ function diagramSectionOf(sections) {
 //   목적: 검색·분할 없이 flash 1회로 "봐줄 수준"의 초안을 빠르게 생성.
 //   깊이 있는 보강(시장지표/검색/핵심경험 N개)은 이후 analyze 단계가 담당.
 // ============================================================
-export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic') {
+/**
+ * 빠른 초안 프롬프트.
+ *
+ * ★ 한 번에 다 만들지 않는 이유: 예전에는 7섹션·핵심경험·근거장부(artifactAnalysis)·
+ *   인터뷰계획·decisionTrace·honestReview·scope를 단일 호출로 요구했다. PM 기준 실측
+ *   출력이 33,000자(약 94초)라 45초 호출 상한을 항상 넘겨 502 → 프론트 로컬 폴백으로
+ *   빠졌고, 사용자에게는 "초안이 통째로 비어 보이는" 증상이 됐다.
+ *   깊은 블록(근거장부·decisionTrace·honestReview·scope·experienceProfile)은 완성 단계
+ *   analyzeExperience가 병렬로 다시 만들므로, 초안은 화면에 바로 필요한 것만 만든다.
+ *
+ * @param {'story'|'keyExperiences'} part 병렬 호출되는 두 파트 중 하나.
+ */
+export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic', part = 'story') {
   const jobInfo = getJobInfo(jobCategory);
   const isMarketer = jobCategory === 'marketer';
   const isPm = jobCategory === 'pm';
@@ -845,7 +857,7 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common', ca
   const jobGuide = jobSecs.length
     ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 상세히 구조화하세요. 노드 5~9개로 충분히 디테일하게 — 클라이언트/서버뿐 아니라 인증·외부 API·저장소·핵심 도메인 모듈 등 구성요소를 분리하고, 각 노드 tech에는 실제 기술명(예: React, Node.js·Express, Firestore, Google Gemini API)을 적으세요. id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 label에는 관계/흐름(예: API 요청, 조회/저장, 연동)을 적고 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → QR 교환 → 카드 수집 → 가챠 → 리포트 전달). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가, label은 단계 이름, tech에는 그 단계에서 일어나는 일을 짧게. 자료에 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${pmFlowGuide}${visual.guide}`
     : '';
-  return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
+  const head = `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
 아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
 완성본이 아니라 초안이지만, 그대로 읽어도 어색하지 않은 자연스러운 한국어가 되어야 합니다.
 대상 직군: ${jobInfo.label}
@@ -856,22 +868,43 @@ ${WRITING_QUALITY_RULES}
 
 ${buildHumanVoiceRules(careerStage)}
 ${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
-${buildArtifactIntelligenceGuide(jobCategory)}
-
 [초안 작성 규칙]
-- 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 섹션에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
-- 자료에 단서가 조금이라도 있으면 그것을 요약·재구성해 해당 섹션을 2~3문장으로 채우세요. 무엇을 했는지·왜 했는지·어떻게 했는지 같은 정성적 내용은 적극적으로 풀어 쓰세요.
+- 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 항목에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
+- 자료에 단서가 조금이라도 있으면 그것을 요약·재구성해 2~3문장으로 채우세요. 무엇을 했는지·왜 했는지·어떻게 했는지 같은 정성적 내용은 적극적으로 풀어 쓰세요.
 - ⛔ 단, 수치·기술명·회사명·고유명사·성과는 자료에 없으면 절대 지어내지 마세요. (정성적 재구성은 권장, 사실 창작은 금지)
-- 정말 아무 단서도 없는 섹션만 빈 문자열("")로 두세요. "~을 보강해 주세요" 같은 안내 문구는 넣지 마세요.
-- 같은 문장을 여러 섹션에 그대로 복사하지 마세요. 각 섹션의 역할에 맞게 다르게 정리하세요.
-- 자료가 길면 목차·인트로보다 "문제 → 실행 → 결과" 서사가 담긴 본문을 우선 반영하세요. 각 섹션에는 자료 속 구체적 내용(어떤 기능, 어떤 문제, 어떤 결정, 어떤 결과)이 담겨야 하며, 자료 없이도 쓸 수 있는 일반론으로 채우지 마세요.
-- 본문 섹션은 읽기 좋은 문어체로 최소한만 다듬되 사용자의 단어 선택과 설명 순서를 보존하세요. voiceRecord.originalQuote만큼은 구어체·오탈자까지 원문 그대로 둡니다.
+- 정말 아무 단서도 없는 항목만 빈 문자열("")로 두세요. "~을 보강해 주세요" 같은 안내 문구는 넣지 마세요.
+- 자료가 길면 목차·인트로보다 "문제 → 실행 → 결과" 서사가 담긴 본문을 우선 반영하세요. 자료 없이도 쓸 수 있는 일반론으로 채우지 마세요.
+- 읽기 좋은 문어체로 최소한만 다듬되 사용자의 단어 선택과 설명 순서를 보존하세요.
+
+경험 자료:
+${contentText}
+`;
+
+  const tail = '수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.';
+
+  // 핵심 경험 파트 — 스토리 파트와 병렬 호출된다.
+  // 인터뷰 질문(interviewPlan)은 초안 화면에 쓰이지 않는데 이 파트 출력의 절반(4,500자)을
+  // 차지해 63초까지 끌어올렸다. 경험 채우기 채팅은 자체 기본 질문으로 폴백하고,
+  // 제대로 된 질문은 전용 경로(buildInterviewQuestionsPrompt)가 만든다.
+  if (part === 'keyExperiences') {
+    return `${head}
+[핵심 경험 작성 규칙]
 - keyExperiences는 자료에서 구분되는 활동·문제·성과를 1~3개로 정리하세요. 수치가 없어도 context/action/result/learning을 정성적으로 채우고, 정말 단서가 없을 때만 빈 배열로 두세요.
-- keyExperiences는 수치만 남기지 마세요. 수치는 metric에 넣고, context/action/result/learning에는 답변 속 문제 전후상황, 실행 과정, 결과 해석, 배운 점을 각각 1~3문장으로 보존하세요.
+- 수치만 남기지 마세요. 수치는 metric에 넣고, context/action/result/learning에는 문제 전후상황, 실행 과정, 결과 해석, 배운 점을 각각 1~3문장으로 보존하세요.
 - 각 keyExperience는 서로 다른 "판단이 필요했던 사건"이어야 합니다. 같은 프로젝트의 행동을 억지로 3개로 쪼개지 마세요.
 - "인터뷰구조화" 입력이 있으면 그 안의 context/action/result/learning을 우선 사용하되 자연스럽게 다듬으세요.
-- 시장/성과 지표는 외부 출처를 지어내지 말고, 사용자가 추가 검증할 decisionMetrics와 portfolioAngles 수준으로만 제안하세요.
 
+아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
+{
+  "keyExperiences": [
+    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema} }
+  ]
+}
+${keyExpAddon.guide}
+${tail}`;
+  }
+
+  return `${head}
 [섹션 역할]
 - intro: 이 경험이 보여주는 문제 해결 방식과 핵심 판단을 앞세운 2~3문장 요약
 - overview: 프로젝트 배경·목적·범위
@@ -880,9 +913,8 @@ ${buildArtifactIntelligenceGuide(jobCategory)}
 - output: 결과·산출물과 그 주장을 확인할 증거, 남은 한계
 - growth: 틀렸거나 불완전했던 판단과 이후 달라진 원칙
 - competency: 여러 경험과 교차 검증할 수 있는 반복 행동 패턴
-
-경험 자료:
-${contentText}
+- 같은 문장을 여러 섹션에 그대로 복사하지 마세요. 각 섹션의 역할에 맞게 다르게 정리하세요.
+- 시장/성과 지표는 외부 출처를 지어내지 말고, 사용자가 추가 검증할 decisionMetrics와 portfolioAngles 수준으로만 제안하세요.
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
@@ -898,13 +930,10 @@ ${contentText}
     "limitations": ""
   },
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
-  "keyExperiences": [
-    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema}${HONEST_REVIEW_SCHEMA}${SCOPE_SCHEMA}${DECISION_RECORD_SCHEMA} }
-  ],
-  "keywords": []${EXPERIENCE_PROFILE_SCHEMA}${ARTIFACT_ANALYSIS_SCHEMA}${LOW_BURDEN_INTERVIEW_PLAN_SCHEMA}${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
+  "keywords": []${EXPERIENCE_PROFILE_SCHEMA}${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
 }
-${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${HONEST_REVIEW_GUIDE}${SCOPE_GUIDE}${DECISION_RECORD_GUIDE}${EXPERIENCE_PROFILE_GUIDE}${buildLowBurdenInterviewGuide(interviewMode)}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
-수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${EXPERIENCE_PROFILE_GUIDE}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
+${tail}`;
 }
 
 // ============================================================

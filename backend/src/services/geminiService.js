@@ -1010,7 +1010,9 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
   const rawKeyExperiences = Array.isArray(json.keyExperiences) ? json.keyExperiences : [];
-  const maxCount = Math.max(rawKeyExperiences.length, fallbackKeyExperiences.length, 1);
+  // AI가 2개만 뽑았는데 폴백으로 3개까지 채우면 "…을 보강해 주세요" 자리표시자 카드가 생겨
+  // 화면이 비어 보인다(readiness 판정에서도 빈 값으로 걸러진다). AI 결과가 있으면 그 개수만 쓴다.
+  const maxCount = rawKeyExperiences.length || fallbackKeyExperiences.length || 1;
   const keyExperiences = Array.from({ length: Math.min(maxCount, 3) })
     .map((_, index) => mergeDraftKeyExperience(rawKeyExperiences[index] || {}, fallbackKeyExperiences[index] || fallbackKeyExperiences[0] || {}, index, fallback.projectOverview?.summary || ''))
     .filter(item => item.title || item.context || item.action || item.result);
@@ -1195,9 +1197,13 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
 }
 
 /**
- * 빠른 초안(Draft) 생성 — 검색·분할 없이 flash 1회 호출.
+ * 빠른 초안(Draft) 생성 — 검색 없이 flash 2회 병렬 호출(스토리 / 핵심경험).
  * "봐줄 수준"의 초안을 빠르게 만들고, 깊이 있는 보강은 analyzeExperience가 담당.
- * 실패 시 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
+ *
+ * 단일 호출이던 시절에는 출력이 3만 자를 넘겨 호출 상한을 항상 초과했고, 그 결과
+ * 7섹션까지 통째로 못 받아 초안 전체가 비어 보였다. 파트를 나누면 각 호출이
+ * 짧아질 뿐 아니라, 한쪽이 실패해도 다른 쪽 결과는 살릴 수 있다.
+ * 스토리 파트 실패만 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
  */
 export async function generateDraftAnalysis(content, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic') {
   const entries = Object.entries(content || {}).filter(([, val]) => val && String(val).trim().length > 0);
@@ -1213,21 +1219,35 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
     .join('\n');
   contentText = clampMaterial(contentText, 48000);
 
-  const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode);
-  const text = await withTimeout(
-    generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-      retries: 2,
-      delayMs: 1200,
-      rateLimitDelayMs: 4000,
-      // 자료 한도를 올린 만큼 1회 호출이 길어진다. 여기서 타임아웃이 나면 프론트가
-      // 훨씬 빈약한 로컬 초안으로 폴백하므로, 클라이언트 상한(90초) 안에서 여유를 둔다.
-      callTimeoutMs: 60000,
+  const callPart = async (part, label) => {
+    const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode, part);
+    const text = await withTimeout(
+      generateWithRetry(prompt, {
+        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        retries: 2,
+        delayMs: 1200,
+        rateLimitDelayMs: 4000,
+        // 실측 스토리 파트 38~50초로 편차가 크다. 상한이 빡빡하면 느린 날에 통째로
+        // 폴백되므로 여유를 준다(클라이언트 상한 90초).
+        callTimeoutMs: 70000,
+      }),
+      // 두 파트를 병렬로 돌리므로 전체 대기는 느린 쪽 하나에 좌우된다.
+      82000,
+      label,
+    );
+    return parseJSON(text);
+  };
+
+  const [story, keyExp] = await Promise.all([
+    callPart('story', 'DraftAnalysis-Story'),
+    // 핵심경험 파트가 실패해도 스토리 7섹션은 살린다. 부족한 항목은 hydrate가 폴백으로 채운다.
+    callPart('keyExperiences', 'DraftAnalysis-KeyExp').catch((err) => {
+      console.warn('[DraftAnalysis-KeyExp] 실패 → 스토리 파트만으로 초안 구성:', err.message);
+      return {};
     }),
-    80000,
-    'DraftAnalysis'
-  );
-  const json = parseJSON(text);
+  ]);
+
+  const json = { ...story, ...keyExp };
   const hydrated = hydrateDraftAnalysis({ json, content, jobCategory, contentText });
   return sanitizeArtifactsDeep(groundAnalysisMetrics(hydrated, contentText));
 }
