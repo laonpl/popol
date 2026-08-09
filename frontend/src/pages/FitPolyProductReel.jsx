@@ -162,39 +162,27 @@ export default function FitPolyProductReel() {
           </header>
 
           <ReelScene active={currentScene === 0} index={0}>
-            <div className="v1-hero-shot v1-marketer-hook-bg"><img src="/video1/marketer-dashboard.png" alt="FitPoly 실제 마케터 경험정리 화면" /></div>
+            <div className="v1-hero-shot v1-pm-hook-bg"><img src="/video1/pm-result.png" alt="FitPoly 실제 기획·PM 경험정리 화면" /></div>
             <div className="v1-hero-scrim" />
             <div className="v1-hero-copy">
-              <p><span>마케터 POV</span> 성과 정리할 때</p>
-              <h1>조회수는<br />잘 나왔는데<br /><em>그래서 뭐가</em><br />바뀌었죠?</h1>
-              <div className="v1-marketer-metrics"><span>팔로워 3배</span><span>저장률 4.1배</span><span>가입 CVR 9.6%</span></div>
+              <p><span>PM POV</span> 포트폴리오 정리할 때</p>
+              <h1>기능은<br />만들었는데<br /><em>왜 이걸</em><br />결정했죠?</h1>
+              <div className="v1-pm-hook-metrics"><span>인터뷰 12건</span><span>베타 420명</span><span>완료율 38→64%</span></div>
             </div>
-            <p className="v1-caption is-inverse">숫자만 나열하면 성과의 이유는 보이지 않으니까</p>
+            <p className="v1-caption is-inverse">PM의 경험은 화면보다 판단의 근거가 먼저니까</p>
           </ReelScene>
 
           <ReelScene active={currentScene === 1} index={1}>
-            <p className="v1-kicker is-rose">마케터 경험정리</p>
-            <h2>성과 숫자 뒤의<br /><em>캠페인 스토리까지</em></h2>
-            <BrowserFrame src="/video1/marketer-dashboard.png" alt="FitPoly 실제 마케터 캠페인 경험정리 화면" className="v1-marketer-browser">
-              <div className="v1-kpi-focus kpi-one">800 → 2,400</div>
-              <div className="v1-kpi-focus kpi-two">2.1 → 8.7%</div>
-              <div className="v1-kpi-focus kpi-three">3.8 → 9.6%</div>
-            </BrowserFrame>
-            <div className="v1-campaign-flow"><span>Problem</span><ArrowRight size={13} /><span>Target</span><ArrowRight size={13} /><span>Strategy</span><ArrowRight size={13} /><span>Result</span></div>
-            <p className="v1-caption">타깃·전략·실행·KPI·인사이트를 하나의 경험으로</p>
-          </ReelScene>
-
-          <ReelScene active={currentScene === 2} index={2}>
             <p className="v1-kicker is-blue">기획·PM 경험정리</p>
-            <h2>PM의 실행은<br /><em>제품 판단 구조로</em></h2>
+            <h2>프로젝트 한 줄을<br /><em>의사결정의 흐름으로</em></h2>
             <BrowserFrame src="/video1/pm-result.png" alt="FitPoly 실제 기획·PM 경험정리 화면" className="v1-pm-overview-browser">
               <div className="v1-pm-flow-overlay"><span>문제 신호</span><b>→</b><span>가설</span><b>→</b><span>결정</span><b>→</b><span>검증</span></div>
             </BrowserFrame>
-            <div className="v1-pm-proof-tags"><span>PRD</span><span>사용자 인터뷰</span><span>퍼널</span><span>실험 결과</span></div>
-            <p className="v1-caption">무엇을 만들었는지보다 왜 그렇게 결정했는지</p>
+            <div className="v1-pm-proof-tags"><span>PM · 12주</span><span>사용자 인터뷰</span><span>PRD</span><span>퍼널 검증</span></div>
+            <p className="v1-caption">역할·문제·가설·산출물·검증을 실제 사례로</p>
           </ReelScene>
 
-          <ReelScene active={currentScene === 3} index={3}>
+          <ReelScene active={currentScene === 2} index={2}>
             <div className="v1-result-label"><Sparkles size={14} /> 실제 PM 결과 화면</div>
             <h2>리너 캔버스로<br /><em>문제부터 지표까지</em></h2>
             <BrowserFrame src="/video1/pm-lean-canvas.png" alt="FitPoly 실제 PM 리너 캔버스 화면" className="v1-lean-browser">
@@ -203,7 +191,17 @@ export default function FitPolyProductReel() {
               <div className="v1-lean-focus focus-metric">핵심지표</div>
             </BrowserFrame>
             <div className="v1-lean-summary">Problem · UVP · Customer · Metrics · Early Adopter</div>
-            <p className="v1-caption">PM의 사고 구조와 제품 여정을 한 장에</p>
+            <p className="v1-caption">문제·가치·고객·대안·검증 지표를 한 장에</p>
+          </ReelScene>
+
+          <ReelScene active={currentScene === 3} index={3}>
+            <p className="v1-kicker is-blue">Product Journey</p>
+            <h2>제품 여정으로<br /><em>발견부터 배움까지</em></h2>
+            <BrowserFrame src="/video1/pm-lean-canvas.png" alt="FitPoly 실제 PM 제품 여정 화면" className="v1-journey-browser" />
+            <div className="v1-journey-route">
+              {['Discover', 'Insight', 'Hypothesize', 'Decide', 'Validate', 'Evolve'].map((step, index) => <span key={step}><b>{index + 1}</b>{step}</span>)}
+            </div>
+            <p className="v1-caption">인터뷰 12건에서 베타 420명·완료율 64%까지</p>
           </ReelScene>
 
           <ReelScene active={currentScene === 4} index={4}>
@@ -221,35 +219,33 @@ export default function FitPolyProductReel() {
           </ReelScene>
 
           <ReelScene active={currentScene === 5} index={5}>
-            <div className="v1-before-after v1-role-split">
-              <div className="v1-before-pane">
-                <img src="/video1/marketer-dashboard.png" alt="FitPoly 마케터 경험정리 화면" />
-                <span>MARKETER</span>
-                <strong>성과의 이유</strong>
+            <div className="v1-pm-logic-bg"><img src="/video1/pm-lean-canvas.png" alt="FitPoly 실제 PM 제품 판단 화면" /></div>
+            <div className="v1-pm-logic-scrim" />
+            <div className="v1-pm-logic-content">
+              <p>PM CASE LOGIC</p>
+              <h2>결과보다 중요한 건<br /><em>판단의 근거</em></h2>
+              <div className="v1-pm-logic-flow">
+                <div><span>01 · 문제</span><strong>첫 작성 이탈</strong></div>
+                <div><span>02 · 가설</span><strong>질문형 입력</strong></div>
+                <div><span>03 · 결정</span><strong>단계형 UX</strong></div>
+                <div><span>04 · 검증</span><strong>완료율 64%</strong></div>
               </div>
-              <div className="v1-after-pane">
-                <img src="/video1/pm-lean-canvas.png" alt="FitPoly PM 리너 캔버스 화면" />
-                <span>PM</span>
-                <strong>판단의 근거</strong>
-              </div>
-              <div className="v1-swipe-line"><span><ArrowRight size={19} /></span></div>
             </div>
-            <div className="v1-transform-copy"><span>캠페인 스토리</span><b>+</b><strong>제품 의사결정</strong></div>
-            <p className="v1-caption is-inverse">마케터와 PM, 직군마다 다른 방식으로</p>
+            <p className="v1-caption is-inverse">문제 → 가설 → 결정 → 검증이 연결되는 PM 포트폴리오</p>
           </ReelScene>
 
           <ReelScene active={currentScene === 6} index={6}>
             <div className="v1-cta-bg"><img src="/video1/landing.png" alt="FitPoly 실제 랜딩 화면" /></div>
             <div className="v1-cta-scrim" />
             <div className="v1-cta-content">
-              <div className="v1-cta-badge">MARKETER · PRODUCT MANAGER</div>
-              <h2>경험을<br />증명 가능한<br />구조로.</h2>
-              <p>성과의 이유부터 판단의 근거까지.</p>
+              <div className="v1-cta-badge">PRODUCT MANAGER · SERVICE PLANNER</div>
+              <h2>PM 경험을<br />판단 가능한<br />구조로.</h2>
+              <p>리너 캔버스부터 검증 결과까지.</p>
               <div className="v1-cta-brand"><FitPolyBrand inverse /></div>
               <a href="/app/experience">무료로 시작하기 <ArrowRight size={18} strokeWidth={3} /></a>
               <small>fitpoly.kr</small>
             </div>
-            <p className="v1-caption is-inverse">마케터·기획·PM 포트폴리오 만들 때 저장해두세요 ↗</p>
+            <p className="v1-caption is-inverse">기획·PM 포트폴리오 만들 때 저장해두세요 ↗</p>
           </ReelScene>
 
           <div className="v1-progress"><span style={{ width: `${(time / DURATION) * 100}%` }} /></div>
