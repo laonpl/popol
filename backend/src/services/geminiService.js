@@ -10,6 +10,7 @@
  */
 import { generateWithRetry } from '../config/geminiClient.js';
 import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
+import { clampMaterial } from '../utils/materialText.js';
 import {
   buildExtractMomentsPrompt,
   buildOverviewPrompt,
@@ -1204,12 +1205,13 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 자료(파일·링크 원문)가 3천 자에서 잘리면 스토리 섹션이 앞부분(목차·인트로)만 보고 만들어진다.
-  // flash 컨텍스트는 충분히 크므로 본문 서사가 담기도록 잘림 한도를 넉넉히 잡는다.
+  // 자료(파일·링크 원문)가 일찍 잘리면 스토리 섹션이 앞부분(목차·인트로)만 보고 만들어진다.
+  // flash 컨텍스트는 충분히 크므로 본문 서사가 담기도록 잘림 한도를 넉넉히 잡고,
+  // 넘칠 때도 앞뒤를 함께 남겨 자료 후반부(성과·회고)가 통째로 사라지지 않게 한다.
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${draftValueToText(val).substring(0, 9000)}`)
+    .map(([key, val]) => `[${key}]: ${clampMaterial(draftValueToText(val), 24000)}`)
     .join('\n');
-  if (contentText.length > 24000) contentText = contentText.substring(0, 24000);
+  contentText = clampMaterial(contentText, 48000);
 
   const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode);
   const text = await withTimeout(
@@ -1218,9 +1220,11 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
       retries: 2,
       delayMs: 1200,
       rateLimitDelayMs: 4000,
-      callTimeoutMs: 45000,
+      // 자료 한도를 올린 만큼 1회 호출이 길어진다. 여기서 타임아웃이 나면 프론트가
+      // 훨씬 빈약한 로컬 초안으로 폴백하므로, 클라이언트 상한(90초) 안에서 여유를 둔다.
+      callTimeoutMs: 60000,
     }),
-    55000,
+    80000,
     'DraftAnalysis'
   );
   const json = parseJSON(text);
@@ -1355,11 +1359,13 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 자료 원문이 일찍 잘리면 7섹션·핵심경험이 자료 앞부분만 반영한다 — 본문 서사까지 담기게 한도 상향
+  // 자료 원문이 일찍 잘리면 7섹션·핵심경험이 자료 앞부분만 반영한다 — 본문 서사까지 담기게 한도 상향.
+  // content는 대부분 rawInput 단일 키이고 검토된 핵심 경험이 그 뒤에 붙으므로,
+  // 앞부분만 남기는 방식이면 가장 정제된 후반부가 통째로 빠진다(clampMaterial이 앞뒤를 함께 보존).
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 6000)}`)
+    .map(([key, val]) => `[${key}]: ${clampMaterial(val, 20000)}`)
     .join('\n');
-  if (contentText.length > 18000) contentText = contentText.substring(0, 18000);
+  contentText = clampMaterial(contentText, 40000);
 
   const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
   const lockedCount = hasReviewed ? reviewedMoments.length : null;
@@ -1987,7 +1993,7 @@ export async function generateIdentityPatternCandidates(experiences = []) {
 
 /**
  * 경험 순간(moments) 추출 — Pro 우선.
- * rawText는 5000자로 캡핑되어 있고 output도 최대 10개 moments로 제한되므로
+ * rawText는 프롬프트에서 48,000자로 캡핑되고 output도 최대 10개 moments로 제한되므로
  * 별도 분할 없이 단일 호출. Pro 실패 시 Lite로 폴백.
  */
 export async function extractMoments(rawText, title) {

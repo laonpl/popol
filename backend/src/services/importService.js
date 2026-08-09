@@ -1,6 +1,7 @@
 import { callGeminiModel, callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
 import JSZip from 'jszip';
+import { clampMaterial } from '../utils/materialText.js';
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -723,7 +724,8 @@ async function extractWithGeminiVision(buffer, mimeType) {
  * AI를 사용하여 임포트된 내용을 경험/포트폴리오/자소서 형식으로 구조화
  */
 export async function structureImportedContent(importedData, targetType) {
-  const rawText = importedData.content?.substring(0, 5000) || '';
+  // 5,000자에서 자르면 문서 앞부분(표지·목차)만 보고 구조화된다 — 본문·성과까지 담기게 상향.
+  const rawText = clampMaterial(importedData.content || '', 40000);
 
   const prompts = {
     experience: `당신은 실리콘밸리 탑티어 기업의 수석 채용 담당자이자, 취준생의 파편화된 경험을 '합격률 1%의 직무 맞춤형 포트폴리오'로 변환해 주는 최고의 커리어 컨설턴트입니다.
@@ -825,7 +827,8 @@ ${rawText}`,
  * AI 없이 기본 템플릿으로 구조화하는 폴백
  */
 function structureFallback(importedData, targetType) {
-  const content = (importedData.content || '').substring(0, 1000);
+  // AI 실패 시 쓰는 템플릿 폴백. 1,000자면 7개 섹션에 나눠 담을 내용이 사실상 없다.
+  const content = (importedData.content || '').substring(0, 6000);
   const title = importedData.title || '가져온 내용';
 
   if (targetType === 'experience') {

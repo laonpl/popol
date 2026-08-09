@@ -12,6 +12,7 @@ import {
   buildFieldKeyExperienceAddon,
   getCareerFieldProfile,
 } from './careerFieldProfiles.js';
+import { clampMaterial } from '../utils/materialText.js';
 
 const PR_GUIDELINES = `
 [10가지 성과 공식 — 가장 잘 맞는 유형으로 분류]
@@ -1394,7 +1395,7 @@ ${DECISION_RECORD_GUIDE}
 5. 같은 사건의 행동을 여러 경험으로 쪼개 개수를 채우지 않음
 
 원본 자료:
-${rawText.substring(0, 12000)}
+${clampMaterial(rawText, 48000)}
 
 반드시 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
