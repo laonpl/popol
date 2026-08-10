@@ -117,8 +117,8 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/deck" element={<ServiceDeck />} />
-      <Route path="/video0" element={<PmReelsVideo />} />
-      <Route path="/video1" element={<FitPolyProductReel />} />
+      <Route path="/video2" element={<PmReelsVideo />} />
+      <Route path="/video3" element={<FitPolyProductReel />} />
       <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
