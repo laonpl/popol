@@ -1,4 +1,3 @@
-import { ArrowRight, Check, Circle, FileCheck2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   buildPortfolioReadiness,
@@ -6,37 +5,46 @@ import {
   PORTFOLIO_SLOT_ORDER,
 } from '../utils/experienceReadiness';
 
+/* 포트폴리오를 만들려면 사실 확인을 마친 경험이 최소 몇 개 필요한지.
+   이 숫자가 화면 문구·CTA 분기의 기준이 된다. */
+const REQUIRED_COUNT = 3;
+
 export default function PortfolioReadinessBoard({ experiences = [], compact = false }) {
   const navigate = useNavigate();
   const summary = buildPortfolioReadiness(experiences);
   const confirmable = summary.items.find(item => item.readiness.requiredComplete && !item.readiness.portfolioReady);
   const nextMeta = summary.nextSlot ? PORTFOLIO_SLOT_META[summary.nextSlot] : null;
 
-  const primaryAction = summary.ready
-    ? { label: '포트폴리오 플랜 만들기', to: '/app/portfolio/plan' }
-    : confirmable
-      ? { label: `“${confirmable.experience.title || '경험'}” 사실 확인하기`, to: `/app/experience/complete/${confirmable.experience.id}` }
-      : { label: nextMeta ? `${nextMeta.label} 경험 초안 만들기` : '다음 경험 초안 만들기', to: `/app/experience/quick?slot=${summary.nextSlot || 'growth'}` };
+  // 포트폴리오·이력서를 만들 수 있는지는 "사실 확인을 마친 경험 수"만으로 판단한다.
+  const canBuild = summary.readyCount >= REQUIRED_COUNT;
+  const remaining = Math.max(0, REQUIRED_COUNT - summary.readyCount);
+
+  const collectAction = confirmable
+    ? { label: `“${confirmable.experience.title || '경험'}” 사실 확인하기`, to: `/app/experience/complete/${confirmable.experience.id}` }
+    : { label: '새 경험 정리하기', to: `/app/experience/quick?slot=${summary.nextSlot || 'growth'}` };
 
   return (
     <section className={`overflow-hidden rounded-2xl border border-primary-100 bg-gradient-to-br from-white via-white to-primary-50/60 shadow-sm ${compact ? 'p-5' : 'p-6 md:p-7'}`}>
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-[0.16em] text-primary-500">
-            <FileCheck2 size={15} /> Portfolio readiness
-          </div>
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className={`${compact ? 'text-[20px]' : 'text-[24px]'} font-extrabold tracking-[-0.025em] text-gray-900`}>
-              {summary.status === 'strong' ? '지원용 경험 묶음이 탄탄해요' : summary.ready ? '포트폴리오 플랜을 만들 준비가 됐어요' : '지원용 경험 묶음을 만드는 중이에요'}
-            </h2>
-            <span className="text-[13px] font-bold text-primary-600">검증 완료 {summary.readyCount}개 · 전체 {summary.totalCount}개</span>
-          </div>
+          <p className="mb-2 text-[12px] font-extrabold uppercase tracking-[0.16em] text-primary-500">
+            지원 서류 준비
+          </p>
+          <h2 className={`${compact ? 'text-[20px]' : 'text-[24px]'} font-extrabold tracking-[-0.025em] text-gray-900`}>
+            {canBuild
+              ? `경험 ${summary.readyCount}개로 포트폴리오를 만들 수 있어요`
+              : `경험 ${remaining}개만 더 채우면 포트폴리오를 완성할 수 있어요`}
+          </h2>
           <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-gray-500">
-            {summary.ready
-              ? '가장 강한 3~4개 경험을 골라 지원 직무에 맞는 순서와 역할을 정해보세요.'
+            {canBuild
+              ? '정리한 경험을 그대로 써서 포트폴리오와 이력서를 각각 만들 수 있습니다.'
               : nextMeta
-                ? `${nextMeta.description}이 보강되면 포트폴리오의 설득력이 더 좋아집니다.`
-                : '경험의 사실을 확인하면 포트폴리오 플랜에 사용할 수 있어요.'}
+                ? `${nextMeta.description}을 정리하면 포트폴리오의 설득력이 더 좋아집니다.`
+                : '경험의 사실 확인을 마치면 포트폴리오에 바로 사용할 수 있어요.'}
+          </p>
+          <p className="mt-2 text-[13px] font-bold text-gray-400">
+            바로 쓸 수 있는 경험 <span className="text-primary-600">{summary.readyCount}개</span>
+            {summary.draftCount > 0 && <> · 정리 중 {summary.draftCount}개</>}
           </p>
         </div>
         <div className="shrink-0">
@@ -49,47 +57,77 @@ export default function PortfolioReadinessBoard({ experiences = [], compact = fa
         </div>
       </div>
 
-      <div className={`mt-5 grid gap-2 ${compact ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
-        {PORTFOLIO_SLOT_ORDER.map(slot => {
-          const covered = summary.coveredSlots.includes(slot);
-          const meta = PORTFOLIO_SLOT_META[slot];
-          return (
-            <div key={slot} className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 ${covered ? 'border-emerald-100 bg-emerald-50/70' : 'border-gray-200 bg-white'}`}>
-              {covered ? <Check size={16} className="shrink-0 text-emerald-600" /> : <Circle size={15} className="shrink-0 text-gray-300" />}
-              <div className="min-w-0">
+      <div className="mt-6">
+        <p className="mb-2.5 text-[13px] font-bold text-gray-600">포트폴리오에 들어갈 이야기</p>
+        <div className={`grid gap-2 ${compact ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+          {PORTFOLIO_SLOT_ORDER.map(slot => {
+            const covered = summary.coveredSlots.includes(slot);
+            const meta = PORTFOLIO_SLOT_META[slot];
+            return (
+              <div key={slot} className={`rounded-xl border px-3.5 py-3 ${covered ? 'border-emerald-200 bg-emerald-50/70' : 'border-gray-200 bg-white'}`}>
                 <p className={`text-[13px] font-bold ${covered ? 'text-emerald-800' : 'text-gray-600'}`}>{meta.label}</p>
-                <p className="truncate text-[11.5px] text-gray-400">{covered ? '근거 있음' : '보강 추천'}</p>
+                <p className={`mt-0.5 truncate text-[11.5px] font-medium ${covered ? 'text-emerald-600' : 'text-gray-400'}`}>
+                  {covered ? '준비됨' : '아직 없음'}
+                </p>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(primaryAction.to)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-3 text-[14px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700"
-        >
-          <Sparkles size={16} /> {primaryAction.label} <ArrowRight size={15} />
-        </button>
-        {!summary.ready && summary.totalCount > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate('/app/portfolio/plan')}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[13.5px] font-bold text-gray-600 transition-colors hover:border-primary-200 hover:text-primary-600"
-          >
-            현재 포트폴리오 뼈대 보기
-          </button>
-        )}
-        {!summary.ready && summary.totalCount > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate('/app/experience/candidates')}
-            className="rounded-xl px-3 py-3 text-[13px] font-bold text-gray-500 transition-colors hover:text-primary-600"
-          >
-            자료에서 찾은 경험 후보 보기
-          </button>
+        {canBuild ? (
+          <>
+            <button
+              type="button"
+              onClick={() => navigate('/app/portfolio/plan')}
+              className="rounded-xl bg-primary-600 px-5 py-3 text-[14px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700"
+            >
+              포트폴리오 만들기
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/app/portfolio/plan?output=resume')}
+              className="rounded-xl border border-primary-200 bg-white px-5 py-3 text-[14px] font-bold text-primary-600 transition-colors hover:border-primary-300 hover:bg-primary-50"
+            >
+              이력서 만들기
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(collectAction.to)}
+              className="rounded-xl px-3 py-3 text-[13px] font-bold text-gray-500 transition-colors hover:text-primary-600"
+            >
+              경험 더 정리하기
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => navigate(collectAction.to)}
+              className="rounded-xl bg-primary-600 px-5 py-3 text-[14px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700"
+            >
+              {collectAction.label}
+            </button>
+            {summary.totalCount > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate('/app/portfolio/plan')}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[13.5px] font-bold text-gray-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+              >
+                지금까지 만든 뼈대 보기
+              </button>
+            )}
+            {summary.totalCount > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate('/app/experience/candidates')}
+                className="rounded-xl px-3 py-3 text-[13px] font-bold text-gray-500 transition-colors hover:text-primary-600"
+              >
+                자료에서 찾은 경험 후보 보기
+              </button>
+            )}
+          </>
         )}
       </div>
     </section>

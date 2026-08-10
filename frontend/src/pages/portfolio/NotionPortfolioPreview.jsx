@@ -34,7 +34,7 @@ function withDefaultProjectLogos(portfolio) {
 /** 미리보기 상단 툴바 — 웹 에디터와 동일 스타일 (스티키 풀블리드, 기존 기능 전부 유지) */
 function PreviewAdminBar({
   title, hasUnsavedChanges, previewTutorialHref, onEdit, onPpt, onResume, onLink,
-  isPublic, togglingPublic, onTogglePublic, publicUrl, linkCopied, onCopyLink,
+  isPublic, togglingPublic, onTogglePublic, publicUrl, linkCopied, onCopyLink, analyticsHref,
 }) {
   const ghostBtn = 'flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-600 hover:border-gray-400 transition-colors';
   return (
@@ -95,6 +95,12 @@ function PreviewAdminBar({
             </button>
           </>
         )}
+        <Link
+          to={analyticsHref}
+          className="ml-auto shrink-0 rounded-md px-2 py-1 text-[11.5px] font-bold text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
+        >
+          열람 현황 보기
+        </Link>
       </div>
     </div>
   );
@@ -177,6 +183,16 @@ export default function NotionPortfolioPreview() {
   useUnsavedChanges(hasUnsavedChanges);
 
   useEffect(() => { loadData(); }, [id, user?.uid]);
+
+  /* 플랜에서 "이력서 만들기"로 들어온 경우 — 포트폴리오가 만들어졌으니
+     사용자가 원래 하려던 이력서 내보내기를 바로 띄운다. 한 번만 연다. */
+  const resumeIntentHandled = useRef(false);
+  useEffect(() => {
+    if (resumeIntentHandled.current) return;
+    if (portfolio?.portfolioPlan?.outputType !== 'resume') return;
+    resumeIntentHandled.current = true;
+    setShowResumeModal(true);
+  }, [portfolio?.portfolioPlan?.outputType]);
 
   const persistPortfolio = useCallback(async (snapshot) => {
     if (!snapshot) return;
@@ -365,6 +381,7 @@ export default function NotionPortfolioPreview() {
       publicUrl={`${window.location.origin}/p/${activeSlug}`}
       linkCopied={linkCopied}
       onCopyLink={handleCopyPublicLink}
+      analyticsHref={`/app/portfolio/analytics/${id}`}
     />
   );
 

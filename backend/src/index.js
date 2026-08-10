@@ -16,6 +16,7 @@ import feedbackRoutes from './routes/feedback.js';
 import adminRoutes from './routes/admin.js';
 import logsRoutes from './routes/logs.js';
 import analyticsRoutes from './routes/analytics.js';
+import shareLinkRoutes from './routes/shareLinks.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
@@ -113,8 +114,10 @@ app.use('/api', billingContextMiddleware);
 
 // 전체 API 일반 제한
 // 인증 라우트는 별도 OTP 제한을 사용하므로 전역 일반 제한에서 제외
+// 공개 링크 열람 수집은 비회원 다수가 같은 IP로 보낼 수 있어 전역 제한 대신
+// 전용 제한(publicIngestRateLimiter)을 쓴다.
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth')) {
+  if (req.path.startsWith('/auth') || req.path === '/analytics/view') {
     return next();
   }
   return generalRateLimiter(req, res, next);
@@ -137,6 +140,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/share-links', shareLinkRoutes);
 
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {

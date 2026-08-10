@@ -39,6 +39,7 @@ const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTe
 const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
 const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfolioPreview'));
 const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfolioView'));
+const PortfolioViewAnalytics = lazy(() => import('./pages/portfolio/PortfolioViewAnalytics'));
 const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
 const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
@@ -156,6 +157,7 @@ const router = createBrowserRouter(
         <Route path="portfolio/web-edit/:id" element={<PrivateRoute><WebPortfolioEditor /></PrivateRoute>} />
         <Route path="portfolio/web-preview/:id" element={<PrivateRoute><WebPortfolioPreview /></PrivateRoute>} />
         <Route path="portfolio/ai-ppt/:id" element={<PrivateRoute><AiPptExport /></PrivateRoute>} />
+        <Route path="portfolio/analytics/:id" element={<PrivateRoute><PortfolioViewAnalytics /></PrivateRoute>} />
         <Route path="settings/credits" element={<PrivateRoute><CreditSettings /></PrivateRoute>} />
         {/* /app 하위의 잘못된 주소 */}
         <Route path="*" element={<NotFound />} />

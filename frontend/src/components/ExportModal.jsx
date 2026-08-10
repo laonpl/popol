@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Loader2, Copy, Download, FileText, FileDown, ScrollText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock, UploadCloud } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -41,11 +42,15 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  // 제출처 라벨 — 입력하면 그 이름의 전용 링크(토큰)를 발급해 열람을 따로 집계한다.
+  const [linkLabel, setLinkLabel] = useState('');
+  const [issuedLabel, setIssuedLabel] = useState('');
   const [isPublic, setIsPublic] = useState(!!data?.isPublic);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [templateFile, setTemplateFile] = useState(null);
   const [resumeFileType, setResumeFileType] = useState('pdf');
   const fileRef = useRef(null);
+  const navigate = useNavigate();
   const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
 
   // 0단계(형식 미선택) → 1단계(선택) → 2단계(완료).
@@ -101,6 +106,24 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
         setExporting(false);
       }
 
+      // 제출처 이름을 입력했으면 전용 토큰 링크를 발급한다.
+      // 발급에 실패해도 일반 공개 링크는 그대로 쓸 수 있어야 하므로 흐름을 막지 않는다.
+      const label = linkLabel.trim();
+      if (label) {
+        setExporting(true);
+        try {
+          const { data: link } = await api.post('/share-links', { portfolioId: data.id, label });
+          setIssuedLabel(label);
+          setResult(`${window.location.origin}/p/${data.id}?t=${link.token}`);
+          setExporting(false);
+          return;
+        } catch (err) {
+          toast.error(err?.message || '제출처 링크 발급에 실패해 일반 링크로 만들었습니다.');
+        }
+        setExporting(false);
+      }
+
+      setIssuedLabel('');
       setResult(`${window.location.origin}/p/${data.id}`);
       return;
     }
@@ -298,6 +321,23 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                 </>
               )}
 
+              {format === 'Link' && (
+                <div>
+                  <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">제출처 이름 (선택)</p>
+                  <input
+                    type="text"
+                    value={linkLabel}
+                    onChange={(e) => setLinkLabel(e.target.value.slice(0, 40))}
+                    placeholder="예: 카카오 지원, 네이버 인턴"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[14px] outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                  <p className="text-[11.5px] text-gray-400 mt-2 leading-relaxed">
+                    제출처마다 다른 링크를 만들면 어느 곳에서 열어봤는지 따로 확인할 수 있습니다.
+                    비워두면 제출처 구분 없는 일반 공개 링크가 만들어집니다.
+                  </p>
+                </div>
+              )}
+
               {format === 'Resume' && (
                 <div>
                   <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">파일 형식</p>
@@ -389,7 +429,14 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                   )}
 
                   <div>
-                    <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">공유 링크</p>
+                    <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      {issuedLabel ? `공유 링크 · ${issuedLabel}` : '공유 링크'}
+                    </p>
+                    {issuedLabel && (
+                      <p className="text-[12px] text-gray-500 mb-2 leading-relaxed">
+                        이 링크로 들어온 열람만 “{issuedLabel}”으로 따로 집계됩니다.
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
                       <Globe size={14} className="text-blue-400 flex-shrink-0" />
                       <span className="text-[12.5px] text-gray-700 truncate font-mono flex-1">{result}</span>
@@ -416,6 +463,12 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                         <ExternalLink size={15} /> 미리보기
                       </a>
                     </div>
+                    <button
+                      onClick={() => { onClose(); navigate(`/app/portfolio/analytics/${data.id}`); }}
+                      className="mt-2.5 w-full rounded-xl border border-gray-200 py-2.5 text-[13.5px] font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-600"
+                    >
+                      이 링크가 열렸는지 확인하기
+                    </button>
                   </div>
                 </div>
               )}

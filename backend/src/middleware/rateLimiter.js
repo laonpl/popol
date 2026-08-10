@@ -43,6 +43,21 @@ export const generalRateLimiter = rateLimit({
   },
 });
 
+// 공개 링크 열람 이벤트 수집: 인증이 없으므로 항상 IP 기준으로 제한한다.
+// 한 명이 페이지 하나를 보는 동안 view/depth/dwell 등 10개 안팎이 발생하므로
+// 같은 사무실에서 여러 명이 동시에 열어도 걸리지 않을 선으로 잡았다.
+export const publicIngestRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  // ipKeyGenerator 는 IP 문자열을 받는다 (req 가 아니다). IPv6 는 /56 단위로 묶인다.
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+  },
+});
+
 // 글로벌 AI 보호: 전체 서버 분당 최대 80회
 export const globalAiRateLimiter = rateLimit({
   windowMs: 60 * 1000,

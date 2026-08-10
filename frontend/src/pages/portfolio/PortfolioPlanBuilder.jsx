@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Briefcase, Check, Circle, FileCheck2, Sparkles, Target } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
@@ -15,6 +15,11 @@ import { clearActivationTask } from '../../services/activationJourney';
 
 export default function PortfolioPlanBuilder() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // 같은 플랜 화면에서 포트폴리오와 이력서 중 무엇을 만들지만 갈라진다.
+  // 선택한 경험은 동일하게 쓰이고, 이력서는 생성된 포트폴리오에서 바로 내보내진다.
+  const outputType = searchParams.get('output') === 'resume' ? 'resume' : 'portfolio';
+  const isResume = outputType === 'resume';
   const user = useAuthStore(state => state.user);
   const profile = useAuthStore(state => state.profile);
   const { experiences, fetchExperiences, loading } = useExperienceStore();
@@ -88,6 +93,7 @@ export default function PortfolioPlanBuilder() {
       slots,
       missingSlots: slots.filter(slot => slot.status === 'missing').map(slot => slot.role),
       readinessStatus: selectedIds.length >= 4 && selectedCoverage.size === 4 ? 'strong' : selectedIds.length >= 3 ? 'ready' : 'collecting',
+      outputType,
       createdAt: new Date().toISOString(),
       version: 1,
     };
@@ -113,9 +119,15 @@ export default function PortfolioPlanBuilder() {
       <div className="rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-700 via-primary-600 to-indigo-600 px-6 py-8 text-white shadow-xl shadow-primary-900/10 md:px-9">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-[12px] font-bold"><Target size={13} /> Portfolio plan</span>
-            <h1 className="mt-3 text-[30px] font-extrabold tracking-[-0.035em] md:text-[38px]">강한 경험 3~4개로<br />지원용 스토리를 설계하세요</h1>
-            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-white/75">템플릿보다 먼저 어떤 경험을 어떤 역할로 보여줄지 정합니다. 경험이 부족해도 현재 뼈대를 미리 볼 수 있어요.</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-[12px] font-bold"><Target size={13} /> {isResume ? 'Resume plan' : 'Portfolio plan'}</span>
+            <h1 className="mt-3 text-[30px] font-extrabold tracking-[-0.035em] md:text-[38px]">
+              {isResume ? <>강한 경험 3~4개로<br />지원용 이력서를 만드세요</> : <>강한 경험 3~4개로<br />지원용 스토리를 설계하세요</>}
+            </h1>
+            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-white/75">
+              {isResume
+                ? '이력서에 넣을 경험을 먼저 고릅니다. 선택한 경험으로 포트폴리오를 만든 뒤 이력서 내보내기 화면이 바로 열립니다.'
+                : '템플릿보다 먼저 어떤 경험을 어떤 역할로 보여줄지 정합니다. 경험이 부족해도 현재 뼈대를 미리 볼 수 있어요.'}
+            </p>
           </div>
           <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur-sm">
             <p className="text-[12px] font-bold text-white/65">선택한 경험</p>

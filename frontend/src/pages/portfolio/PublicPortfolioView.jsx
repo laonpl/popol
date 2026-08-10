@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
   Loader2
@@ -8,7 +8,7 @@ import { doc, getDoc, collection, query, where, getDocs } from '../../services/f
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
 import WebPortfolioRenderer, { WEB_TEMPLATE_IDS } from './WebPortfolioTemplates';
-import { trackViewDepth, trackDwell } from '../../services/outcomeMetrics';
+import { trackPortfolioVisit, trackProjectOpen } from '../../services/viewerTracking';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
@@ -118,8 +118,21 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
   );
 }
 
+/* 열람자는 우리 서비스 회원이 아니다. 무엇이 기록되는지 페이지에서 밝힌다. */
+function ViewTrackingNotice() {
+  return (
+    <p className="mx-auto max-w-[1100px] px-4 pb-6 pt-4 text-center text-[11.5px] leading-relaxed text-gray-400">
+      이 페이지는 포트폴리오 작성자에게 열람 여부·머문 시간·읽은 범위를 익명으로 알려줍니다.
+      열람자를 식별하는 정보나 IP 주소는 저장하지 않습니다.
+    </p>
+  );
+}
+
 export default function PublicPortfolioView() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  // 제출처별로 다르게 발급된 링크 토큰. 없으면 '직접 방문'으로 집계된다.
+  const shareToken = searchParams.get('t') || '';
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -160,15 +173,20 @@ export default function PublicPortfolioView() {
     load();
   }, [id]);
 
-  /* 열람 깊이·체류 시간 — 어느 섹션까지 실제로 읽히는지 확인용.
-     본문·개인정보는 보내지 않고 id·템플릿·숫자만 보낸다 (outcomeMetrics 주석 참고). */
+  /* 열람 추적 — 어느 섹션까지 실제로 읽히는지, 어떤 링크로 들어왔는지.
+     본문·개인정보는 보내지 않고 숫자와 식별자만 보낸다 (viewerTracking 주석 참고). */
   useEffect(() => {
-    if (!portfolio) return;
-    const meta = { portfolioId: portfolio.id, templateId: portfolio.templateId || 'notion' };
-    const stopDepth = trackViewDepth(meta);
-    const stopDwell = trackDwell(meta);
-    return () => { stopDepth(); stopDwell(); };
-  }, [portfolio]);
+    if (!portfolio?.id) return;
+    return trackPortfolioVisit({ portfolioId: portfolio.id, token: shareToken });
+  }, [portfolio?.id, shareToken]);
+
+  /* 프로젝트 상세 열기 — 어떤 경험이 실제로 클릭되는지 함께 기록한다. */
+  const openExperience = useCallback((exp) => {
+    setSelectedExp(exp);
+    if (portfolio?.id) {
+      trackProjectOpen({ portfolioId: portfolio.id, token: shareToken, title: exp?.title });
+    }
+  }, [portfolio?.id, shareToken]);
 
   if (loading) {
     return (
@@ -202,7 +220,7 @@ export default function PublicPortfolioView() {
 
   // 비주얼 템플릿이면 해당 렌더러로 바로 표시
   if (VISUAL_TEMPLATE_IDS.includes(p.templateId)) {
-    return <VisualPortfolioRenderer portfolio={p} />;
+    return <><VisualPortfolioRenderer portfolio={p} /><ViewTrackingNotice /></>;
   }
 
   // 웹사이트형 템플릿 — 로고 폴백 썸네일은 그라디언트 플레이스홀더로 대체해 렌더
@@ -214,7 +232,7 @@ export default function PublicPortfolioView() {
         thumbnailUrl: exp.thumbnailUrl === DEFAULT_PROJECT_LOGO ? '' : exp.thumbnailUrl,
       })),
     };
-    return <WebPortfolioRenderer portfolio={raw} />;
+    return <><WebPortfolioRenderer portfolio={raw} /><ViewTrackingNotice /></>;
   }
 
   return (
@@ -326,7 +344,7 @@ export default function PublicPortfolioView() {
                 <h3 className="text-sm font-bold mb-3">🔥 Experience</h3>
                 <div className="space-y-1.5">
                   {p.experiences.slice(0, 5).map((e, i) => (
-                    <button key={i} onClick={() => setSelectedExp(e)} className="w-full text-left text-sm hover:bg-white rounded-lg p-1 -mx-1 transition-colors">
+                    <button key={i} onClick={() => openExperience(e)} className="w-full text-left text-sm hover:bg-white rounded-lg p-1 -mx-1 transition-colors">
                       <span className="font-semibold text-gray-600 underline">{e.date}</span>{' '}
                       <span className="text-gray-700">{e.title}</span>
                     </button>
@@ -350,7 +368,7 @@ export default function PublicPortfolioView() {
                 const cardRole = '';
                 const cardTech = [];
                 return (
-                  <button key={i} onClick={() => setSelectedExp(e)} className="group bg-white rounded-xl border border-gray-200 overflow-hidden text-left hover:shadow-md transition-all flex flex-col">
+                  <button key={i} onClick={() => openExperience(e)} className="group bg-white rounded-xl border border-gray-200 overflow-hidden text-left hover:shadow-md transition-all flex flex-col">
                     <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative flex-shrink-0">
                       {e.thumbnailUrl ? (
                         <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -576,7 +594,7 @@ export default function PublicPortfolioView() {
                   const cardTech = [];
                   const stMap = { expected: 'bg-blue-500', doing: 'bg-green-500', finished: 'bg-gray-400' };
                   return (
-                    <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
+                    <button key={i} onClick={() => openExperience(e)} className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
                       <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden relative flex-shrink-0">
                         {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         : <div className="w-full h-full flex items-center justify-center"><span className="text-3xl opacity-40">📋</span></div>}
@@ -694,7 +712,7 @@ export default function PublicPortfolioView() {
               <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
                 <h3 className="font-bold text-lg text-[#2d2a26] mb-5">💬 인터뷰</h3>
                 <div className="space-y-5">{p.experiences.slice(0, 3).map((e, i) => (
-                  <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => setSelectedExp(e)}>
+                  <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => openExperience(e)}>
                     <div className="flex-1">
                       <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. <VHtml value={e.title} />에 대해 이야기해주세요.</p>
                       <p className="text-sm text-[#8a8578] leading-relaxed line-clamp-3">{e.description || '클릭하여 확인'}</p>
@@ -716,7 +734,7 @@ export default function PublicPortfolioView() {
                   const cardSummary = '';
                   const cardRole = '';
                   return (
-                    <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all flex flex-col">
+                    <button key={i} onClick={() => openExperience(e)} className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all flex flex-col">
                       <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden flex-shrink-0">
                         {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨'][i % 3]}</div>}
@@ -836,7 +854,7 @@ export default function PublicPortfolioView() {
                     const cardSummary = '';
                     const cardRole = '';
                     return (
-                      <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setSelectedExp(exp)}>
+                      <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => openExperience(exp)}>
                         <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-1 z-10 border-2 border-white ${exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'}`} />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
@@ -873,6 +891,8 @@ export default function PublicPortfolioView() {
         </div>
       </div>
       )}
+
+      <ViewTrackingNotice />
 
       {/* Experience Detail Modal */}
       {selectedExp && (
