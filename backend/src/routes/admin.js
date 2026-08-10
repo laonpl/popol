@@ -862,4 +862,181 @@ router.post('/credit-requests/reject', async (req, res, next) => {
   }
 });
 
+/* ── 공유 링크 열람 현황 (서비스 전체) ──────────────────────────────
+   사용자별 화면은 /api/analytics/portfolio/:id 가 담당하고, 여기서는
+   운영자가 전체 발급 현황을 보고 문제가 있는 링크를 차단한다.
+
+   열람 이벤트는 portfolios/{id}/views 하위 컬렉션에 있어서 전체를 최신순으로
+   훑으려면 컬렉션 그룹 색인이 따로 필요하다. 색인 배포 없이 돌아가도록
+   목록은 최상위 shareLinks 의 누적 카운터로 만들고, 상세 행동은 링크를
+   펼칠 때 해당 포트폴리오의 하위 컬렉션만 읽어서 보여준다. */
+
+const MAX_ADMIN_LINKS = 300;
+const MAX_ADMIN_DETAIL_EVENTS = 300;
+
+async function emailsByUid(uids) {
+  const map = new Map();
+  const unique = [...new Set(uids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    const chunk = unique.slice(i, i + 100).map(uid => ({ uid }));
+    try {
+      const result = await adminAuth.getUsers(chunk);
+      result.users.forEach(user => map.set(user.uid, user.email || ''));
+    } catch {
+      // 계정이 지워진 uid 가 섞이면 조회가 실패할 수 있다 — 이메일 없이 진행한다.
+    }
+  }
+  return map;
+}
+
+router.post('/link-views', async (req, res, next) => {
+  try {
+    if (!isAuthorized(req.body)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+
+    const snap = await adminDb.collection('shareLinks')
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_ADMIN_LINKS)
+      .get();
+    const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const [emailMap, portfolioDocs, totalEvents] = await Promise.all([
+      emailsByUid(rows.map(row => row.userId)),
+      rows.length
+        ? adminDb.getAll(...[...new Set(rows.map(row => row.portfolioId).filter(Boolean))]
+          .map(id => adminDb.collection('portfolios').doc(id)))
+        : Promise.resolve([]),
+      adminDb.collectionGroup('views').count().get()
+        .then(agg => agg.data().count)
+        .catch(() => null),
+    ]);
+
+    const portfolioById = new Map(
+      portfolioDocs.filter(doc => doc.exists).map(doc => [doc.id, doc.data()])
+    );
+
+    const dayStartMs = kstDayStart().getTime();
+    const links = rows.map(row => {
+      const portfolio = portfolioById.get(row.portfolioId);
+      const lastMs = toMs(row.lastViewedAt);
+      return {
+        id: row.id,
+        label: row.label || '(이름 없음)',
+        portfolioId: row.portfolioId,
+        portfolioTitle: portfolio?.title || '(삭제된 포트폴리오)',
+        portfolioPublic: portfolio?.isPublic === true,
+        ownerUid: row.userId,
+        ownerEmail: emailMap.get(row.userId) || '',
+        viewCount: Number(row.viewCount || 0),
+        lastViewedAt: toIso(row.lastViewedAt),
+        viewedToday: Boolean(lastMs && lastMs >= dayStartMs),
+        revoked: Boolean(row.revokedAt),
+        createdAt: toIso(row.createdAt),
+      };
+    });
+
+    res.json({
+      links,
+      summary: {
+        totalLinks: links.length,
+        openedLinks: links.filter(link => link.viewCount > 0).length,
+        linkViews: links.reduce((sum, link) => sum + link.viewCount, 0),
+        revokedLinks: links.filter(link => link.revoked).length,
+        viewedTodayLinks: links.filter(link => link.viewedToday).length,
+        // 토큰 없는 직접 방문까지 포함한 전체 이벤트 수 (집계 실패 시 null)
+        totalEvents,
+        truncated: links.length >= MAX_ADMIN_LINKS,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 특정 포트폴리오의 열람 행동 상세 — 링크 행을 펼칠 때만 호출한다.
+router.post('/link-views/detail', async (req, res, next) => {
+  try {
+    if (!isAuthorized(req.body)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    const portfolioId = String(req.body.portfolioId || '').trim();
+    if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다.' });
+
+    const snap = await adminDb.collection('portfolios').doc(portfolioId).collection('views')
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_ADMIN_DETAIL_EVENTS)
+      .get();
+    const events = snap.docs.map(doc => ({ ...doc.data(), createdAt: toIso(doc.data().createdAt) }));
+
+    const dwell = events.filter(event => event.eventType === 'dwell' && event.seconds);
+    const depths = events.filter(event => event.eventType === 'depth' && event.depth);
+    const visitors = new Set(events.map(event => event.visitorId).filter(Boolean));
+    const projects = new Map();
+    const devices = {};
+    const referrers = new Map();
+    events.forEach(event => {
+      if (event.eventType === 'project_open' && event.targetTitle) {
+        projects.set(event.targetTitle, (projects.get(event.targetTitle) || 0) + 1);
+      }
+      if (event.eventType === 'view') {
+        devices[event.device || 'unknown'] = (devices[event.device || 'unknown'] || 0) + 1;
+        if (event.referrerHost) referrers.set(event.referrerHost, (referrers.get(event.referrerHost) || 0) + 1);
+      }
+    });
+
+    const rank = (map) => [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    res.json({
+      portfolioId,
+      totals: {
+        events: events.length,
+        views: events.filter(event => event.eventType === 'view').length,
+        visitors: visitors.size,
+        avgDwellSeconds: dwell.length
+          ? Math.round(dwell.reduce((sum, event) => sum + event.seconds, 0) / dwell.length)
+          : 0,
+        maxDepth: depths.reduce((max, event) => Math.max(max, event.depth), 0),
+        truncated: events.length >= MAX_ADMIN_DETAIL_EVENTS,
+      },
+      topProjects: rank(projects),
+      topReferrers: rank(referrers),
+      devices,
+      recent: events.slice(0, 25).map(event => ({
+        eventType: event.eventType,
+        linkLabel: event.linkLabel || null,
+        depth: event.depth,
+        seconds: event.seconds,
+        targetTitle: event.targetTitle,
+        device: event.device || null,
+        referrerHost: event.referrerHost || null,
+        createdAt: event.createdAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 링크 차단/해제 — 문제가 되는 공유 링크를 운영자가 즉시 막는다.
+router.post('/link-views/revoke', async (req, res, next) => {
+  try {
+    if (!isAuthorized(req.body)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    const id = String(req.body.id || '').trim();
+    if (!id) return res.status(400).json({ error: '링크 ID가 필요합니다.' });
+    const ref = adminDb.collection('shareLinks').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: '링크를 찾을 수 없습니다.' });
+    await ref.update({ revokedAt: req.body.revoked ? new Date() : null });
+    res.json({ ok: true, revoked: Boolean(req.body.revoked) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

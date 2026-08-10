@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Briefcase, Check, Circle, FileCheck2, Sparkles, Target } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
+import FlowSteps from '../../components/FlowSteps';
 import {
   buildPortfolioReadiness,
   evaluateExperienceReadiness,
@@ -12,6 +12,53 @@ import {
 } from '../../utils/experienceReadiness';
 import { trackActivation } from '../../services/activationMetrics';
 import { clearActivationTask } from '../../services/activationJourney';
+
+/* 목록에서 경험을 고를 때는 전문이 아니라 판단에 필요한 만큼만 보여준다.
+   첫 문장만 잘라 한 줄로 만든다. */
+function oneLine(value, max = 92) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const match = text.match(/^.*?(?:다\.|\.|!|\?)(?=\s|$)/);
+  const sentence = (match ? match[0] : text).trim();
+  return sentence.length > max ? `${sentence.slice(0, max).trim()}…` : sentence;
+}
+
+/** 역량·기술 태그 — 경험마다 필드가 제각각이라 있는 것만 모아 쓴다. */
+function pickTags(experience, readiness, max = 4) {
+  const roleLabels = readiness.portfolioRoles
+    .map(role => PORTFOLIO_SLOT_META[role]?.label)
+    .filter(Boolean);
+  const extra = [
+    ...(Array.isArray(experience.competencyTags) ? experience.competencyTags : []),
+    ...(Array.isArray(experience.keywords) ? experience.keywords : []),
+    ...(Array.isArray(experience.classify) ? experience.classify : []),
+  ]
+    .map(tag => String(typeof tag === 'string' ? tag : tag?.name || '').trim())
+    .filter(Boolean);
+  return [...new Set([...roleLabels, ...extra])].slice(0, max);
+}
+
+/* 참조 디자인의 폼 스타일 — 작은 회색 라벨 + 밑줄 입력. 테두리 상자를 쓰지 않는다. */
+const UNDERLINE_INPUT = 'w-full border-0 border-b border-gray-200 bg-transparent px-0 pb-2 pt-1 text-[14.5px] text-gray-800 outline-none transition-colors placeholder:text-gray-300 focus:border-primary-500';
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[12px] text-gray-400">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** 섹션 제목 — 참조 디자인처럼 흐린 회색으로 구획만 알려준다. */
+function SectionTitle({ children, action }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
+      <h2 className="text-[17px] font-bold text-gray-300">{children}</h2>
+      {action}
+    </div>
+  );
+}
 
 export default function PortfolioPlanBuilder() {
   const navigate = useNavigate();
@@ -114,128 +161,183 @@ export default function PortfolioPlanBuilder() {
 
   return (
     <div className="mx-auto max-w-6xl animate-fadeIn pb-20">
-      <button onClick={() => navigate(-1)} className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-bold text-gray-400 hover:text-gray-700"><ArrowLeft size={15} /> 돌아가기</button>
-
-      <div className="rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-700 via-primary-600 to-indigo-600 px-6 py-8 text-white shadow-xl shadow-primary-900/10 md:px-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-[12px] font-bold"><Target size={13} /> {isResume ? 'Resume plan' : 'Portfolio plan'}</span>
-            <h1 className="mt-3 text-[30px] font-extrabold tracking-[-0.035em] md:text-[38px]">
-              {isResume ? <>강한 경험 3~4개로<br />지원용 이력서를 만드세요</> : <>강한 경험 3~4개로<br />지원용 스토리를 설계하세요</>}
-            </h1>
-            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-white/75">
-              {isResume
-                ? '이력서에 넣을 경험을 먼저 고릅니다. 선택한 경험으로 포트폴리오를 만든 뒤 이력서 내보내기 화면이 바로 열립니다.'
-                : '템플릿보다 먼저 어떤 경험을 어떤 역할로 보여줄지 정합니다. 경험이 부족해도 현재 뼈대를 미리 볼 수 있어요.'}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur-sm">
-            <p className="text-[12px] font-bold text-white/65">선택한 경험</p>
-            <p className="mt-1 text-[28px] font-extrabold">{selectedIds.length}<span className="ml-1 text-[15px] text-white/65">/ 4개</span></p>
-          </div>
-        </div>
+      <div className="py-6">
+        <FlowSteps current={3} />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="space-y-6">
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
-            <div className="mb-4">
-              <h2 className="text-[18px] font-extrabold text-gray-900">1. 지원 목표</h2>
-              <p className="mt-1 text-[12.5px] text-gray-400">아직 정하지 않았다면 비워두고 일반 포트폴리오로 진행할 수 있어요.</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label>
-                <span className="mb-1.5 block text-[12px] font-bold text-gray-500">기업명</span>
-                <input value={target.company} onChange={event => setTarget(prev => ({ ...prev, company: event.target.value }))} placeholder="예: 핏폴리" className="w-full rounded-xl border border-gray-200 px-3.5 py-3 text-[13.5px] outline-none focus:border-primary-300 focus:ring-4 focus:ring-primary-50" />
-              </label>
-              <label>
-                <span className="mb-1.5 block text-[12px] font-bold text-gray-500">지원 직무</span>
-                <input value={target.role} onChange={event => setTarget(prev => ({ ...prev, role: event.target.value }))} placeholder="예: 프로덕트 매니저" className="w-full rounded-xl border border-gray-200 px-3.5 py-3 text-[13.5px] outline-none focus:border-primary-300 focus:ring-4 focus:ring-primary-50" />
-              </label>
-              <label>
-                <span className="mb-1.5 block text-[12px] font-bold text-gray-500">지원 마감일</span>
-                <input type="date" value={target.deadline} onChange={event => setTarget(prev => ({ ...prev, deadline: event.target.value }))} className="w-full rounded-xl border border-gray-200 px-3.5 py-3 text-[13.5px] outline-none focus:border-primary-300 focus:ring-4 focus:ring-primary-50" />
-              </label>
-            </div>
-          </section>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <main className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:p-9">
+          <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-gray-900 md:text-[30px]">
+            {isResume ? '이력서에 넣을 경험' : '포트폴리오에 넣을 경험'}
+          </h1>
+          <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed text-gray-500">
+            {isResume
+              ? '선택한 경험으로 포트폴리오를 만든 뒤, 이력서 내보내기 화면이 바로 열립니다.'
+              : '템플릿보다 먼저 어떤 경험을 어떤 역할로 보여줄지 정합니다. 경험이 부족해도 현재 뼈대를 미리 볼 수 있어요.'}
+          </p>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h2 className="text-[18px] font-extrabold text-gray-900">2. 경험 3~4개 선택</h2>
-                <p className="mt-1 text-[12.5px] text-gray-400">같은 이야기보다 서로 다른 강점을 보여주는 경험을 선택하세요.</p>
-              </div>
-              <button onClick={() => navigate('/app/experience/quick')} className="text-[12.5px] font-bold text-primary-600">+ 부족한 경험 추가</button>
+          <div className="mt-9">
+            <SectionTitle>지원 목표</SectionTitle>
+            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+              <Field label="기업명">
+                <input
+                  value={target.company}
+                  onChange={event => setTarget(prev => ({ ...prev, company: event.target.value }))}
+                  placeholder="예: 핏폴리"
+                  className={UNDERLINE_INPUT}
+                />
+              </Field>
+              <Field label="지원 직무">
+                <input
+                  value={target.role}
+                  onChange={event => setTarget(prev => ({ ...prev, role: event.target.value }))}
+                  placeholder="예: 프로덕트 매니저"
+                  className={UNDERLINE_INPUT}
+                />
+              </Field>
+              <Field label="지원 마감일">
+                <input
+                  type="date"
+                  value={target.deadline}
+                  onChange={event => setTarget(prev => ({ ...prev, deadline: event.target.value }))}
+                  className={UNDERLINE_INPUT}
+                />
+              </Field>
             </div>
+            <p className="mt-4 text-[12px] text-gray-400">아직 정하지 않았다면 비워두고 일반 포트폴리오로 진행할 수 있어요.</p>
+          </div>
+
+          <div className="mt-11 border-t border-gray-100 pt-9">
+            <SectionTitle
+              action={(
+                <button onClick={() => navigate('/app/experience/quick')} className="text-[12.5px] font-bold text-primary-600 hover:text-primary-700">
+                  부족한 경험 추가
+                </button>
+              )}
+            >
+              경험 선택 · 최대 4개
+            </SectionTitle>
 
             {experiences.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-200 px-6 py-12 text-center">
+              <div className="rounded-xl border border-dashed border-gray-200 px-6 py-14 text-center">
                 <p className="text-[14px] font-bold text-gray-600">아직 정리한 경험이 없습니다.</p>
-                <button onClick={() => navigate('/app/experience/quick')} className="mt-3 rounded-xl bg-primary-600 px-5 py-3 text-[13px] font-bold text-white">첫 경험 초안 만들기</button>
+                <button onClick={() => navigate('/app/experience/quick')} className="mt-4 rounded-full bg-primary-600 px-6 py-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-700">
+                  첫 경험 초안 만들기
+                </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div>
                 {summary.items
                   .sort((a, b) => b.readiness.score - a.readiness.score)
                   .map(({ experience, readiness }) => {
                     const selected = selectedIds.includes(experience.id);
+                    const summary = oneLine(readiness.preview.context || readiness.preview.outcome);
+                    const did = [oneLine(readiness.preview.role, 26), oneLine(readiness.preview.action, 64)]
+                      .filter(Boolean)
+                      .join(' · ');
+                    const tags = pickTags(experience, readiness);
                     return (
-                      <button key={experience.id} type="button" onClick={() => toggleExperience(experience.id)} className={`w-full rounded-xl border p-4 text-left transition ${selected ? 'border-primary-300 bg-primary-50/60 ring-2 ring-primary-100' : 'border-gray-200 bg-white hover:border-primary-200'}`}>
-                        <div className="flex items-start gap-3">
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-300 text-transparent'}`}><Check size={12} /></span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-extrabold text-gray-800">{experience.title || '제목 없는 경험'}</p>
-                              <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${readiness.portfolioReady ? 'bg-emerald-100 text-emerald-700' : readiness.requiredComplete ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
-                                {readiness.portfolioReady ? '검증 완료' : readiness.requiredComplete ? '사실 확인 필요' : '내용 보완 필요'}
-                              </span>
-                            </div>
-                            <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-gray-500">{readiness.preview.context || readiness.preview.action || '아직 상세 내용이 부족합니다.'}</p>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {readiness.portfolioRoles.map(role => <span key={role} className="rounded-md bg-white px-2 py-1 text-[10.5px] font-bold text-primary-600">{PORTFOLIO_SLOT_META[role]?.label}</span>)}
-                            </div>
-                          </div>
-                          <span className="text-[12px] font-extrabold text-gray-400">{readiness.score}%</span>
-                        </div>
+                      <button
+                        key={experience.id}
+                        type="button"
+                        onClick={() => toggleExperience(experience.id)}
+                        className="flex w-full items-start gap-3.5 border-b border-gray-100 py-3.5 text-left transition-colors hover:bg-gray-50/80"
+                      >
+                        {/* 참조 디자인의 라디오처럼 CSS 도형만 쓴다 */}
+                        <span className={`mt-[3px] flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border transition-colors ${selected ? 'border-primary-600' : 'border-gray-300'}`}>
+                          {selected && <span className="h-[7px] w-[7px] rounded-full bg-primary-600" />}
+                        </span>
+
+                        {/* 4줄 고정 — 무슨 경험인지 / 핵심 / 무엇을 했는지 / 태그 */}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className={`truncate text-[14.5px] font-bold ${selected ? 'text-gray-900' : 'text-gray-700'}`}>
+                              {experience.title || '제목 없는 경험'}
+                            </span>
+                            <span className={`shrink-0 text-[11.5px] font-medium ${readiness.portfolioReady ? 'text-emerald-600' : readiness.requiredComplete ? 'text-amber-600' : 'text-gray-400'}`}>
+                              {readiness.portfolioReady ? '검증 완료' : readiness.requiredComplete ? '사실 확인 필요' : '내용 보완 필요'}
+                            </span>
+                          </span>
+                          <span className="mt-1 block truncate text-[12.5px] text-gray-500">
+                            {summary || '아직 상세 내용이 부족합니다.'}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[12.5px] text-gray-400">
+                            {did || '역할과 행동이 아직 정리되지 않았습니다.'}
+                          </span>
+                          <span className="mt-1.5 flex flex-wrap items-center gap-1 overflow-hidden">
+                            {tags.length > 0 ? tags.map(tag => (
+                              <span key={tag} className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">{tag}</span>
+                            )) : <span className="text-[11px] text-gray-300">태그 없음</span>}
+                          </span>
+                        </span>
+
+                        <span className="shrink-0 pt-0.5 text-[12.5px] font-bold text-gray-300">{readiness.score}%</span>
                       </button>
                     );
                   })}
               </div>
             )}
-          </section>
+          </div>
         </main>
 
         <aside className="self-start lg:sticky lg:top-5">
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2"><FileCheck2 size={17} className="text-primary-600" /><h2 className="text-[16px] font-extrabold text-gray-900">스토리 커버리지</h2></div>
-            <div className="mt-4 space-y-2.5">
-              {PORTFOLIO_SLOT_ORDER.map(slot => {
-                const covered = selectedCoverage.has(slot);
-                return (
-                  <div key={slot} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${covered ? 'bg-emerald-50' : 'bg-gray-50'}`}>
-                    {covered ? <Check size={15} className="text-emerald-600" /> : <Circle size={14} className="text-gray-300" />}
-                    <div><p className={`text-[12.5px] font-bold ${covered ? 'text-emerald-800' : 'text-gray-500'}`}>{PORTFOLIO_SLOT_META[slot].label}</p><p className="text-[10.5px] text-gray-400">{covered ? '선택 경험으로 충족' : '보강 추천'}</p></div>
-                  </div>
-                );
-              })}
+          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="text-[15px] font-bold text-gray-300">선택 요약</h2>
+
+            <div className="mt-5">
+              <p className="text-[15px] font-bold text-gray-900">스토리 커버리지</p>
+              <div className="mt-3 space-y-2">
+                {PORTFOLIO_SLOT_ORDER.map(slot => {
+                  const covered = selectedCoverage.has(slot);
+                  return (
+                    <div key={slot} className="flex items-baseline justify-between gap-3">
+                      <span className={`text-[13px] ${covered ? 'text-gray-700' : 'text-gray-400'}`}>{PORTFOLIO_SLOT_META[slot].label}</span>
+                      <span className={`shrink-0 text-[12.5px] font-medium ${covered ? 'text-emerald-600' : 'text-gray-300'}`}>
+                        {covered ? '충족' : '보강 추천'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-baseline justify-between border-t border-gray-100 pt-4">
+              <span className="text-[14px] font-bold text-gray-900">선택한 경험</span>
+              <span className="text-[15px] font-extrabold text-primary-600">{selectedIds.length} / 4개</span>
             </div>
 
             {selectedIds.length < 3 && (
-              <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-800">현재 {selectedIds.length}개 경험으로도 초안을 만들 수 있지만, 지원용 완성도를 위해 3개 이상을 권장합니다.</div>
+              <p className="mt-4 text-[12px] leading-relaxed text-amber-700">
+                현재 {selectedIds.length}개 경험으로도 초안을 만들 수 있지만, 지원용 완성도를 위해 3개 이상을 권장합니다.
+              </p>
             )}
             {unconfirmedSelected.length > 0 && (
-              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[12px] leading-relaxed text-blue-800">선택한 경험 중 {unconfirmedSelected.length}개는 사실 확인이 남아 있습니다. 템플릿 생성 후에도 보완할 수 있어요.</div>
+              <p className="mt-3 text-[12px] leading-relaxed text-gray-500">
+                선택한 경험 중 {unconfirmedSelected.length}개는 사실 확인이 남아 있습니다. 템플릿 생성 후에도 보완할 수 있어요.
+              </p>
             )}
 
-            <button onClick={continueToTemplate} disabled={selectedIds.length === 0} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3.5 text-[14px] font-extrabold text-white hover:bg-primary-700 disabled:opacity-40">
-              <Sparkles size={16} /> 다음: 추천 템플릿 <ArrowRight size={15} />
-            </button>
-            <p className="mt-2 text-center text-[10.5px] text-gray-400">선택한 경험과 순서는 포트폴리오에 자동 반영됩니다.</p>
+            <div className="mt-6 flex gap-2.5">
+              <button
+                onClick={() => navigate(-1)}
+                className="rounded-full bg-gray-100 px-6 py-3 text-[13px] font-bold text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+              >
+                뒤로
+              </button>
+              <button
+                onClick={continueToTemplate}
+                disabled={selectedIds.length === 0}
+                className="flex-1 rounded-full bg-primary-600 px-5 py-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-40"
+              >
+                다음: 추천 템플릿
+              </button>
+            </div>
+            <p className="mt-3 text-center text-[11px] text-gray-400">선택한 경험과 순서는 포트폴리오에 자동 반영됩니다.</p>
           </section>
 
-          <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50/60 p-4">
-            <div className="flex gap-2"><Briefcase size={16} className="mt-0.5 shrink-0 text-primary-600" /><p className="text-[12px] leading-relaxed text-primary-800">경험이 4개를 넘으면 전부 넣기보다 지원 직무에 가장 잘 맞는 3~4개만 선택하는 편이 좋습니다.</p></div>
-          </div>
+          <p className="mt-4 px-1 text-[12px] leading-relaxed text-gray-400">
+            경험이 4개를 넘으면 전부 넣기보다 지원 직무에 가장 잘 맞는 3~4개만 선택하는 편이 좋습니다.
+          </p>
         </aside>
       </div>
     </div>
