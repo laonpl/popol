@@ -28,6 +28,11 @@ services:
         value: popol-cb20b
       - key: FIREBASE_STORAGE_BUCKET
         value: popol-cb20b.firebasestorage.app
+      # Render 무료 플랜(512MB)에서 Tesseract OCR은 OOM으로 프로세스를 죽인다.
+      # (프로세스가 죽으면 진행 중이던 요청은 프록시 502 / Network Error로 끝난다)
+      # importService의 보호 스위치를 켜서 이미지 OCR은 Gemini Vision만 쓴다.
+      - key: OCR_PREFER_VISION
+        value: true
       - key: GITHUB_MODELS_ENDPOINT
         value: https://models.inference.ai.azure.com
       - key: GITHUB_MODELS_TOKEN

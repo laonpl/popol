@@ -169,7 +169,8 @@ if (run(2)) {
   ok('실패·한계 서사 요구', p.includes('실패·한계·불확실이 하나도 없는'));
   ok('AI 클리셰 금지어 포함', p.includes('시너지를 창출') && p.includes('역량을 함양'));
   ok('기법 8개 전면 강제 → 선택 적용으로 완화', p.includes('1~2개 골라 적용'));
-  ok('honestReview(솔직 회고) 스키마 요구', p.includes('honestReview') || prompts.buildDraftAnalysisPrompt('x', 'designer', 'first').includes('honestReview'));
+  // honestReview는 빠른 초안이 아니라 완성 단계(핵심경험 프롬프트)에서 생성된다.
+  ok('honestReview(솔직 회고) 스키마 요구', p.includes('honestReview') || prompts.buildSingleKeyExperiencePrompt('x', null, 0, 1, 'designer').includes('honestReview'));
 }
 
 // ══ 3. jobData 파이프라인 복구 (핵심 버그) ═════════════════════════════════

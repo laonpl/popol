@@ -1,6 +1,7 @@
 import { callGeminiModel, callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
 import JSZip from 'jszip';
+import { clampMaterial } from '../utils/materialText.js';
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -17,12 +18,24 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
     throw err;
   }
 
+  // 호출 1회 45초 · 전체 100초 상한.
+  // 상한이 없으면 2모델 × 2회 × 기본 90초로 최대 6분을 매달려 있다가 프록시가
+  // 커넥션을 끊어 502/Network Error가 된다(2026-08 오류로그). 상한 안에서 실패하면
+  // 호출부(structureFallback 등)가 폴백으로 응답을 만들 수 있다.
+  const CALL_TIMEOUT_MS = 45000;
+  const deadline = Date.now() + 100000;
+
   try {
     let lastError;
     for (const modelName of MODEL_FALLBACKS) {
+      if (Date.now() > deadline) break;
       for (let attempt = 0; attempt < retries; attempt++) {
+        if (Date.now() > deadline) {
+          lastError = lastError || new Error('AI 응답 대기 시간이 초과되었습니다.');
+          break;
+        }
         try {
-          return await callGeminiModel(modelName, parts);
+          return await callGeminiModel(modelName, parts, CALL_TIMEOUT_MS);
         } catch (err) {
           lastError = err;
           const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
@@ -44,13 +57,17 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
           } else if ([404, 400].includes(status)) {
             console.warn(`[Import Gemini] ${modelName} ${status} - 다음 모델로 전환`);
             break;
+          } else if (msg === 'GEMINI_TIMEOUT') {
+            // 타임아웃은 모델 문제일 수 있으므로 더 빠른 다음 모델로 넘긴다.
+            console.warn(`[Import Gemini] ${modelName} 타임아웃 - 다음 모델로 전환`);
+            break;
           } else throw err;
         }
       }
     }
 
-    // 모든 재시도 소진 후 GitHub Models 폴백 사용
-    if (lastError) {
+    // 모든 재시도 소진 후 GitHub Models 폴백 사용 (상한을 이미 넘겼으면 생략)
+    if (lastError && Date.now() <= deadline) {
       console.error('[Import Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...');
       try {
         const promptString = Array.isArray(parts) 
@@ -679,7 +696,15 @@ async function extractWithTesseractOCR(buffer) {
 /**
  * Gemini Vision API로 문서/이미지에서 텍스트 추출 (OCR)
  */
+// Gemini inline data 요청 한도는 20MB. base64는 원본의 약 1.34배라
+// 12MB를 넘기면 어차피 실패하고, 그 전에 512MB 인스턴스의 메모리를 먼저 밀어낸다.
+// (OOM은 throw되지 않고 프로세스를 죽여 프록시 502가 된다 — 2026-08 오류로그)
+const VISION_MAX_BYTES = 12 * 1024 * 1024;
+
 async function extractWithGeminiVision(buffer, mimeType) {
+  if (buffer.length > VISION_MAX_BYTES) {
+    throw new Error(`이미지·스캔 문서는 ${Math.floor(VISION_MAX_BYTES / 1024 / 1024)}MB까지 읽을 수 있습니다. 파일을 압축하거나 나눠서 올려주세요.`);
+  }
   const base64 = buffer.toString('base64');
   return await geminiGenerate([
     {
@@ -699,7 +724,8 @@ async function extractWithGeminiVision(buffer, mimeType) {
  * AI를 사용하여 임포트된 내용을 경험/포트폴리오/자소서 형식으로 구조화
  */
 export async function structureImportedContent(importedData, targetType) {
-  const rawText = importedData.content?.substring(0, 5000) || '';
+  // 5,000자에서 자르면 문서 앞부분(표지·목차)만 보고 구조화된다 — 본문·성과까지 담기게 상향.
+  const rawText = clampMaterial(importedData.content || '', 40000);
 
   const prompts = {
     experience: `당신은 실리콘밸리 탑티어 기업의 수석 채용 담당자이자, 취준생의 파편화된 경험을 '합격률 1%의 직무 맞춤형 포트폴리오'로 변환해 주는 최고의 커리어 컨설턴트입니다.
@@ -801,7 +827,8 @@ ${rawText}`,
  * AI 없이 기본 템플릿으로 구조화하는 폴백
  */
 function structureFallback(importedData, targetType) {
-  const content = (importedData.content || '').substring(0, 1000);
+  // AI 실패 시 쓰는 템플릿 폴백. 1,000자면 7개 섹션에 나눠 담을 내용이 사실상 없다.
+  const content = (importedData.content || '').substring(0, 6000);
   const title = importedData.title || '가져온 내용';
 
   if (targetType === 'experience') {

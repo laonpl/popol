@@ -691,7 +691,7 @@ function PmExperienceDashboard() {
   ];
 
   return (
-    <div className="resultt-pm-grid min-w-0 gap-4 p-3.5">
+    <div id="pm-experience-dashboard" className="resultt-pm-grid min-w-0 gap-4 p-3.5">
       <style>{`
         .resultt-pm-grid { display: grid; grid-template-columns: minmax(0, 230px) minmax(0, 1fr); align-items: start; }
         @media (max-width: 1023px) { .resultt-pm-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -743,7 +743,7 @@ function PmExperienceDashboard() {
           ))}
         </div>
 
-        <section className="overflow-hidden border-[3px] border-[#3d5262] bg-[#3d5262]">
+        <section id="pm-lean-canvas" className="overflow-hidden border-[3px] border-[#3d5262] bg-[#3d5262]">
           <div className="px-3 py-2 text-center text-white">
             <div className="flex items-baseline justify-center gap-2">
               <h3 className="text-[15px] font-black">리너 캔버스</h3>
@@ -794,7 +794,7 @@ function PmExperienceDashboard() {
         </section>
 
         <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-          <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <section id="pm-transformation" className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-[10.5px] font-black text-slate-800">AS-IS → TO-BE</h3>
@@ -865,7 +865,7 @@ function MarketerDashboard() {
     ['Insight', '조회보다 저장 행동이 팔로우와 가입을 더 잘 예측'],
   ];
   return (
-    <div className="min-w-0 space-y-4 p-5">
+    <div id="marketer-experience-dashboard" className="min-w-0 space-y-4 p-5">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-slate-950 px-3 py-1.5 text-[12px] font-black text-white">
@@ -1035,42 +1035,70 @@ const EVIDENCE_STYLE = {
   D: { label: 'D · 회상',     cls: 'border-slate-200 bg-slate-50 text-slate-500' },
 };
 
+/* 역량 키워드 분류 — 실제 화면(StructuredResult)의 KW_CATEGORY_STYLES와 같은 구분 */
+const KW_STYLE = {
+  tech:       { cls: 'bg-sky-50 text-sky-700 ring-sky-200',             label: '기술' },
+  soft:       { cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', label: '소통' },
+  leadership: { cls: 'bg-violet-50 text-violet-700 ring-violet-200',    label: '리더십' },
+  planning:   { cls: 'bg-amber-50 text-amber-700 ring-amber-200',       label: '기획' },
+};
+
 const EXPERIENCE_SAMPLES = {
   common: {
-    intro:      { tag: '사실', level: 'A', body: 'FitPoly 경험 구조화 서비스 — 흩어진 자료에서 판단 근거를 복원해 직무 언어로 정리하는 웹 서비스입니다.' },
-    overview:   { tag: '사실', level: 'B', body: '취업 준비생이 경험을 "활동 나열"로 적어 평가자가 기여 범위를 판단하기 어렵다는 문제에서 출발했습니다. 자료를 먼저 판독하고 판단이 바뀐 사건 단위로 추출하는 것을 목표로 삼았습니다.' },
-    task:       { tag: '사실', level: 'A', body: '자료 업로드부터 구조화·근거 표기까지의 파이프라인을 설계하고, 직무별 추출 스키마를 정의했습니다.' },
-    process:    { tag: '해석', level: 'B', body: '사용자 8명의 초안을 직접 읽고 어떤 문장이 근거 없이 단정되는지 분류했습니다. 그 결과 문장 다듬기보다 "무엇이 사실인지" 먼저 가르는 것이 핵심이라고 판단했습니다.' },
-    output:     { tag: '사실', level: 'A', body: '7개 공통 섹션, 근거 등급 A~D 표기, 직군별 특화 섹션과 시각 산출물을 포함한 결과 화면을 완성했습니다.' },
-    growth:     { tag: '해석', level: 'C', body: '좋은 문장을 만드는 일과 사실을 판별하는 일은 다른 작업이라는 것을 배웠습니다. 이후에는 생성보다 판독을 먼저 설계합니다.' },
-    competency: { tag: '추정', level: 'B', body: '모호한 요구를 판단 가능한 기준으로 바꾸고, 근거 수준을 구분해 커뮤니케이션할 수 있습니다.' },
+    title: 'FitPoly 경험 구조화 서비스 제작',
+    meta: { 기간: '2025.09 - 2026.02', 역할: '기획·실행 총괄', '팀 구성': '기획 1명, 개발 2명, 디자인 1명', '영향 범위': '베타 사용자 120명', 목표: '자료에서 판단 근거를 복원해 직무 언어로 정리' },
+    keywords: [['문제 정의', 'planning'], ['사용자 인터뷰', 'soft'], ['정보 구조 설계', 'planning'], ['협업 리딩', 'leadership']],
+    sections: {
+      intro:      { tag: '사실', level: 'A', body: '흩어진 문서·발표자료·메신저 기록에서 실제로 한 일과 그 근거를 찾아 하나의 경험으로 정리하는 웹 서비스입니다. 취업 준비생의 경험을 채용 담당자가 판단할 수 있는 형태로 바꾸는 것을 목표로 했습니다.' },
+      overview:   { tag: '사실', level: 'B', body: '취업 준비생 12명의 초안을 읽어보니 대부분이 "무엇을 했다"는 활동 나열이었고, 평가자가 기여 범위를 판단할 근거가 없었습니다. 문장을 다듬는 도구는 많지만 사실과 추정을 가려주는 도구는 없다는 점에서 출발했습니다.' },
+      task:       { tag: '사실', level: 'A', body: '자료 업로드부터 구조화·근거 표기까지의 파이프라인을 설계했습니다. 직무마다 평가 기준이 다르다는 점을 반영해 직군별 추출 스키마를 따로 정의하고, 근거 수준을 A~D로 나눠 표기하는 규칙을 만들었습니다.' },
+      process:    { tag: '해석', level: 'B', body: '초기에는 좋은 문장을 생성하는 데 집중했으나, 사용자 테스트에서 "이 문장이 사실인지 모르겠다"는 반응이 반복됐습니다. 이후 생성보다 판독을 먼저 설계하는 방향으로 바꿔 근거 장부를 도입했습니다.' },
+      output:     { tag: '사실', level: 'A', body: '7개 공통 섹션, 근거 등급 A~D 표기, 직군별 특화 섹션과 시각 산출물을 포함한 결과 화면을 완성했습니다. 정리한 경험은 채용공고에 맞춰 재구성되어 포트폴리오로 이어집니다.' },
+      growth:     { tag: '해석', level: 'C', body: '좋은 문장을 만드는 일과 사실을 판별하는 일은 다른 작업이라는 것을 배웠습니다. 이후 기능을 설계할 때는 "무엇을 생성할까"보다 "무엇을 근거로 판단할까"를 먼저 정의합니다.' },
+      competency: { tag: '추정', level: 'B', body: '모호한 요구를 판단 가능한 기준으로 바꾸고, 확인된 사실과 추정을 구분해 커뮤니케이션할 수 있습니다. 사용자 반응을 근거로 초기 가설을 수정한 경험이 있습니다.' },
+    },
   },
   dev: {
-    intro:      { tag: '사실', level: 'A', body: 'FitPoly 경험 구조화·검증 파이프라인 — 업로드된 문서와 GitHub 기록에서 기여 근거를 추출하는 백엔드 파이프라인입니다.' },
-    overview:   { tag: '사실', level: 'B', body: '분석 요청이 몰릴 때 응답이 지연되고 일부 요청이 타임아웃으로 유실되는 문제가 반복됐습니다. 처리량을 늘리기보다 실패 지점을 관측 가능하게 만드는 것이 우선이라고 봤습니다.' },
-    task:       { tag: '사실', level: 'A', body: '증상은 대용량 PPTX 업로드 시 분석이 45초를 넘겨 중단되는 것이었습니다. 재현 조건을 슬라이드 30장 이상·이미지 20MB 이상으로 좁혔습니다.' },
-    process:    { tag: '사실', level: 'A', body: '원인 가설을 AI 호출 지연, 파일 파싱 병목, 메모리 부족 셋으로 두고 프로파일을 떴습니다. AI 호출은 8초대로 정상이었고 파싱 단계에서 92%의 시간이 소요돼 앞의 두 가설을 버렸습니다.' },
-    output:     { tag: '사실', level: 'A', body: '파싱을 스트리밍 방식으로 바꾸고 이미지 추출을 지연 처리했습니다. 동시 실행 수를 2개로 제한해 메모리 상한을 확보했습니다.' },
-    growth:     { tag: '사실', level: 'B', body: '분석 성공률이 71% → 96%로 올랐고 평균 처리 시간은 45초 → 12초로 줄었습니다. 다만 100장 이상 문서는 여전히 분할 처리가 필요합니다.' },
-    competency: { tag: '추정', level: 'B', body: '추측으로 고치지 않고 재현 조건을 먼저 좁힌 뒤 근거로 가설을 버리는 방식으로 문제를 해결할 수 있습니다.' },
+    title: 'FitPoly 경험 구조화·검증 파이프라인 개발',
+    meta: { 기간: '2025.11 - 2026.01', 역할: '백엔드 개발 (기여도 60%)', '팀 구성': '백엔드 2명, 프론트 2명', '영향 범위': '전체 분석 요청', 목표: '대용량 자료 분석의 실패율과 지연 해소' },
+    keywords: [['성능 프로파일링', 'tech'], ['비동기 처리', 'tech'], ['원인 분석', 'tech'], ['기술 문서화', 'soft']],
+    sections: {
+      intro:      { tag: '사실', level: 'A', body: '업로드된 문서와 GitHub 기록에서 기여 근거를 추출하는 백엔드 파이프라인입니다. PPTX·XLSX·ZIP을 포함한 다양한 형식을 읽어 텍스트와 구조를 뽑아냅니다.' },
+      overview:   { tag: '사실', level: 'B', body: '분석 요청이 몰릴 때 응답이 지연되고 일부 요청이 타임아웃으로 유실됐습니다. 처리량을 늘리는 것보다 어디서 무엇이 실패하는지 관측 가능하게 만드는 것이 먼저라고 판단했습니다.' },
+      task:       { tag: '사실', level: 'A', body: '증상은 대용량 PPTX 업로드 시 분석이 45초를 넘겨 중단되는 것이었습니다. 재현 조건을 슬라이드 30장 이상·이미지 합계 20MB 이상으로 좁혀 안정적으로 재현되는 케이스를 확보했습니다.' },
+      process:    { tag: '사실', level: 'A', body: '원인 가설을 AI 호출 지연, 파일 파싱 병목, 메모리 부족 셋으로 두고 프로파일을 떴습니다. AI 호출은 8초대로 정상이었고 파싱 단계에서 전체 시간의 92%가 소요돼 앞의 두 가설을 근거로 기각했습니다.' },
+      output:     { tag: '사실', level: 'A', body: '파싱을 스트리밍 방식으로 전환하고 이미지 추출을 지연 처리했습니다. 동시 실행 수를 2개로 제한해 메모리 상한을 확보했고, 단계별 진행 상태를 남겨 실패 지점을 추적할 수 있게 했습니다.' },
+      growth:     { tag: '사실', level: 'B', body: '분석 성공률이 71%에서 96%로 올랐고 평균 처리 시간은 45초에서 12초로 줄었습니다. 다만 100장 이상 문서는 여전히 분할 처리가 필요해 기술 부채로 남겨두고 문서화했습니다.' },
+      competency: { tag: '추정', level: 'B', body: '추측으로 고치지 않고 재현 조건을 먼저 좁힌 뒤 계측 결과로 가설을 기각하는 방식으로 문제를 해결할 수 있습니다. 남은 한계를 숨기지 않고 기록해 다음 사람이 이어받게 합니다.' },
+    },
   },
   pm: {
-    intro:      { tag: '사실', level: 'A', body: '대화형 경험정리 MVP — 빈 양식 대신 AI가 질문을 던져 경험을 끌어내는 입력 방식입니다.' },
-    overview:   { tag: '사실', level: 'B', body: '기존 입력 화면에서 프레임워크 5종 중 하나를 고르게 했는데, 첫 화면 이탈이 가장 높았습니다. 사용자가 프레임워크 이름을 모른다는 신호로 읽었습니다.' },
-    task:       { tag: '가정', level: 'B', body: '검증 전 가설: "사용자는 형식을 고르지 못해서 이탈한다. 질문에 답하는 방식이면 완주한다." 성공 기준은 초안 완성률 40% 이상, 반증 기준은 대화 이탈이 기존보다 높을 때로 정했습니다.' },
-    process:    { tag: '사실', level: 'A', body: '프레임워크 선택을 없애고 대화형을 기본 진입으로 두는 안과, 선택지를 3개로 줄이는 안을 비교했습니다. 후자는 인지 부하를 완전히 없애지 못한다고 판단해 기각했습니다.' },
-    output:     { tag: '사실', level: 'A', body: '대화형 입력을 기본 경로로 전환하고 프레임워크는 AI가 내용에 맞춰 선택하도록 했습니다. 직접 고르기는 고급 옵션으로 내렸습니다.' },
-    growth:     { tag: '해석', level: 'C', body: '초안 완성률은 목표를 넘겼지만, 이탈이 형식 선택이 아니라 "무엇을 쓸지 모르는 것"에서도 발생했음을 인터뷰에서 확인했습니다. 다음에는 첫 질문 자체를 더 좁히겠습니다.' },
-    competency: { tag: '추정', level: 'B', body: '실행 전에 성공·반증 기준을 정하고, 검증 결과로 처음 가설을 수정하는 방식으로 제품 결정을 내릴 수 있습니다.' },
+    title: '대화형 경험정리 MVP 기획 및 검증',
+    meta: { 기간: '2025.10 - 2025.12', 역할: '프로덕트 기획 (단독)', '팀 구성': '개발 2명, 디자인 1명과 협업', '영향 범위': '신규 사용자 온보딩 전체', 목표: '첫 화면 이탈을 줄여 초안 완성까지 도달시키기' },
+    keywords: [['가설 검증', 'planning'], ['사용자 인터뷰', 'soft'], ['우선순위 판단', 'planning'], ['이해관계자 설득', 'leadership']],
+    sections: {
+      intro:      { tag: '사실', level: 'A', body: '빈 양식을 채우게 하는 대신 AI가 질문을 던져 경험을 끌어내는 입력 방식입니다. 사용자가 형식을 몰라도 대화만으로 초안이 만들어지도록 설계했습니다.' },
+      overview:   { tag: '사실', level: 'B', body: '기존 입력 화면은 STAR·5F·PMI 등 프레임워크 5종 중 하나를 먼저 고르게 했는데, 퍼널에서 이 화면의 이탈이 가장 높았습니다. 사용자가 프레임워크 이름 자체를 모른다는 신호로 읽었습니다.' },
+      task:       { tag: '가정', level: 'B', body: '검증 전 가설은 "사용자는 형식을 고르지 못해 이탈한다. 질문에 답하는 방식이면 완주한다"였습니다. 실행 전에 성공 기준을 초안 완성률 40% 이상으로, 반증 기준을 대화 이탈이 기존보다 높을 때로 정했습니다.' },
+      process:    { tag: '사실', level: 'A', body: '프레임워크 선택을 없애고 대화형을 기본 진입으로 두는 안과, 선택지를 3개로 줄이는 안을 비교했습니다. 후자는 인지 부하를 완전히 없애지 못한다고 판단해 기각했습니다. 개발 리소스가 부족해 대화 분기를 최소로 줄여 2주 안에 붙였습니다.' },
+      output:     { tag: '사실', level: 'A', body: '대화형 입력을 기본 경로로 전환하고 프레임워크는 AI가 내용에 맞춰 선택하도록 했습니다. 직접 고르기는 고급 옵션으로 내렸습니다.' },
+      growth:     { tag: '해석', level: 'C', body: '초안 완성률은 목표를 넘겼지만, 인터뷰에서 이탈이 형식 선택이 아니라 "무엇을 쓸지 모르는 것"에서도 발생했음을 확인했습니다. 가설이 절반만 맞았다는 뜻이라 다음에는 첫 질문 자체를 더 좁히기로 했습니다.' },
+      competency: { tag: '추정', level: 'B', body: '실행 전에 성공·반증 기준을 정하고, 검증 결과로 처음 가설을 수정하는 방식으로 제품 결정을 내릴 수 있습니다. 리소스 제약 안에서 범위를 잘라 먼저 검증하는 판단이 가능합니다.' },
+    },
   },
   marketer: {
-    intro:      { tag: '사실', level: 'A', body: '취업 준비생 타깃 콘텐츠 캠페인 — 경험정리 서비스의 초기 사용자를 모으기 위한 콘텐츠·유입 캠페인입니다.' },
-    overview:   { tag: '사실', level: 'B', body: '가입은 늘었지만 첫 경험을 작성하지 않고 이탈하는 비율이 높았습니다. 유입량이 아니라 유입의 질이 문제라고 봤습니다.' },
-    task:       { tag: '사실', level: 'B', body: '타깃을 "공고를 이미 보고 있는 3~4학년"으로 좁혔습니다. 근거는 온보딩 설문에서 이 집단의 첫 작성률이 다른 집단의 2배였다는 점입니다.' },
-    process:    { tag: '사실', level: 'A', body: '커뮤니티 게시글, 검색 유입 콘텐츠, 숏폼 세 채널을 같은 예산으로 2주씩 집행했습니다. 소재는 "포트폴리오 예시 공개"와 "경험 정리법" 두 축으로 나눠 비교했습니다.' },
-    output:     { tag: '사실', level: 'A', body: '예시 공개형 소재가 정리법 소재보다 첫 작성 전환이 높아 예산을 7:3으로 재배분했습니다. 숏폼은 유입은 많았으나 작성 전환이 낮아 중단했습니다.' },
-    growth:     { tag: '해석', level: 'C', body: '가입 후 첫 작성률이 개선됐지만, 같은 기간 서비스 온보딩도 함께 바뀌어 캠페인 단독 효과로 단정할 수 없습니다. 다음에는 채널별 홀드아웃 집단을 두고 증분을 확인하겠습니다.' },
-    competency: { tag: '추정', level: 'B', body: '숫자를 성과로 보고하는 데 그치지 않고 그 숫자로 예산·소재·타깃 판단을 바꿀 수 있습니다.' },
+    title: '취업 준비생 타깃 콘텐츠 캠페인 운영',
+    meta: { 기간: '2025.09 - 2025.11', 역할: '콘텐츠·퍼포먼스 담당', '팀 구성': '마케팅 2명, 디자인 1명', '영향 범위': '신규 유입 전 채널', 목표: '가입이 아니라 첫 경험 작성까지 도달하는 유입 만들기' },
+    keywords: [['타깃 정의', 'planning'], ['A/B 테스트', 'tech'], ['성과 분석', 'tech'], ['콘텐츠 기획', 'planning']],
+    sections: {
+      intro:      { tag: '사실', level: 'A', body: '경험정리 서비스의 초기 사용자를 모으기 위한 콘텐츠·유입 캠페인입니다. 커뮤니티, 검색 유입, 숏폼 세 채널을 운영했습니다.' },
+      overview:   { tag: '사실', level: 'B', body: '가입 수는 늘었지만 첫 경험을 작성하지 않고 이탈하는 비율이 높았습니다. 유입량이 아니라 유입의 질이 문제라고 보고, 목표 지표를 가입에서 첫 작성으로 바꿨습니다.' },
+      task:       { tag: '사실', level: 'B', body: '타깃을 "공고를 이미 보고 있는 3~4학년"으로 좁혔습니다. 근거는 온보딩 설문에서 이 집단의 첫 작성률이 다른 집단의 약 2배였다는 점입니다.' },
+      process:    { tag: '사실', level: 'A', body: '세 채널에 같은 예산을 2주씩 집행했습니다. 소재는 "포트폴리오 예시 공개"와 "경험 정리법" 두 축으로 나눠 비교했고, 클릭이 아니라 첫 작성 전환을 기준으로 판단했습니다.' },
+      output:     { tag: '사실', level: 'A', body: '예시 공개형 소재가 정리법 소재보다 첫 작성 전환이 높아 예산을 7:3으로 재배분했습니다. 숏폼은 유입은 가장 많았으나 작성 전환이 낮아 중단했습니다.' },
+      growth:     { tag: '해석', level: 'C', body: '가입 후 첫 작성률이 개선됐지만, 같은 기간 서비스 온보딩도 함께 바뀌어 캠페인 단독 효과로 단정할 수 없습니다. 다음에는 채널별 홀드아웃 집단을 두고 증분을 확인하겠습니다.' },
+      competency: { tag: '추정', level: 'B', body: '숫자를 성과로 보고하는 데 그치지 않고 그 숫자로 예산·소재·타깃 판단을 바꿀 수 있습니다. 성과의 귀인 한계를 스스로 밝히고 다음 검증을 설계합니다.' },
+    },
   },
 };
 
@@ -1078,22 +1106,33 @@ function ExperienceResultReplica({ role }) {
   const sample = EXPERIENCE_SAMPLES[role.id] || EXPERIENCE_SAMPLES.common;
   return (
     <div className="border-b border-surface-200 bg-white px-5 py-6 sm:px-8 sm:py-8">
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-[#002F6C] px-2 py-1 text-[10px] font-black tracking-[0.1em] text-white">경험정리 결과</span>
-        <span className="text-[12px] font-semibold text-bluewood-500">
-          {role.label} · 실제 서비스 화면과 동일한 7개 섹션 구성
-        </span>
+        <span className="text-[12px] font-semibold text-bluewood-500">{role.label} · 실제 서비스 화면과 동일한 구성</span>
       </div>
 
-      <div className="space-y-7">
+      <h2 className="text-[22px] font-extrabold leading-snug text-bluewood-950 sm:text-[25px]" style={{ wordBreak: 'keep-all' }}>
+        {sample.title}
+      </h2>
+
+      {/* 프로젝트 메타 — 실제 화면의 보기 모드와 동일하게 한 줄 인라인으로 압축 */}
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] leading-snug">
+        {Object.entries(sample.meta).map(([label, value]) => (
+          <span key={label} style={{ wordBreak: 'keep-all' }}>
+            <span className="font-bold text-bluewood-400">{label}</span>{' '}
+            <span className="font-semibold text-bluewood-700">{value}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-7 space-y-7">
         {EXPERIENCE_SECTIONS.map(meta => {
-          const item = sample[meta.key];
+          const item = sample.sections[meta.key];
           if (!item) return null;
           const ev = EVIDENCE_STYLE[item.level] || EVIDENCE_STYLE.D;
           return (
             <div key={meta.key} className="flex gap-3 sm:gap-5">
-              {/* 좌측 번호 거터 — 실제 결과 화면과 동일 */}
-              <span className="shrink-0 w-6 pt-0.5 text-right text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
+              <span className="w-6 shrink-0 pt-0.5 text-right text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
               <div className="min-w-0 flex-1">
                 <div className="mb-3.5 flex items-center gap-3.5">
                   <h3 className="flex-shrink-0 text-[19px] font-extrabold leading-snug tracking-tight text-bluewood-900 sm:text-[21px]">{meta.label}</h3>
@@ -1111,7 +1150,25 @@ function ExperienceResultReplica({ role }) {
         })}
       </div>
 
-      <p className="mt-6 text-[11px] font-medium text-bluewood-400">
+      {/* 핵심 역량 한눈에 보기 — 실제 화면과 같은 카테고리 구분 */}
+      <div className="mt-8 rounded-2xl border border-surface-200 bg-surface-50/60 px-5 py-5">
+        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-primary-500">Competency</p>
+        <h3 className="mt-1 text-[17px] font-black text-bluewood-950">핵심 역량 한눈에 보기</h3>
+        <p className="mt-1 text-[12px] text-bluewood-500">본문에서 근거가 확인된 역량만 추출합니다.</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {sample.keywords.map(([name, cat]) => {
+            const st = KW_STYLE[cat] || KW_STYLE.tech;
+            return (
+              <span key={name} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-bold ring-1 ${st.cls}`}>
+                {name}
+                <span className="text-[10.5px] font-semibold opacity-70">{st.label}</span>
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className="mt-5 text-[11px] font-medium text-bluewood-400">
         ※ 각 섹션에는 주장 성격(사실·추정·가정·해석)과 근거 등급(A~D)이 함께 기록됩니다. 실제 서비스에서는 업로드한 자료에서 자동으로 판정됩니다.
       </p>
     </div>
@@ -1136,8 +1193,15 @@ export default function Resultt({ roleId }) {
     if (!locked) return undefined;
     const previous = document.title;
     document.title = `${role.label} 경험정리 예시 — FitPoly`;
-    window.scrollTo(0, 0);
-    return () => { document.title = previous; };
+    const hash = window.location.hash.slice(1);
+    const timer = window.setTimeout(() => {
+      if (hash) document.getElementById(hash)?.scrollIntoView({ block: 'start' });
+      else window.scrollTo(0, 0);
+    }, 120);
+    return () => {
+      window.clearTimeout(timer);
+      document.title = previous;
+    };
   }, [locked, role.label]);
 
   return (

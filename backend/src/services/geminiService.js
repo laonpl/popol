@@ -10,6 +10,7 @@
  */
 import { generateWithRetry } from '../config/geminiClient.js';
 import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
+import { clampMaterial } from '../utils/materialText.js';
 import {
   buildExtractMomentsPrompt,
   buildOverviewPrompt,
@@ -943,13 +944,17 @@ ${materialText}
 
 아래 JSON만 출력 (설명·마크다운·코드블록 금지):
 { "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] } }`;
+  // ⚠ 내부 재시도 예산이 바깥 타임아웃보다 크면 안 된다.
+  // (45초 × 2모델 × 2회 = 180초 > 60초였던 탓에 flash 한 번만 느려도 flash-lite 폴백이
+  //  실행되기 전에 60초 타임아웃이 터져 502가 났다. 2026-08 오류로그.)
+  // 모델당 1회 · 20초로 잡아 최악 42초 — 대기열 대기까지 더해도 60초 안에 폴백까지 끝난다.
   const text = await withTimeout(
     generateWithRetry(prompt, {
       models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-      retries: 2,
+      retries: 1,
       delayMs: 1200,
       rateLimitDelayMs: 4000,
-      callTimeoutMs: 45000,
+      callTimeoutMs: 20000,
     }),
     60000,
     'ExtractProduct'
@@ -1005,7 +1010,9 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
   const rawKeyExperiences = Array.isArray(json.keyExperiences) ? json.keyExperiences : [];
-  const maxCount = Math.max(rawKeyExperiences.length, fallbackKeyExperiences.length, 1);
+  // AI가 2개만 뽑았는데 폴백으로 3개까지 채우면 "…을 보강해 주세요" 자리표시자 카드가 생겨
+  // 화면이 비어 보인다(readiness 판정에서도 빈 값으로 걸러진다). AI 결과가 있으면 그 개수만 쓴다.
+  const maxCount = rawKeyExperiences.length || fallbackKeyExperiences.length || 1;
   const keyExperiences = Array.from({ length: Math.min(maxCount, 3) })
     .map((_, index) => mergeDraftKeyExperience(rawKeyExperiences[index] || {}, fallbackKeyExperiences[index] || fallbackKeyExperiences[0] || {}, index, fallback.projectOverview?.summary || ''))
     .filter(item => item.title || item.context || item.action || item.result);
@@ -1190,9 +1197,13 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
 }
 
 /**
- * 빠른 초안(Draft) 생성 — 검색·분할 없이 flash 1회 호출.
+ * 빠른 초안(Draft) 생성 — 검색 없이 flash 2회 병렬 호출(스토리 / 핵심경험).
  * "봐줄 수준"의 초안을 빠르게 만들고, 깊이 있는 보강은 analyzeExperience가 담당.
- * 실패 시 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
+ *
+ * 단일 호출이던 시절에는 출력이 3만 자를 넘겨 호출 상한을 항상 초과했고, 그 결과
+ * 7섹션까지 통째로 못 받아 초안 전체가 비어 보였다. 파트를 나누면 각 호출이
+ * 짧아질 뿐 아니라, 한쪽이 실패해도 다른 쪽 결과는 살릴 수 있다.
+ * 스토리 파트 실패만 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
  */
 export async function generateDraftAnalysis(content, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic') {
   const entries = Object.entries(content || {}).filter(([, val]) => val && String(val).trim().length > 0);
@@ -1200,26 +1211,43 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 자료(파일·링크 원문)가 3천 자에서 잘리면 스토리 섹션이 앞부분(목차·인트로)만 보고 만들어진다.
-  // flash 컨텍스트는 충분히 크므로 본문 서사가 담기도록 잘림 한도를 넉넉히 잡는다.
+  // 자료(파일·링크 원문)가 일찍 잘리면 스토리 섹션이 앞부분(목차·인트로)만 보고 만들어진다.
+  // flash 컨텍스트는 충분히 크므로 본문 서사가 담기도록 잘림 한도를 넉넉히 잡고,
+  // 넘칠 때도 앞뒤를 함께 남겨 자료 후반부(성과·회고)가 통째로 사라지지 않게 한다.
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${draftValueToText(val).substring(0, 9000)}`)
+    .map(([key, val]) => `[${key}]: ${clampMaterial(draftValueToText(val), 24000)}`)
     .join('\n');
-  if (contentText.length > 24000) contentText = contentText.substring(0, 24000);
+  contentText = clampMaterial(contentText, 48000);
 
-  const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode);
-  const text = await withTimeout(
-    generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-      retries: 2,
-      delayMs: 1200,
-      rateLimitDelayMs: 4000,
-      callTimeoutMs: 45000,
+  const callPart = async (part, label) => {
+    const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode, part);
+    const text = await withTimeout(
+      generateWithRetry(prompt, {
+        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        retries: 2,
+        delayMs: 1200,
+        rateLimitDelayMs: 4000,
+        // 실측 스토리 파트 38~50초로 편차가 크다. 상한이 빡빡하면 느린 날에 통째로
+        // 폴백되므로 여유를 준다(클라이언트 상한 90초).
+        callTimeoutMs: 70000,
+      }),
+      // 두 파트를 병렬로 돌리므로 전체 대기는 느린 쪽 하나에 좌우된다.
+      82000,
+      label,
+    );
+    return parseJSON(text);
+  };
+
+  const [story, keyExp] = await Promise.all([
+    callPart('story', 'DraftAnalysis-Story'),
+    // 핵심경험 파트가 실패해도 스토리 7섹션은 살린다. 부족한 항목은 hydrate가 폴백으로 채운다.
+    callPart('keyExperiences', 'DraftAnalysis-KeyExp').catch((err) => {
+      console.warn('[DraftAnalysis-KeyExp] 실패 → 스토리 파트만으로 초안 구성:', err.message);
+      return {};
     }),
-    55000,
-    'DraftAnalysis'
-  );
-  const json = parseJSON(text);
+  ]);
+
+  const json = { ...story, ...keyExp };
   const hydrated = hydrateDraftAnalysis({ json, content, jobCategory, contentText });
   return sanitizeArtifactsDeep(groundAnalysisMetrics(hydrated, contentText));
 }
@@ -1351,11 +1379,13 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 자료 원문이 일찍 잘리면 7섹션·핵심경험이 자료 앞부분만 반영한다 — 본문 서사까지 담기게 한도 상향
+  // 자료 원문이 일찍 잘리면 7섹션·핵심경험이 자료 앞부분만 반영한다 — 본문 서사까지 담기게 한도 상향.
+  // content는 대부분 rawInput 단일 키이고 검토된 핵심 경험이 그 뒤에 붙으므로,
+  // 앞부분만 남기는 방식이면 가장 정제된 후반부가 통째로 빠진다(clampMaterial이 앞뒤를 함께 보존).
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 6000)}`)
+    .map(([key, val]) => `[${key}]: ${clampMaterial(val, 20000)}`)
     .join('\n');
-  if (contentText.length > 18000) contentText = contentText.substring(0, 18000);
+  contentText = clampMaterial(contentText, 40000);
 
   const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
   const lockedCount = hasReviewed ? reviewedMoments.length : null;
@@ -1983,7 +2013,7 @@ export async function generateIdentityPatternCandidates(experiences = []) {
 
 /**
  * 경험 순간(moments) 추출 — Pro 우선.
- * rawText는 5000자로 캡핑되어 있고 output도 최대 10개 moments로 제한되므로
+ * rawText는 프롬프트에서 48,000자로 캡핑되고 output도 최대 10개 moments로 제한되므로
  * 별도 분할 없이 단일 호출. Pro 실패 시 Lite로 폴백.
  */
 export async function extractMoments(rawText, title) {
@@ -1993,7 +2023,10 @@ export async function extractMoments(rawText, title) {
 
   try {
     const prompt = buildExtractMomentsPrompt(rawText, title);
-    const text = await callProFirst(prompt, 'ExtractMoments');
+    // 총 소요 시간 상한. callProFirst는 Pro 4회 + Lite 4회 재시도라 상한이 없으면
+    // 수 분간 매달려 있다가 커넥션이 끊긴다(프론트 타임아웃 120초). 90초를 넘기면
+    // 아래 결정론적 폴백으로 내려가 200으로 응답한다.
+    const text = await withTimeout(callProFirst(prompt, 'ExtractMoments'), 90000, 'ExtractMoments');
     const parsed = parseJSON(text);
     const moments = Array.isArray(parsed.moments) ? parsed.moments : [];
 

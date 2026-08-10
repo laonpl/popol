@@ -53,6 +53,8 @@ const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
 const ServiceDeck           = lazy(() => import('./pages/ServiceDeck')); // 슬라이드형 서비스 소개서 (/deck)
 const Resultt               = lazy(() => import('./pages/Resultt')); // 직무별 경험정리 결과 예시
+const PmReelsVideo          = lazy(() => import('./pages/PmReelsVideo'));
+const FitPolyProductReel    = lazy(() => import('./pages/FitPolyProductReel'));
 
 function PageLoader() {
   return (
@@ -116,6 +118,8 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/deck" element={<ServiceDeck />} />
+      <Route path="/video2" element={<PmReelsVideo />} />
+      <Route path="/video3" element={<FitPolyProductReel />} />
       <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
