@@ -35,6 +35,19 @@ const PRINT_CSS = `
    display:none 이어도 지면에는 정상적으로 그려진다(html2canvas 와 달리 문제없음). */
 .fp-deck-print { display: none; }
 
+/* 단, display:none 인 동안에는 브라우저가 레이아웃을 계산하지 않아
+   scrollHeight · ResizeObserver 가 0 을 돌려준다. 그러면 SplitPage(09번 슬라이드)가
+   페이지 높이를 재지 못해 두 칸 모두 윗부분만 그려 "똑같은 화면 2개"가 찍힌다.
+   그래서 인쇄 직전에만 흐름 밖으로 빼 둔 채 레이아웃을 살린다 — 화면에는 보이지 않는다. */
+body.fp-deck-measuring .fp-deck-print {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media print {
   /* 1280×720 CSS px 를 실제 용지 크기로 환산 (96dpi 기준: 1px = 0.2646mm).
      px 단위 @page 는 브라우저마다 해석이 달라 A4 로 떨어지는 경우가 있어 mm 로 못박는다. */
@@ -63,6 +76,9 @@ const PRINT_CSS = `
   body.fp-deck-printing .fp-deck-print {
     display: block !important;
     position: static !important;
+    visibility: visible !important;
+    top: auto !important;
+    left: auto !important;
     margin: 0 !important;
     padding: 0 !important;
   }
@@ -104,8 +120,10 @@ function Slide({ children, dark = false, className = '' }) {
   );
 }
 
-/* 좌상단 섹션 라벨 + 제목 — 모든 내용 슬라이드가 공유하는 헤더 */
-function Head({ eyebrow, title, sub, dark = false }) {
+/* 좌상단 섹션 라벨 + 제목 — 모든 내용 슬라이드가 공유하는 헤더.
+   subMax: 부제의 최대 폭(px). 기본값은 읽기 좋은 길이(860)이고,
+   한 줄로 떨어뜨려야 하는 슬라이드만 본문 폭 전체로 넓힌다. */
+function Head({ eyebrow, title, sub, subMax = 860, dark = false }) {
   return (
     <div className="mb-9">
       <p className={`font-mono text-[14px] font-black uppercase tracking-[0.22em] ${dark ? 'text-primary-200' : 'text-primary-400'}`}>
@@ -116,8 +134,8 @@ function Head({ eyebrow, title, sub, dark = false }) {
         {title}
       </h2>
       {sub && (
-        <p className={`mt-3.5 max-w-[860px] text-[17px] leading-relaxed ${dark ? 'text-primary-100' : 'text-bluewood-500'}`}
-          style={{ wordBreak: 'keep-all' }}>
+        <p className={`mt-3.5 text-[17px] leading-relaxed ${dark ? 'text-primary-100' : 'text-bluewood-500'}`}
+          style={{ wordBreak: 'keep-all', maxWidth: subMax }}>
           {sub}
         </p>
       )}
@@ -531,9 +549,11 @@ function SlideJobs() {
   return (
     <Slide>
       <Body>
+        {/* 이 부제는 한 줄로 둔다 — 기본 폭(860px)에서는 마지막 “다릅니다.”만 다음 줄로 넘어가 어색하다 */}
         <Head
           eyebrow="Job-specific"
           title="같은 경험도 직군마다 다르게 읽힙니다"
+          subMax={W - 72 * 2}
           sub="24개 직군 각각에 대해 ‘무엇을 경험으로 인정할지’를 따로 정의했습니다. 심사자가 확인하는 5단계는 같고, 채우는 언어만 다릅니다."
         />
         <div className="overflow-hidden rounded-2xl border border-surface-200">
@@ -632,7 +652,7 @@ function SlideEvidence() {
 const OUTPUTS = [
   { img: '/brand-icons/pdf.svg', mark: null, title: 'PDF 문서', desc: '제출용 A4 포트폴리오. 지원서에 그대로 첨부합니다.' },
   { img: null, mark: 'URL', title: '공개 링크', desc: '링크 하나로 공유. 이력서에 주소만 적으면 됩니다.' },
-  { img: '/brand-icons/word.svg', mark: null, title: '이력서', desc: '인적사항·학력·경력·기술만 추린 채용용 문서.' },
+  { img: '/brand-icons/word.svg', mark: null, title: '이력서', desc: '인적사항·학력·경력·기술만 추린 채용용 문서입니다.' },
   { img: '/brand-icons/powerpoint.svg', mark: null, title: 'PPT', desc: '보유한 템플릿 디자인 위에 내용을 채워 내려받습니다.' },
 ];
 
@@ -937,7 +957,209 @@ function SlidePortfolio() {
   );
 }
 
-/* 11 마무리 — 절제 */
+/* 12 관심도 — 사용자가 실제로 얼마나 반응했는가.
+   숫자는 IR 자료(채널 운영 1개월 누적)와 같은 출처를 쓴다. */
+const FUNNEL_STEPS = [
+  { label: '노출', value: '13만+', note: '릴스 78,881 + X 51,000' },
+  { label: '가입', value: '420명', note: '방문 → 가입 전환 30%' },
+  { label: '첫 산출물 완성', value: '42%', note: '가입자 중 결과물까지 도달' },
+  { label: '주간 재방문', value: '27.3%', note: '다시 돌아온 비율' },
+];
+
+function SlideTraction() {
+  return (
+    <Slide>
+      <Body>
+        <Head
+          eyebrow="Traction"
+          title="한 달 만에 13만 노출, 420명이 직접 만들어봤습니다"
+          sub="노출에서 그치지 않고 가입 · 완성 · 재방문까지 이어졌는지를 단계별로 확인했습니다."
+        />
+
+        {/* 퍼널 — 단계마다 무엇이 남았는지 그대로 보인다 */}
+        <div className="flex items-stretch gap-3">
+          {FUNNEL_STEPS.map((s, i) => (
+            <div key={s.label} className="flex flex-1 items-stretch">
+              <div className={`flex-1 rounded-2xl border px-6 py-5 ${
+                i === 0 ? 'border-surface-200 bg-surface-50/70' : 'border-primary-200 bg-primary-50/40'
+              }`}>
+                <p className="text-[13px] font-bold text-bluewood-400">{s.label}</p>
+                <p className="mt-1.5 text-[38px] font-extrabold leading-none tabular-nums text-primary-600">{s.value}</p>
+                <p className="mt-2 text-[13px] leading-snug text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{s.note}</p>
+              </div>
+              {i < FUNNEL_STEPS.length - 1 && (
+                <span aria-hidden className="self-center px-1 text-[20px] font-black text-primary-300">→</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* 정성 신호 */}
+        <div className="mt-6 flex items-center gap-8 rounded-2xl border border-surface-200 bg-white px-8 py-5">
+          {[
+            ['3,300+', '저장 · 공유 · 댓글', '저장 1,600 · 공유 1,700 · 댓글 550'],
+            ['4.8 / 5', '사용자 만족도', '피드백 14건 · 표본이 작아 참고치'],
+            ['8초', '릴스 평균 조회시간', '3초 훅을 넘긴 시청 유지'],
+          ].map(([big, mid, small]) => (
+            <div key={mid} className="flex-1">
+              <p className="text-[26px] font-extrabold leading-none tabular-nums text-bluewood-900">{big}</p>
+              <p className="mt-1.5 text-[14px] font-extrabold text-bluewood-700">{mid}</p>
+              <p className="mt-0.5 text-[12.5px] text-bluewood-400">{small}</p>
+            </div>
+          ))}
+        </div>
+      </Body>
+      <Foot n={12} note="출처: 자사 인스타그램 릴스 · X 인사이트 (2026, 채널 운영 1개월 누적) · 만족도는 응답 14건으로 표본이 작습니다." />
+    </Slide>
+  );
+}
+
+/* 13 채널 — 어디에 올려서 무엇이 돌아왔는가 */
+const CHANNELS = [
+  {
+    name: 'Instagram 릴스',
+    reach: '78,881',
+    unit: '회 재생',
+    rows: [['평균 조회시간', '8초'], ['저장', '1,600+'], ['공유', '1,700+'], ['댓글', '550']],
+    take: '저장·공유가 3,300건 — 남에게 보여줄 만한 콘텐츠로 작동했습니다.',
+  },
+  {
+    name: 'X (구 트위터)',
+    reach: '51,000',
+    unit: '노출',
+    rows: [['좋아요', '1,040'], ['리트윗', '419']],
+    take: '리트윗 419건 — 취준 커뮤니티 안에서 자발적으로 퍼졌습니다.',
+  },
+];
+
+function SlideChannels() {
+  return (
+    <Slide dark>
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.14]"
+        style={{ backgroundImage: 'radial-gradient(circle at 88% 10%, #ffffff 0%, transparent 40%)' }} />
+      <Body>
+        <Head
+          dark
+          eyebrow="Channels"
+          title="광고비 0원, 콘텐츠 두 채널로만 만든 결과입니다"
+          sub="유료 집행 없이 인스타그램 릴스와 X에 직군별 콘텐츠를 올려 반응을 검증했습니다."
+        />
+
+        <div className="grid grid-cols-2 gap-5">
+          {CHANNELS.map(ch => (
+            <div key={ch.name} className="rounded-2xl border border-white/12 bg-white/[0.06] px-7 py-6">
+              <p className="text-[15px] font-extrabold text-primary-100">{ch.name}</p>
+              <p className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-[44px] font-extrabold leading-none tabular-nums text-white">{ch.reach}</span>
+                <span className="text-[15px] font-bold text-primary-200">{ch.unit}</span>
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-white/12 pt-4">
+                {ch.rows.map(([k, v]) => (
+                  <div key={k} className="flex items-baseline justify-between">
+                    <span className="text-[13px] text-primary-200">{k}</span>
+                    <span className="text-[15px] font-extrabold tabular-nums text-white">{v}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-[13.5px] leading-relaxed text-primary-100" style={{ wordBreak: 'keep-all' }}>
+                {ch.take}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/12 bg-white/[0.06] px-7 py-4">
+          <span className="font-mono text-[12px] font-black uppercase tracking-[0.16em] text-primary-200">Next</span>
+          <p className="text-[14.5px] leading-relaxed text-primary-100" style={{ wordBreak: 'keep-all' }}>
+            반응이 큰 직군을 데이터로 선별해 그 직군의 콘텐츠와 온보딩에 집중합니다.
+            <span className="ml-1.5 text-white">채널을 늘리기 전에 어느 직군이 반응하는지부터 확정합니다.</span>
+          </p>
+        </div>
+      </Body>
+      <Foot dark n={13} note="출처: 자사 인스타그램 릴스 · X 인사이트 (2026, 채널 운영 1개월 누적) · 유료 광고 집행 없음" />
+    </Slide>
+  );
+}
+
+/* 14 비용 구조 — 크레딧 원가 기반 단위 경제성 */
+const PACKAGES = [
+  { price: '3,000원', credits: '1,000C', unit: '3.00원', cost: '560원', margin: '2,440원', rate: '81.3%' },
+  { price: '12,000원', credits: '5,000C', unit: '2.40원', cost: '2,800원', margin: '9,200원', rate: '76.7%' },
+  { price: '25,000원', credits: '12,000C', unit: '2.08원', cost: '6,720원', margin: '18,280원', rate: '73.1%' },
+];
+
+function SlideUnitEconomics() {
+  return (
+    <Slide>
+      <Body>
+        <Head
+          eyebrow="Unit economics"
+          title="크레딧 1건당 원가를 알고 파는 구조입니다"
+          sub="AI 호출량을 크레딧으로 환산해 원가를 고정했습니다. 패키지가 커질수록 단가는 내려가고 이익률은 완만해집니다."
+        />
+
+        <div className="grid grid-cols-[1.35fr_1fr] gap-6">
+          {/* 패키지별 기여이익 */}
+          <div className="overflow-hidden rounded-2xl border border-surface-200">
+            <table className="w-full border-collapse text-right">
+              <thead>
+                <tr className="bg-primary-500 text-white">
+                  <th className="px-4 py-3 text-left text-[13px] font-extrabold">패키지</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold">크레딧 단가</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold">원가</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold">기여이익</th>
+                  <th className="px-4 py-3 text-[13px] font-extrabold">이익률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PACKAGES.map((p, i) => (
+                  <tr key={p.price} className={i % 2 ? 'bg-surface-50/60' : 'bg-white'}>
+                    <td className="px-4 py-3 text-left">
+                      <span className="text-[14.5px] font-extrabold text-bluewood-900">{p.price}</span>
+                      <span className="ml-1.5 text-[12.5px] text-bluewood-400">{p.credits}</span>
+                    </td>
+                    <td className="px-3 py-3 text-[13.5px] tabular-nums text-bluewood-500">{p.unit}</td>
+                    <td className="px-3 py-3 text-[13.5px] tabular-nums text-bluewood-500">{p.cost}</td>
+                    <td className="px-3 py-3 text-[14.5px] font-extrabold tabular-nums text-primary-600">{p.margin}</td>
+                    <td className="px-4 py-3 text-[14.5px] font-extrabold tabular-nums text-bluewood-800">{p.rate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="border-t border-surface-200 bg-surface-50/70 px-4 py-2.5 text-[12.5px] text-bluewood-400">
+              크레딧 원가 <b className="text-bluewood-700">0.56원</b> 기준 · 실제 토큰 사용량만큼 차감됩니다
+            </p>
+          </div>
+
+          {/* 손익분기 */}
+          <div className="rounded-2xl border-2 border-primary-500 bg-primary-50/40 px-7 py-6">
+            <p className="font-mono text-[12px] font-black uppercase tracking-[0.16em] text-primary-500">Break-even</p>
+            <div className="mt-4 space-y-4">
+              {[
+                ['7,636원', '결제 1건당 평균 기여이익'],
+                ['75.6%', '평균 기여이익률 (믹스 5:3:2)'],
+                ['월 92건', '손익분기 결제 건수'],
+              ].map(([big, small]) => (
+                <div key={small}>
+                  <p className="text-[30px] font-extrabold leading-none tabular-nums text-primary-600">{big}</p>
+                  <p className="mt-1 text-[13.5px] font-semibold text-bluewood-500">{small}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-5 border-t border-primary-200 pt-4 text-[13px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+              월 고정비 <b className="text-bluewood-900">70만원</b><br />
+              인프라 30만 · 무료 사용자 크레딧 28만 · 운영 툴 12만
+            </p>
+          </div>
+        </div>
+      </Body>
+      <Foot n={14} note="월 고정비 70만원 ÷ 기여이익률 75.6% = 최소 유지 매출 약 93만원 · 평균 결제 10,100원 기준 약 92건" />
+    </Slide>
+  );
+}
+
+
+/* 15 마무리 — 절제 */
 function Closing() {
   return (
     <Slide>
@@ -966,17 +1188,20 @@ function Closing() {
 
 const SLIDES = [
   Cover,
-  SlideProblem,     // 02 문제 (다크)
-  SlideInterview,   // 03 현장 설문·인터뷰
-  SlideFlow,        // 04 해결 4단계
-  SlideDifference,  // 05 차별점
-  SlideJobs,        // 06 직군별 평가 축
-  SlideEvidence,    // 07 근거 (다크)
-  SlideExtract,     // 08 경험정리 실제
-  SlideJobCards,    // 09 직군별 산출물 실물
-  SlidePortfolio,   // 10 포트폴리오 완성 실물
-  SlideOutput,      // 11 내보내기
-  Closing,          // 12
+  SlideProblem,       // 02 문제 (다크)
+  SlideInterview,     // 03 현장 설문·인터뷰
+  SlideFlow,          // 04 해결 4단계
+  SlideDifference,    // 05 차별점
+  SlideJobs,          // 06 직군별 평가 축
+  SlideEvidence,      // 07 근거 (다크)
+  SlideExtract,       // 08 경험정리 실제
+  SlideJobCards,      // 09 직군별 경험정리 전체 페이지
+  SlidePortfolio,     // 10 포트폴리오 완성 실물
+  SlideOutput,        // 11 내보내기
+  SlideTraction,      // 12 관심도 · 퍼널
+  SlideChannels,      // 13 채널 성과 (다크)
+  SlideUnitEconomics, // 14 비용 구조
+  Closing,            // 15
 ];
 
 /* ── 덱 셸 ────────────────────────────────────────────── */
@@ -1004,6 +1229,7 @@ export default function ServiceDeck() {
   useEffect(() => {
     const done = () => {
       document.body.classList.remove('fp-deck-printing');
+      document.body.classList.remove('fp-deck-measuring');
       setExporting(false);
     };
     window.addEventListener('afterprint', done);
@@ -1046,6 +1272,10 @@ export default function ServiceDeck() {
     const toastId = toast.loading('인쇄 창을 준비하고 있어요…');
 
     try {
+      // ⓪ 인쇄본을 레이아웃에 올린다(화면에는 안 보인다).
+      //    이걸 빼면 SplitPage 가 페이지 높이를 0 으로 재서 09번 슬라이드의 두 칸이 똑같이 찍힌다.
+      document.body.classList.add('fp-deck-measuring');
+
       // ① 폰트 — 로드 전에 인쇄하면 한글이 대체 폰트로 바뀌어 깨진다
       if (document.fonts?.ready) await document.fonts.ready;
 
@@ -1075,6 +1305,7 @@ export default function ServiceDeck() {
       toast.error('인쇄 준비에 실패했어요. 잠시 후 다시 시도해주세요.', { id: toastId });
     } finally {
       document.body.classList.remove('fp-deck-printing');
+      document.body.classList.remove('fp-deck-measuring');
       setExporting(false);
     }
   };
