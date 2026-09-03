@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>FitPoly 회고 포스터</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+  :root {
+    --navy: #002F6C;
+    --blue: #1E6FD9;
+    --blue-lite: #E8F0FB;
+    --blue-mid: #B6CFEC;
+    --ink: #223049;
+    --ink-600: #4c5c76;
+    --ink-400: #8593a8;
+    --dash: #c6d3e4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #6b7280;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 40px; padding: 40px;
+  }
+
+  .poster {
+    position: relative; overflow: hidden;
+    width: 1600px; height: 900px;
+    background: #fff; color: var(--ink);
+    word-break: keep-all;
+    display: flex; flex-direction: column;
+  }
+  /* 다크 리포트 — 설문/지표 포스터 */
+  .poster.dark {
+    background: #23262E; color: #fff;
+    --card: #2E323C; --track: #3A3F4B; --muted: #98A1B2; --blue: #3B87F0;
+    padding: 74px 76px 72px;
+  }
+  .poster.lite { padding: 76px 88px 72px; }
+
+  /* ── 공통 헤더 (가운데 정렬) ── */
+  .head { text-align: center; }
+  .squiggle { display: block; margin: 0 auto 14px; }
+  .title { font-size: 46px; font-weight: 800; line-height: 1.2; letter-spacing: -.035em; }
+  .lite .title { color: var(--ink); }
+  .sub { margin-top: 14px; font-size: 20px; font-weight: 600; line-height: 1.5; color: #D5DCE7; }
+  .lite .sub { color: var(--ink-600); font-weight: 500; }
+  .note { margin-top: 10px; font-size: 15.5px; line-height: 1.6; color: var(--muted); }
+
+  .pill {
+    align-self: center; margin-top: 28px;
+    background: var(--blue); color: #fff;
+    padding: 11px 26px; border-radius: 999px;
+    font-size: 17px; font-weight: 800; letter-spacing: -.01em;
+  }
+  .statement {
+    margin-top: 22px; text-align: center;
+    font-size: 25px; font-weight: 600; line-height: 1.45; color: #C9D2E0;
+  }
+  .statement b { font-weight: 800; color: #fff; }
+
+  /* ── 다크 카드 ── */
+  .cards { display: flex; gap: 22px; margin-top: 26px; flex: 1; }
+  .card { flex: 1; background: var(--card); border-radius: 18px; padding: 26px 26px 24px; display: flex; flex-direction: column; }
+  .q { font-size: 18px; font-weight: 800; color: var(--blue); }
+  .qt { margin-top: 10px; font-size: 17.5px; font-weight: 700; line-height: 1.5; color: #fff; }
+  .n { padding-top: 14px; font-size: 14px; color: var(--muted); }
+  .card > .bars, .card > .donutwrap, .card > .steps, .card > .stack { margin-top: auto; margin-bottom: auto; }
+  .stack { display: flex; flex-direction: column; }
+
+  /* 가로 막대 */
+  .bars { margin-top: 22px; display: flex; flex-direction: column; gap: 12px; }
+  .bar { display: flex; align-items: center; gap: 14px; }
+  .bar .track { flex: 1; }
+  .bar .fill {
+    height: 38px; border-radius: 8px; display: flex; align-items: center; padding-left: 14px;
+    font-size: 15px; font-weight: 700; color: #fff;
+    background: linear-gradient(90deg, #2A6BD4 0%, #4B95F5 100%);
+  }
+  .bar.mute .fill { background: var(--track); color: #9AA3B3; }
+  .bar > b { font-size: 19px; font-weight: 800; min-width: 68px; text-align: right; }
+  .bar.mute > b { color: #98A1B2; }
+
+  /* 도넛 */
+  .donutwrap { margin-top: 20px; display: flex; align-items: center; gap: 20px; }
+  .donut {
+    width: 142px; height: 142px; border-radius: 50%; flex-shrink: 0;
+    background: conic-gradient(#3B87F0 0 var(--p), var(--track) var(--p) 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .donut .hole {
+    width: 98px; height: 98px; border-radius: 50%; background: var(--card);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .donut .hole b { font-size: 25px; font-weight: 800; letter-spacing: -.02em; }
+  .donut .hole span { margin-top: 3px; font-size: 13px; color: var(--muted); }
+  .legend { display: flex; flex-direction: column; gap: 13px; }
+  .legend div { display: flex; align-items: center; gap: 10px; font-size: 15px; color: #D5DCE7; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; background: #3B87F0; }
+  .legend .off i { background: var(--track); }
+  .legend .off { color: var(--muted); }
+
+  /* 채널 카드 */
+  .icons { margin-top: 20px; display: flex; gap: 10px; }
+  .icons .sq { width: 52px; height: 52px; border-radius: 13px; background: #fff; display: flex; align-items: center; justify-content: center; }
+  .icons .sq img, .icons .sq svg { width: 27px; height: 27px; }
+  .duo { margin-top: 20px; }
+  .duo .v { font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: var(--blue); }
+  .duo .l { margin-top: 7px; font-size: 15px; color: #D5DCE7; }
+  .duo hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 16px 0; }
+
+  /* 퍼널 목록 */
+  .steps { margin-top: 20px; }
+  .steps .s { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.09); }
+  .steps .s:last-child { border-bottom: 0; }
+  .steps .s span { font-size: 16px; color: var(--muted); }
+  .steps .s b { font-size: 26px; font-weight: 800; letter-spacing: -.025em; }
+  .steps .s.win span { color: #9CC6F7; }
+  .steps .s.win b { color: var(--blue); }
+
+  /* ── 02 VS 인포그래픽 ── */
+  .poster.vs {
+    padding: 66px 80px 62px; color: #fff;
+    background: linear-gradient(90deg, #002B63 0 50%, #003D8A 50% 100%);
+    --gold: #FFD36E;
+  }
+  .vs .title { font-size: 62px; color: #fff; letter-spacing: -.03em; }
+  .vs .title em { font-style: normal; color: var(--gold); }
+  .vs .sub { margin-top: 14px; font-size: 21px; font-weight: 600; color: #A9C8EC; }
+  .vs .lead { display: flex; flex: 1; gap: 56px; }
+  .vs .col { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .vs .who { font-size: 34px; font-weight: 800; letter-spacing: -.02em; color: var(--gold); }
+  .vs .stance { margin-top: 14px; font-size: 20px; font-weight: 600; line-height: 1.55; color: #fff; }
+  .vs .stack { margin-top: 26px; width: 100%; flex: 1; display: flex; flex-direction: column; gap: 15px; }
+  .vs .item {
+    flex: 1; background: #EAF1FB; border-radius: 15px; padding: 16px 22px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .vs .item b { font-size: 23px; font-weight: 800; letter-spacing: -.02em; color: #1662C8; }
+  .vs .item span { margin-top: 8px; font-size: 16px; line-height: 1.5; color: #43587A; }
+
+  /* ── 04 AS IS – TO BE 다이어그램 ── */
+  .flow { margin-top: 46px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .grid7 { display: grid; grid-template-columns: 132px repeat(5, 1fr) 92px; gap: 18px; align-items: center; }
+  .stage { text-align: center; }
+  .stage .ic {
+    width: 74px; height: 74px; margin: 0 auto; border-radius: 20px; background: var(--blue-lite);
+    display: flex; align-items: center; justify-content: center; color: var(--navy);
+  }
+  .stage .nm { margin-top: 14px; font-size: 22px; font-weight: 800; color: var(--ink); }
+  .stage .ask { margin-top: 6px; font-size: 15.5px; line-height: 1.45; color: var(--ink-400); }
+
+  .rail { position: relative; margin-top: 30px; }
+  .rail::before { content: ''; position: absolute; left: 126px; right: 84px; top: 50%; border-top: 2px dashed var(--dash); }
+  .rail .cap { display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 14px; font-weight: 800; letter-spacing: .1em; color: var(--ink-400); }
+  .rail .cap.end { justify-content: flex-start; }
+  .dot { display: block; width: 15px; height: 15px; border-radius: 50%; background: #fff; border: 3px solid var(--blue-mid); position: relative; z-index: 1; margin: 0 auto; }
+  .dot.big { background: var(--blue); border-color: var(--blue); margin: 0; }
+
+  .lane { margin-top: 22px; }
+  .lane .lbl { font-size: 17px; font-weight: 800; letter-spacing: .04em; color: var(--ink-400); text-align: right; }
+  .cell { border-radius: 14px; padding: 22px 18px; text-align: center; font-size: 18px; line-height: 1.45; min-height: 126px; display: flex; align-items: center; justify-content: center; }
+  .lane.soft .cell { background: var(--blue-lite); color: #3b5b86; }
+  .lane.soft .cell b { display: block; font-weight: 800; color: var(--navy); }
+  .lane.solid .cell { background: var(--blue); color: #cfe1f8; }
+  .lane.solid .cell b { display: block; font-weight: 800; color: #fff; }
+  .foot { margin-top: 38px; text-align: center; font-size: 18px; color: var(--ink-400); }
+
+  /* ── 05 문제 정의 (좌 수치 · 우 현장 사진, 정확히 반반) ── */
+  .poster.half { flex-direction: row; padding: 0; }
+  .pane { width: 800px; flex-shrink: 0; padding: 54px 58px 44px; display: flex; flex-direction: column; }
+  .pane .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: .16em; color: var(--blue); }
+  .pane .ttl { margin-top: 14px; font-size: 36px; font-weight: 800; line-height: 1.26; letter-spacing: -.035em; }
+  .pane .lead { margin-top: 12px; font-size: 15px; line-height: 1.6; color: #98A1B2; }
+
+  .sec { padding: 20px 0; border-top: 1px solid rgba(255,255,255,.12); }
+  .sec:first-of-type { margin-top: 22px; }
+  .sec .k { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: #7C8799; }
+  .sec .n { margin-top: 14px; font-size: 13.5px; line-height: 1.5; color: #7C8799; }
+  .sec .n b { color: #C3CDDC; font-weight: 700; }
+
+  .bar2 { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .bar2 .b { display: flex; align-items: center; gap: 14px; }
+  .bar2 .b > span { width: 168px; flex-shrink: 0; font-size: 15px; font-weight: 600; color: #C3CDDC; }
+  .bar2 .b .t { flex: 1; height: 22px; border-radius: 6px; background: var(--track); }
+  .bar2 .b .t i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #2A6BD4 0%, #4B95F5 100%); }
+  .bar2 .b > b { width: 74px; text-align: right; font-size: 21px; font-weight: 800; letter-spacing: -.03em; }
+  .bar2 .b.off .t i { background: #525C6E; }
+  .bar2 .b.off > b { color: #FFD36E; }
+
+  .big { margin-top: 14px; display: flex; align-items: baseline; gap: 22px; }
+  .big .v { font-size: 68px; font-weight: 800; line-height: .9; letter-spacing: -.055em; color: var(--blue); }
+  .big .v em { font-style: normal; font-size: 29px; letter-spacing: -.03em; margin-left: 4px; }
+  .big .vd { font-size: 15px; line-height: 1.6; color: #C3CDDC; }
+  .big .vd b { color: #fff; font-weight: 800; }
+
+  .trio3 { margin-top: 18px; display: flex; }
+  .trio3 > div { flex: 1; }
+  .trio3 > div + div { border-left: 1px solid rgba(255,255,255,.12); padding-left: 26px; }
+  .trio3 b { display: block; font-size: 31px; font-weight: 800; line-height: 1; letter-spacing: -.04em; color: #fff; }
+  .trio3 span { display: block; margin-top: 9px; font-size: 13.5px; color: #98A1B2; }
+
+  .mkt { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.12); font-size: 13.5px; line-height: 1.7; color: #7C8799; }
+  .mkt b { color: #C3CDDC; font-weight: 800; }
+  .mkt i { font-style: normal; color: #4E5765; margin: 0 9px; }
+  .mkt .sr { display: block; margin-top: 8px; font-size: 11.5px; line-height: 1.5; color: #59616F; }
+
+  .gal { flex: 1; display: flex; flex-direction: column; gap: 4px; background: #1A1D23; }
+  .gal .r1 { height: 500px; display: flex; min-height: 0; }
+  .gal .r2 { flex: 1; min-height: 0; display: flex; gap: 4px; }
+  .gal .r2 .ph.p1 { width: 34%; flex: none; }
+  .gal .r2 .ph.p2 { flex: 1; }
+  .ph { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph.top img { object-position: center 30%; }
+  .ph.board img { object-position: center 10%; }
+  .ph.p2 img { object-position: center 38%; }
+  .ph .cp { position: absolute; left: 0; right: 0; bottom: 0; padding: 54px 24px 20px; background: linear-gradient(180deg, rgba(14,17,23,0) 0%, rgba(14,17,23,.88) 58%); }
+  .ph .cp b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+  .ph .cp span { display: block; margin-top: 5px; font-size: 13px; line-height: 1.45; color: #C7D2E0; }
+
+  /* ── 06 포지션 맵 (좌 리스트 · 우 좌표평면) ── */
+  .poster.map2 { flex-direction: row; padding: 0; background: #F2F4F7; }
+
+  .side { width: 520px; flex-shrink: 0; background: #23262E; color: #fff; padding: 54px 44px 48px; display: flex; flex-direction: column; }
+  .side .ttl { font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .side .sub2 { margin-top: 11px; font-size: 14.5px; line-height: 1.5; color: #98A1B2; }
+  .clist { margin-top: 30px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .c { flex: 1; display: flex; align-items: center; gap: 16px; background: #2E323C; border-radius: 16px; padding: 14px 18px; }
+  .c .ic { width: 50px; height: 50px; flex-shrink: 0; border-radius: 14px; background: #fff; display: flex; align-items: center; justify-content: center; }
+  .c .ic img { width: 27px; height: 27px; object-fit: contain; }
+  .c .nm { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+  .c .d { margin-top: 6px; font-size: 13px; line-height: 1.5; color: #98A1B2; }
+  .c.me { background: var(--blue); }
+  .c.me .ic { border: 2px solid rgba(255,255,255,.5); }
+  .c.me .d { color: #DCE9FB; }
+
+  .canvas { flex: 1; position: relative; padding: 54px 44px 48px; display: flex; flex-direction: column; }
+  .canvas .ctl { text-align: center; font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: #4c5c76; }
+  .field { position: relative; flex: 1; margin: 34px 104px 0; }
+
+  .field .axis { position: absolute; inset: 0; }
+  .field .lbl { position: absolute; font-size: 14px; font-weight: 700; color: #59677f; white-space: nowrap; }
+  .field .lbl.up { left: 50%; top: -6px; transform: translate(-50%, -100%); }
+  .field .lbl.dn { left: 50%; bottom: -6px; transform: translate(-50%, 100%); }
+  .field .lbl.lf { left: -16px; top: 50%; transform: translate(-100%, -50%); text-align: right; line-height: 1.45; }
+  .field .lbl.rt { right: -16px; top: 50%; transform: translate(100%, -50%); line-height: 1.45; }
+
+  .pin { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+  .pin .tile {
+    position: relative; z-index: 1;
+    width: 58px; height: 58px; border-radius: 16px; background: #fff;
+    box-shadow: 0 8px 22px rgba(23,44,74,.13);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin .tile img { width: 30px; height: 30px; object-fit: contain; }
+  .pin .pn { position: relative; z-index: 1; margin-top: 10px; font-size: 14px; font-weight: 800; letter-spacing: -.01em; color: #4c5c76; white-space: nowrap; }
+  .pin.me .tile { width: 74px; height: 74px; border-radius: 20px; box-shadow: 0 14px 30px rgba(30,111,217,.24); }
+  .pin.me .tile img { width: 40px; height: 40px; }
+  .pin.me .pn { margin-top: 12px; font-size: 17px; color: var(--blue); }
+
+  .blob { position: absolute; z-index: 0; left: 50%; top: 26px; transform: translate(-50%, -50%); }
+  .blob.b1 { width: 214px; height: 132px; background: #D7E7FA; border-radius: 62% 38% 48% 52% / 58% 46% 54% 42%; }
+  .blob.b2 { width: 206px; height: 126px; background: #F7E4C7; border-radius: 44% 56% 62% 38% / 48% 58% 42% 52%; }
+
+  .ann { position: absolute; width: 250px; font-size: 13.5px; font-weight: 600; line-height: 1.65; }
+  .ann b { font-weight: 800; }
+  .ann.blue { color: #1E6FD9; text-align: right; }
+  .ann.amber { width: 232px; color: #C7841E; }
+
+  .field .vline { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed #CBD4E0; }
+  .field .hline { position: absolute; top: 50%; left: 0; right: 0; border-top: 2px dashed #CBD4E0; }
+  .field .arw { position: absolute; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; }
+  .field .arw.up { left: 50%; top: 0; transform: translate(-50%, -100%); border-bottom: 10px solid #CBD4E0; }
+  .field .arw.dn { left: 50%; bottom: 0; transform: translate(-50%, 100%); border-top: 10px solid #CBD4E0; }
+  .field .arw.lf { top: 50%; left: 0; transform: translate(-100%, -50%); border: 7px solid transparent; border-right: 10px solid #CBD4E0; }
+  .field .arw.rt { top: 50%; right: 0; transform: translate(100%, -50%); border: 7px solid transparent; border-left: 10px solid #CBD4E0; }
+
+  /* ── 07 시장 규모 ── */
+  .market { margin-top: 30px; flex: 1; display: flex; align-items: flex-end; gap: 70px; }
+  .rings { position: relative; width: 430px; height: 430px; flex-shrink: 0; }
+  .ring { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); border-radius: 50%; display: flex; justify-content: center; }
+  .ring.tam { width: 430px; height: 430px; background: #2E323C; }
+  .ring.sam { width: 286px; height: 286px; background: #2B5896; }
+  .ring.som { width: 116px; height: 116px; background: #3B87F0; }
+  .ring .k { font-size: 13.5px; font-weight: 800; letter-spacing: .12em; color: rgba(255,255,255,.55); }
+  .ring .n { padding-top: 0; margin-top: 2px; font-size: 27px; font-weight: 800; letter-spacing: -.03em; color: #fff; }
+  .ring .v { text-align: center; }
+  .ring.tam .v { padding-top: 20px; }
+  .ring.sam .v { padding-top: 18px; }
+  .ring.som .v { padding-top: 22px; }
+  .ring.som .k { font-size: 12px; }
+  .ring.som .n { font-size: 20px; }
+  .mlist { flex: 1; display: flex; flex-direction: column; gap: 26px; padding-bottom: 16px; }
+  .ml { display: flex; gap: 16px; }
+  .ml i { margin-top: 8px; width: 15px; height: 15px; border-radius: 5px; flex-shrink: 0; }
+  .ml .t { font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+  .ml .t em { font-style: normal; margin-left: 12px; color: var(--blue); }
+  .ml p { margin-top: 8px; font-size: 16px; line-height: 1.55; color: var(--muted); }
+  .mfoot { margin-top: 26px; display: flex; gap: 14px; }
+  .mfoot div { flex: 1; background: var(--card); border-radius: 14px; padding: 17px 22px; display: flex; align-items: baseline; gap: 14px; }
+  .mfoot b { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--blue); white-space: nowrap; }
+  .mfoot span { font-size: 14.5px; line-height: 1.45; color: var(--muted); }
+
+  /* ── 08 로드맵 ── */
+  .road { margin-top: 40px; flex: 1; display: flex; flex-direction: column; }
+  .rail4 { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
+  .rail4::before { content: ''; position: absolute; left: 12.5%; right: 12.5%; top: 50%; border-top: 2px dashed var(--dash); }
+  .rail4 .now { position: relative; }
+  .rail4 .now::after { content: 'NOW'; position: absolute; left: 50%; top: -27px; transform: translateX(-50%); font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--blue); }
+  .steps4 { margin-top: 26px; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .st { border-radius: 18px; padding: 26px 24px 24px; background: var(--blue-lite); display: flex; flex-direction: column; }
+  .st .no { font-size: 13px; font-weight: 800; letter-spacing: .14em; color: #7f9bc4; }
+  .st .nm { margin-top: 11px; font-size: 25px; font-weight: 800; letter-spacing: -.03em; color: var(--navy); }
+  .st .de { margin-top: 13px; font-size: 16px; line-height: 1.55; color: #3b5b86; }
+  .st .kpis { margin-top: auto; padding-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .st .kpi { background: #fff; border-radius: 9px; padding: 9px 13px; font-size: 14.5px; font-weight: 700; color: var(--navy); }
+  .st.now { background: var(--blue); }
+  .st.now .no { color: #9CC6F7; }
+  .st.now .nm { color: #fff; }
+  .st.now .de { color: #d8e6fa; }
+  .st.now .kpi { background: rgba(255,255,255,.15); color: #fff; }
+  .band { margin-top: 24px; border-radius: 16px; background: var(--navy); color: #fff; padding: 26px 30px; display: flex; gap: 30px; }
+  .band .b { flex: 1; display: flex; gap: 20px; }
+  .band .b + .b { border-left: 1px solid rgba(255,255,255,.16); padding-left: 30px; }
+  .band .bk { width: 100px; flex-shrink: 0; font-size: 15px; font-weight: 800; letter-spacing: .04em; color: #8FB7E8; line-height: 1.4; }
+  .band .bt { font-size: 16.5px; line-height: 1.55; color: #DCE7F6; }
+  .band .bt b { font-weight: 800; color: #fff; }
+
+  /* ── 09 주요 산출물 ── */
+  .out .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: .2em; color: #7f9bc4; }
+  .out .ttl { margin-top: 10px; font-size: 40px; font-weight: 800; line-height: 1.2; letter-spacing: -.035em; color: var(--ink); }
+  .out .ttl em { font-style: normal; color: var(--blue); }
+  .out .lead { margin-top: 10px; font-size: 16px; line-height: 1.6; color: var(--ink-600); }
+
+  .oband { margin-top: 22px; }
+  .oband + .oband { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e2e9f3; }
+  .obh { display: flex; align-items: baseline; gap: 12px; }
+  .obh .no { width: 24px; height: 24px; flex-shrink: 0; border-radius: 8px; background: var(--navy); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; align-self: center; }
+  .obh .t { font-size: 19px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+  .obh .s { font-size: 14.5px; color: var(--ink-400); }
+
+  .orow { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .oc { display: flex; flex-direction: column; }
+  .oc .bar { display: flex; align-items: center; gap: 9px; }
+  .oc .bg { padding: 5px 11px; border-radius: 7px; font-size: 12.5px; font-weight: 800; color: #fff; }
+  .oc .bg.dev { background: var(--blue); }
+  .oc .bg.pm { background: #0F766E; }
+  .oc .bg.mkt { background: #E08A15; }
+  .oc .nm { font-size: 13.5px; font-weight: 700; color: var(--ink-600); }
+  .oc .shot { margin-top: 8px; border-radius: 12px; overflow: hidden; border: 1px solid #e0e7f1; box-shadow: 0 6px 20px rgba(0,47,108,.08); }
+  .oc .shot img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .oc .ax { margin-top: 8px; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: var(--ink-400); }
+
+  .orow.job .shot { height: 148px; }
+
+  .win { border-radius: 12px; overflow: hidden; border: 1px solid #e0e7f1; box-shadow: 0 6px 20px rgba(0,47,108,.08); }
+  .win .chrome { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f4f7fb; border-bottom: 1px solid #e6ecf5; }
+  .win .dots { display: flex; gap: 5px; }
+  .win .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .win .url { flex: 1; font-size: 12px; font-weight: 700; color: #8593a8; text-align: center; letter-spacing: -.01em; }
+  .win img { display: block; width: 100%; height: 188px; object-fit: cover; object-position: top; }
+
+  .out .foot2 { margin-top: auto; padding-top: 16px; font-size: 13.5px; line-height: 1.5; color: var(--ink-400); }
+  .out .foot2 b { color: var(--ink-600); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 01 문제 ═══ -->
+<section class="poster dark" id="p1">
+  <div class="head">
+    <svg class="squiggle" width="78" height="20" viewBox="0 0 78 20" fill="none">
+      <path d="M2 13C10 3 20 3 28 11s18 8 26-2" stroke="#3B87F0" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="6" r="3" fill="#3B87F0"/>
+    </svg>
+    <h2 class="title">기록은 남기지만, 정리가 되지 않습니다</h2>
+    <p class="sub">취준생 37명에게 물어보고, 막히는 지점 세 곳을 발견하였습니다.</p>
+    <p class="note">현장 설문 37명과 심층 인터뷰 23명에게 기록 습관, 정리까지 걸리는 시간, 자료가 쌓이는 위치를 여쭈어보았습니다.</p>
+  </div>
+
+  <div class="pill">경험 정리의 병목</div>
+  <p class="statement">37명 중 23명은 기록을 남겼지만, 그중 <b>80%는 쓸 수 있게 정리하지 못했습니다</b></p>
+
+  <div class="cards">
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">경험을 따로 기록해 두시는<br />편인가요?</p>
+      <div class="bars">
+        <div class="bar"><div class="track"><div class="fill" style="width:100%">기록해 둡니다</div></div><b>62%</b></div>
+        <div class="bar mute"><div class="track"><div class="fill" style="width:61%">따로 기록하지 않습니다</div></div><b>38%</b></div>
+      </div>
+      <p class="n">현장 설문 · 취준생 37명</p>
+    </div>
+
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">기록한 걸 다시 쓸 수 있게<br />정리까지 하셨나요?</p>
+      <div class="donutwrap">
+        <div class="donut" style="--p:80.2%">
+          <div class="hole"><b>80.2%</b><span>정리 실패</span></div>
+        </div>
+        <div class="legend">
+          <div><i></i>단순 기록에서 멈춤</div>
+          <div class="off"><i></i>의미 있게 정리함 19.8%</div>
+        </div>
+      </div>
+      <p class="n">기록해 둔 23명 기준</p>
+    </div>
+
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">그 기록은 지금 어디에<br />쌓여 있나요?</p>
+      <div class="stack">
+      <div class="icons">
+        <div class="sq"><img src="../../../frontend/public/brand-icons/google-drive.svg" alt="" /></div>
+        <div class="sq"><svg viewBox="0 0 16 16" fill="#002F6C" xmlns="http://www.w3.org/2000/svg"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+        <div class="sq"><img src="../../../frontend/public/brand-icons/figma.svg" alt="" /></div>
+        <div class="sq"><img src="../../../frontend/public/brand-icons/notion.svg" alt="" /></div>
+      </div>
+      <div class="duo">
+        <p class="v">5.4개</p>
+        <p class="l">한 사람의 기록이 나뉘어 있는 채널 수</p>
+        <hr />
+        <p class="v">3.2시간</p>
+        <p class="l">경험 하나를 정리하는 데 드는 시간</p>
+      </div>
+      </div>
+      <p class="n">10곳에 지원하면 32시간이 그대로 반복됩니다</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 02 입장 차이 ═══ -->
+<section class="poster vs" id="p2">
+  <div class="head">
+    <h2 class="title">취준생 <em>VS</em> 인사담당자</h2>
+    <p class="sub">같은 서류를 두고 무엇이 어긋나 있었을까요?</p>
+    <svg width="1440" height="46" viewBox="0 0 1440 46" fill="none">
+      <path d="M660 5 L 372 43" stroke="#7FB0EA" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 15"/>
+      <path d="M780 5 L 1068 43" stroke="#7FB0EA" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 15"/>
+    </svg>
+  </div>
+
+  <div class="lead">
+    <div class="col">
+      <p class="who">&lt; 취준생 &gt;</p>
+      <p class="stance">여태까지 해온 것을 하나라도 더<br />보여주고 싶어 합니다</p>
+      <div class="stack">
+        <div class="item">
+          <b>빠짐없이 담습니다</b>
+          <span>정리해 둔 경험 12개를 하나도 빼지 않고 서류에 넣습니다</span>
+        </div>
+        <div class="item">
+          <b>중요도는 읽는 쪽에 맡깁니다</b>
+          <span>무엇이 중요한지는 읽는 사람이 골라 주리라 기대합니다</span>
+        </div>
+        <div class="item">
+          <b>있었던 순서대로 적습니다</b>
+          <span>겪은 일을 시간 순으로 나열하는 데서 멈추는 경우가 80.2%였습니다</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <p class="who">&lt; 인사담당자 &gt;</p>
+      <p class="stance">회사에 필요한 경험만 강조된 것을<br />보고 싶어 합니다</p>
+      <div class="stack">
+        <div class="item">
+          <b>세 개만 읽습니다</b>
+          <span>직무와 맞는 3개만 읽고, 나머지 9개는 오히려 신호를 가린다고 하셨습니다</span>
+        </div>
+        <div class="item">
+          <b>회사 기준이 먼저입니다</b>
+          <span>회사가 필요로 하는 경험이 맨 위에 보여야 한다고 하셨습니다</span>
+        </div>
+        <div class="item">
+          <b>판단의 과정을 확인합니다</b>
+          <span>무엇을 겪었고 어떻게 판단했고 무엇이 남았는지를 확인합니다</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 03 트랙션 ═══ -->
+<section class="poster dark" id="p3">
+  <div class="head">
+    <svg class="squiggle" width="78" height="20" viewBox="0 0 78 20" fill="none">
+      <path d="M2 13C10 3 20 3 28 11s18 8 26-2" stroke="#3B87F0" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="6" r="3" fill="#3B87F0"/>
+    </svg>
+    <h2 class="title">릴스 하나로 420명이 모였습니다</h2>
+    <p class="sub">광고비는 한 푼도 쓰지 않았습니다.</p>
+    <p class="note">MVP를 만들고 직접 찍은 인스타그램 릴스 1편에서 시작해, 채널을 운영한 첫 한 달 동안 쌓인 숫자입니다.</p>
+  </div>
+
+  <div class="pill">한 달 동안 남은 것</div>
+  <p class="statement">8.8만 조회에서 420명이 가입했고, <b>결제 기능이 없던 때에 2명이 먼저 결제하겠다고 하셨습니다</b></p>
+
+  <div class="cards">
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">노출은 어디까지<br />이어졌을까요?</p>
+      <div class="steps">
+        <div class="s"><span>릴스 조회</span><b>8.8만</b></div>
+        <div class="s"><span>후기까지 더한 누적</span><b>15만</b></div>
+        <div class="s"><span>사이트 가입</span><b>420명</b></div>
+        <div class="s win"><span>결제 전환</span><b>2명</b></div>
+      </div>
+      <p class="n">들어온 사람 10명 중 3명이 가입까지 이어졌습니다</p>
+    </div>
+
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">본 사람들은 어떻게<br />반응했을까요?</p>
+      <div class="bars">
+        <div class="bar"><div class="track"><div class="fill" style="width:100%">공유</div></div><b>1,700</b></div>
+        <div class="bar"><div class="track"><div class="fill" style="width:94%">저장</div></div><b>1,600</b></div>
+        <div class="bar mute"><div class="track"><div class="fill" style="width:32%">댓글</div></div><b>550</b></div>
+      </div>
+      <p class="n">저장과 공유를 합쳐 3,300건, 남에게 보여줄 만한 콘텐츠로 작동하였습니다</p>
+    </div>
+
+    <div class="card">
+      <p class="q">Q.</p>
+      <p class="qt">들어온 다음에는<br />어땠을까요?</p>
+      <div class="stack">
+      <div class="bars">
+        <div class="bar"><div class="track"><div class="fill" style="width:100%">첫 산출물까지 완성</div></div><b>42%</b></div>
+        <div class="bar mute"><div class="track"><div class="fill" style="width:65%">주간 재방문</div></div><b>27.3%</b></div>
+      </div>
+      <div class="duo">
+        <hr />
+        <p class="v">4.8 / 5</p>
+        <p class="l">사용자 만족도 · 피드백 14건</p>
+      </div>
+      </div>
+      <p class="n">응답이 14건이라 표본은 작습니다</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 04 직군별 차이 ═══ -->
+<section class="poster lite" id="p4">
+  <div class="head">
+    <h2 class="title">같은 경험도 직군마다 다르게 읽힙니다</h2>
+    <p class="sub">합격 포트폴리오를 모아 직군별 기준을 따로 정리하였습니다. 심사자가 확인하는 5단계는 같고, 채우는 내용만 달라집니다.</p>
+  </div>
+
+  <div class="flow">
+    <div class="grid7">
+      <div></div>
+      <div class="stage">
+        <div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <p class="nm">관찰</p>
+        <p class="ask">문제가 실재했음을<br />무엇으로 보이나요</p>
+      </div>
+      <div class="stage">
+        <div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.4c.6.6 1 1.6 1 2.6h6c0-1 .4-2 1-2.6A6 6 0 0 0 12 3Z"/></svg></div>
+        <p class="nm">판단</p>
+        <p class="ask">그 문제를<br />어떻게 해석했나요</p>
+      </div>
+      <div class="stage">
+        <div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V11M12 11 6 4M12 11l6-7"/><circle cx="6" cy="3" r="1.6"/><circle cx="18" cy="3" r="1.6"/></svg></div>
+        <p class="nm">대안</p>
+        <p class="ask">무엇을 고르고<br />무엇을 버렸나요</p>
+      </div>
+      <div class="stage">
+        <div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></div>
+        <p class="nm">검증</p>
+        <p class="ask">결과를 무엇으로<br />확인했나요</p>
+      </div>
+      <div class="stage">
+        <div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.4 3.5L17 11H5"/></svg></div>
+        <p class="nm">잔여</p>
+        <p class="ask">무엇이 남았고<br />무엇이 달라졌나요</p>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="rail grid7">
+      <div class="cap">START<span class="dot big"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+      <div class="cap end"><span class="dot big"></span>END</div>
+    </div>
+
+    <div class="lane soft grid7">
+      <p class="lbl">개발</p>
+      <div class="cell"><span>재현 가능한<br /><b>증상과 로그</b></span></div>
+      <div class="cell"><span>원인 가설을<br /><b>버린 근거</b></span></div>
+      <div class="cell"><span>기술 선택의<br /><b>trade-off</b></span></div>
+      <div class="cell"><span>테스트 · 모니터링<br /><b>결과 수치</b></span></div>
+      <div class="cell"><span>남겨 둔<br /><b>기술 부채</b></span></div>
+      <div></div>
+    </div>
+
+    <div class="lane solid grid7">
+      <p class="lbl">기획 · PM</p>
+      <div class="cell"><span>사용자에게서 나온<br /><b>1차 근거</b></span></div>
+      <div class="cell"><span>목표와<br /><b>범위 밖 항목</b></span></div>
+      <div class="cell"><span>검토한<br /><b>대안과 기준</b></span></div>
+      <div class="cell"><span>성공 지표와<br /><b>반증 기준</b></span></div>
+      <div class="cell"><span>출시 후<br /><b>판단의 변화</b></span></div>
+      <div></div>
+    </div>
+
+    <p class="foot">개발기획 · QA · 웹퍼블리셔처럼 세부 직군까지, 24개 직군마다 인정 기준을 따로 정의하였습니다</p>
+  </div>
+</section>
+
+
+<!-- ═══ 05 문제 정의 ═══ -->
+<section class="poster dark half" id="p5">
+  <div class="pane">
+    <p class="eyebrow">PROBLEM</p>
+    <h2 class="ttl">현장에서 직접 확인한<br />문제입니다</h2>
+    <p class="lead">취업박람회에서 취준생 37명을 설문하고 23명을 인터뷰했으며,<br />4개 직군 인사담당자 8명을 따로 만났습니다.</p>
+
+    <div class="sec">
+      <p class="k">취준생 — 기록은 하지만 정리까지는 못 합니다</p>
+      <div class="bar2">
+        <div class="b"><span>경험을 기록한다</span><div class="t"><i style="width:62%"></i></div><b>62%</b></div>
+        <div class="b off"><span>다시 쓸 수 있게 정리한다</span><div class="t"><i style="width:19.8%"></i></div><b>19.8%</b></div>
+      </div>
+      <p class="n">현장 설문 37명 · 기록해 둔 23명 중 <b>80.2%</b>는 쌓아두는 데서 멈췄습니다</p>
+    </div>
+
+    <div class="sec">
+      <p class="k">지원할 때마다 그대로 반복되는 시간</p>
+      <div class="big">
+        <p class="v">32<em>시간</em></p>
+        <p class="vd">경험 한 건을 정리하는 데 <b>3.2시간</b>, 열 곳에 지원하면 그대로 반복됩니다.<br />기록은 평균 <b>5.4개 채널</b>에 흩어져 있습니다.</p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="k">채용 기업 — 읽을 시간이 없습니다</p>
+      <div class="trio3">
+        <div><b>244건</b><span>공고 1건당 지원서</span></div>
+        <div><b>10초</b><span>서류 1건 검토 시간</span></div>
+        <div><b>81.6%</b><span>직무 경험 최우선</span></div>
+      </div>
+      <p class="n">조직당 채용담당자는 <b>10.43명 → 4.62명</b>으로 줄었고, 자동 스크리닝을 쓰는 고용주는 90%가 넘습니다</p>
+    </div>
+
+    <p class="mkt">
+      <b>40%</b> 2030년까지 바뀌는 직무 스킬<i>·</i><b>70%</b> 스킬 기반 채용 기업<i>·</i><b>11.3개월</b> 첫 취업까지
+      <span class="sr">출처 · 자사 현장 설문 37명 · 심층 인터뷰 23명 · 인사담당자 인터뷰 8명(2026) · WEF Future of Jobs 2025 · NACE Job Outlook 2026 Spring · 통계청 2025.5 청년층 부가조사</span>
+    </p>
+  </div>
+
+  <div class="gal">
+    <div class="r1">
+      <div class="ph top">
+        <img src="photos/fair-booth.jpg" alt="취업박람회 현장 인터뷰" />
+        <p class="cp"><b>취업박람회 현장</b><span>노트북을 열어 보여드리며 취준생 23명을 인터뷰했습니다</span></p>
+      </div>
+    </div>
+    <div class="r2">
+      <div class="ph p1 board">
+        <img src="photos/fair-survey.jpg" alt="현장 스티커 설문 보드" />
+        <p class="cp"><b>현장 스티커 설문</b><span>자소서·이력서 작성에 표가 몰렸습니다</span></p>
+      </div>
+      <div class="ph p2">
+        <img src="photos/hr-interview.jpg" alt="인사담당자 인터뷰" />
+        <p class="cp"><b>인사담당자 인터뷰 8명 · 4개 직군</b><span>“경험을 데이터로 증명할 수 있는 인재를 우대합니다”</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 06 포지션 맵 ═══ -->
+<section class="poster map2" id="p6">
+  <aside class="side">
+    <p class="ttl">Competitors Analysis</p>
+    <p class="sub2">경험 정리 · 포트폴리오 서비스 경쟁사 및 대체재 조사</p>
+
+    <div class="clist">
+      <div class="c">
+        <span class="ic"><img src="logos/notefolio.png" alt="노트폴리오" /></span>
+        <div>
+          <p class="nm">노트폴리오</p>
+          <p class="d">완성된 작업물을 올려 전시하는 구조<br />보여줄 결과물이 없으면 시작 자체가 안 됨</p>
+        </div>
+      </div>
+      <div class="c">
+        <span class="ic"><img src="logos/careernote.png" alt="커리어노트" /></span>
+        <div>
+          <p class="nm">커리어노트</p>
+          <p class="d">이력서·경력 정보를 넣으면 포트폴리오 생성<br />정리된 이력서가 있어야 출발 가능</p>
+        </div>
+      </div>
+      <div class="c">
+        <span class="ic"><img src="../../../frontend/public/brand-icons/notion.svg" alt="노션 템플릿" /></span>
+        <div>
+          <p class="nm">노션 템플릿 · 노코드 빌더</p>
+          <p class="d">노션 문서를 웹페이지로 포장해 주는 도구<br />포장만 바뀔 뿐 내용 정리는 끝까지 본인 몫</p>
+        </div>
+      </div>
+      <div class="c">
+        <span class="ic"><img src="logos/openai.svg" alt="ChatGPT" /></span>
+        <div>
+          <p class="nm">ChatGPT · 범용 LLM</p>
+          <p class="d">프롬프트로 문장 초안을 만들어 주는 도구<br />매번 붙여넣기부터 시작하고 축적이 없음</p>
+        </div>
+      </div>
+      <div class="c me">
+        <span class="ic"><img src="logos/fitpoly-mark.png" alt="FitPoly" /></span>
+        <div>
+          <p class="nm">FitPoly</p>
+          <p class="d">카톡·깃허브·노션·PDF 원본에서 경험을 추출<br />24개 직군 기준으로 다시 조합해 재사용</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="canvas">
+    <p class="ctl">Positioning Map · 시작 조건 × 재사용성</p>
+
+    <div class="field">
+      <div class="vline"></div>
+      <div class="hline"></div>
+      <span class="arw up"></span>
+      <span class="arw dn"></span>
+      <span class="arw lf"></span>
+      <span class="arw rt"></span>
+
+      <p class="lbl up">재사용성 높음 · 공고가 바뀌어도 다시 씁니다</p>
+      <p class="lbl dn">재사용성 낮음 · 한 번 쓰고 끝납니다</p>
+      <p class="lbl lf">정리된<br />결과물 필요</p>
+      <p class="lbl rt">흩어진 원본<br />그대로</p>
+
+      <p class="ann blue" style="right:43%; top:13%">흩어진 원본을 그대로 받아<br /><b>24개 직군 기준으로 다시 씁니다</b></p>
+      <p class="ann amber" style="left:87%; top:69%">한 번은 나오지만 공고가 바뀌면<br /><b>처음부터 다시 쓰고</b>, 넣지 않은<br />사실까지 지어냅니다</p>
+
+      <div class="pin" style="left:25%; top:33%">
+        <div class="tile"><img src="logos/careernote.png" alt="" /></div>
+        <p class="pn">커리어노트</p>
+      </div>
+      <div class="pin" style="left:14%; top:72%">
+        <div class="tile"><img src="logos/notefolio.png" alt="" /></div>
+        <p class="pn">노트폴리오</p>
+      </div>
+      <div class="pin" style="left:37%; top:60%">
+        <div class="tile"><img src="../../../frontend/public/brand-icons/notion.svg" alt="" /></div>
+        <p class="pn">노션 템플릿</p>
+      </div>
+      <div class="pin" style="left:70%; top:72%">
+        <span class="blob b2"></span>
+        <div class="tile"><img src="logos/openai.svg" alt="" /></div>
+        <p class="pn">ChatGPT</p>
+      </div>
+      <div class="pin me" style="left:72%; top:24%">
+        <span class="blob b1"></span>
+        <div class="tile"><img src="logos/fitpoly-mark.png" alt="" /></div>
+        <p class="pn">FitPoly</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 07 시장 규모 ═══ -->
+<section class="poster dark" id="p7">
+  <div class="head">
+    <svg class="squiggle" width="78" height="20" viewBox="0 0 78 20" fill="none">
+      <path d="M2 13C10 3 20 3 28 11s18 8 26-2" stroke="#3B87F0" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="6" r="3" fill="#3B87F0"/>
+    </svg>
+    <h2 class="title">205만 명이 해마다 다시 겪는 일입니다</h2>
+    <p class="sub">취업준비자 110만 명과 1~3년 차 이직 준비자 95만 명, 연 4만원 결제 기준으로 잡았습니다.</p>
+  </div>
+
+  <div class="market">
+    <div class="rings">
+      <div class="ring tam"><div class="v"><p class="k">TAM</p><p class="n">820억</p></div></div>
+      <div class="ring sam"><div class="v"><p class="k">SAM</p><p class="n">360억</p></div></div>
+      <div class="ring som"><div class="v"><p class="k">SOM</p><p class="n">43억</p></div></div>
+    </div>
+
+    <div class="mlist">
+      <div class="ml">
+        <i style="background:#4A5262"></i>
+        <div>
+          <p class="t">TAM<em>820억</em></p>
+          <p>취업준비자 110만 명 + 1~3년 차 이직 준비자 95만 명 = 205만 명. 이직률이 오르며 고객층이 신입에서 주니어까지 넓어지고 있습니다.</p>
+        </div>
+      </div>
+      <div class="ml">
+        <i style="background:#2B5896"></i>
+        <div>
+          <p class="t">SAM<em>360억</em></p>
+          <p>포트폴리오가 채용의 필수 서류인 직군으로 좁힌 범위입니다.</p>
+        </div>
+      </div>
+      <div class="ml">
+        <i style="background:#3B87F0"></i>
+        <div>
+          <p class="t">SOM<em>43억</em></p>
+          <p>3년 안에 닿을 수도권 대학생과 부트캠프 수강생입니다. 대학 취업지원팀·부트캠프는 그대로 4단계 기관 라이선스의 진입로가 됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mfoot">
+    <div><b>75%</b><span>평균 공헌이익률 · 1C당 AI 원가 0.56원</span></div>
+    <div><b>월 93만원</b><span>손익분기점 · 월 92건이면 도달, SOM의 0.3% 수준</span></div>
+    <div><b>0원</b><span>지금까지 집행한 광고비 · 획득 비용은 0에 가깝습니다</span></div>
+  </div>
+</section>
+
+<!-- ═══ 08 확장 로드맵 ═══ -->
+<section class="poster lite" id="p8">
+  <div class="head">
+    <h2 class="title">지금은 1단계, 결제 전환을 확인하고 있습니다</h2>
+    <p class="sub">B2C에서 쌓은 사용 데이터가 그대로 B2B 분석과 기관 라이선스의 재료가 됩니다.</p>
+  </div>
+
+  <div class="road">
+    <div class="rail4">
+      <div class="now"><span class="dot big" style="margin:0 auto"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+      <div><span class="dot"></span></div>
+    </div>
+
+    <div class="steps4">
+      <div class="st now">
+        <p class="no">STEP 01</p>
+        <p class="nm">결제 전환 검증</p>
+        <p class="de">무료 크레딧을 다 쓴 뒤 실제 충전으로 이어지는지 확인합니다. 이미 추가 결제 2건이 나왔고, 지금은 리뷰를 조건으로 크레딧을 더 드리며 사용성을 고치고 있습니다.</p>
+        <div class="kpis">
+          <p class="kpi">무료 크레딧 소진율 50%</p>
+          <p class="kpi">충전 진입률 25%</p>
+          <p class="kpi">가격 수용도 60%</p>
+        </div>
+      </div>
+      <div class="st">
+        <p class="no">STEP 02</p>
+        <p class="nm">직군 집중</p>
+        <p class="de">반응과 결제율이 높은 직군부터 콘텐츠와 기능 개발을 몰아 줍니다.</p>
+        <div class="kpis">
+          <p class="kpi">직군별 결제율 비교</p>
+          <p class="kpi">24개 직군 → 우선 직군</p>
+          <p class="kpi">콘텐츠 · 기능 우선순위</p>
+        </div>
+      </div>
+      <div class="st">
+        <p class="no">STEP 03</p>
+        <p class="nm">영역 확장과<br />데이터 판매</p>
+        <p class="de">포트폴리오에서 자소서와 면접까지 넓히고, 동의를 받은 데이터만 익명화해 직군·연차별 통계로 제공합니다.</p>
+        <div class="kpis">
+          <p class="kpi">자소서 · 면접으로 확장</p>
+          <p class="kpi">기업 공고 요구 역량 조정</p>
+          <p class="kpi">대학 · 부트캠프 교육과정</p>
+        </div>
+      </div>
+      <div class="st">
+        <p class="no">STEP 04</p>
+        <p class="nm">기관 라이선스</p>
+        <p class="de">대학 취업지원팀과 부트캠프에 라이선스를 판매해 반복 매출을 확보합니다.</p>
+        <div class="kpis">
+          <p class="kpi">대학 취업지원팀</p>
+          <p class="kpi">부트캠프</p>
+          <p class="kpi">기관 단위 반복 매출</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="b">
+        <p class="bk">B2B 레퍼런스</p>
+        <p class="bt">H대기업에 <b>인사관리 시스템을 납품</b>하며 요구사항 조율부터 검수와 최종 납품까지 B2B 전 과정을 거쳤습니다. 신뢰를 계획서가 아니라 납품 이력으로 증명합니다.</p>
+      </div>
+      <div class="b">
+        <p class="bk">하나의 자산</p>
+        <p class="bt">B2C에서 쌓인 직군별 경험 데이터가 그대로 <b>B2B 분석과 기관 라이선스</b>의 재료가 됩니다. 두 사업이 같은 자산을 나눠 쓰는 구조입니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══ 09 주요 산출물 ═══ -->
+<section class="poster lite out" id="p9">
+  <div>
+    <p class="eyebrow">OUTPUT</p>
+    <h2 class="ttl">한 번 정리한 경험이 <em>두 가지 산출물</em>로 나옵니다</h2>
+    <p class="lead">직군이 바뀌면 페이지에 들어가는 섹션과 시각화 자체가 달라집니다. 아래 화면은 모두 서비스가 실제로 렌더한 결과입니다.</p>
+  </div>
+
+  <div class="oband">
+    <div class="obh">
+      <span class="no">1</span>
+      <span class="t">경험정리 결과</span>
+      <span class="s">직군 기준으로 재구성된 전체 페이지 — 같은 파이프라인, 다른 섹션</span>
+    </div>
+    <div class="orow job">
+      <div class="oc">
+        <div class="bar"><span class="bg dev">개발자</span><span class="nm">경험 구조화·검증 파이프라인 개발</span></div>
+        <div class="shot"><img src="shots/out-dev.jpg" alt="개발자 경험정리 결과" /></div>
+        <p class="ax">GitHub 기여도 51.9% · 코드 변경 · 서비스 아키텍처</p>
+      </div>
+      <div class="oc">
+        <div class="bar"><span class="bg pm">기획 · PM</span><span class="nm">대화형 경험정리 MVP 기획 및 검증</span></div>
+        <div class="shot"><img src="shots/out-pm.jpg" alt="기획 PM 경험정리 결과" /></div>
+        <p class="ax">린 캔버스 · 가설 검증 · 전환 64% / 첫 결과 11분</p>
+      </div>
+      <div class="oc">
+        <div class="bar"><span class="bg mkt">마케터</span><span class="nm">취업 준비생 타깃 콘텐츠 캠페인 운영</span></div>
+        <div class="shot"><img src="shots/out-mkt.jpg" alt="마케터 경험정리 결과" /></div>
+        <p class="ax">캠페인 스토리 · CVR 8.7% · 신규 가입 510명</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="oband">
+    <div class="obh">
+      <span class="no">2</span>
+      <span class="t">완성 포트폴리오</span>
+      <span class="s">PDF와 공개 링크로 바로 제출 — 직군마다 템플릿까지 다릅니다</span>
+    </div>
+    <div class="orow pf">
+      <div class="oc">
+        <div class="win">
+          <div class="chrome">
+            <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+            <span class="url">fitpoly.kr/p/kimdoyun</span>
+          </div>
+          <img src="shots/pf-dev.jpg" alt="김도윤 포트폴리오" />
+        </div>
+        <p class="ax" style="color:var(--ink-600)">김도윤 · 프론트엔드 개발자</p>
+      </div>
+      <div class="oc">
+        <div class="win">
+          <div class="chrome">
+            <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+            <span class="url">fitpoly.kr/p/parkseoyeon</span>
+          </div>
+          <img src="shots/pf-pm.jpg" alt="박서연 포트폴리오" />
+        </div>
+        <p class="ax" style="color:var(--ink-600)">박서연 · 서비스 기획자</p>
+      </div>
+      <div class="oc">
+        <div class="win">
+          <div class="chrome">
+            <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+            <span class="url">fitpoly.kr/p/leesumin</span>
+          </div>
+          <img src="shots/pf-mkt.jpg" alt="이수민 포트폴리오" />
+        </div>
+        <p class="ax" style="color:var(--ink-600)">이수민 · 마케터</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot2">세 사람 모두 <b>같은 파이프라인</b>을 거쳤습니다 · 링크는 본인이 켜고 끌 수 있고, 끄면 즉시 열람이 차단됩니다 · 사이트에서 <b>/example1 · /example2 · /example3</b> 으로 전체를 볼 수 있습니다</p>
+</section>
+
+</body>
+</html>

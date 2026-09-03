@@ -146,6 +146,31 @@ export default function ExperienceCompletion() {
             ))}
           </div>
 
+          {/* 보완 제안 — 통과/실패가 아니라 "무엇을 더 쓰면 서류가 강해지는지".
+              사실 확인을 막지는 않되, 확인 전에 한 번은 보게 둔다. */}
+          {readiness.suggestions.length > 0 && (
+            <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+              <p className="text-[12px] font-extrabold uppercase tracking-[0.14em] text-amber-700">
+                서류에서 더 강해지는 지점 {readiness.suggestions.length}
+              </p>
+              <ul className="mt-3 space-y-3">
+                {readiness.suggestions.map(item => (
+                  <li key={item.key}>
+                    <p className="text-[13.5px] font-bold text-gray-900">{item.label}</p>
+                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-gray-600">{item.hint}</p>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => navigate(`/app/experience/result/${id}`)}
+                className="mt-4 text-[12.5px] font-bold text-amber-800 underline-offset-2 hover:underline"
+              >
+                지금 보완하러 가기
+              </button>
+            </div>
+          )}
+
           {!confirmed && (
             <label className="mt-6 flex cursor-pointer items-start gap-3">
               <input

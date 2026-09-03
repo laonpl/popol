@@ -239,7 +239,9 @@ export default function ExperienceHub() {
   const [timelineCategoryFilter, setTimelineCategoryFilter] = useState('');
   const [categorySavingId, setCategorySavingId] = useState(null);
 
-  const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
+  const [viewMode, setViewMode] = useState(
+    new URLSearchParams(location.search).get('view') === 'resume' ? 'resume' : 'timeline',
+  ); // 'timeline' | 'table' | 'dashboard' | 'resume'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const timelineRef = useRef(null);
@@ -454,6 +456,12 @@ export default function ExperienceHub() {
     if (user?.uid) fetchExperiences(user.uid);
   }, [user?.uid]);
 
+  /* 다른 화면(준비도 보드)에서 "이력서 만들기"로 들어오면 이력서 탭을 연다.
+     이미 이 화면에 있을 때 눌러도 열리도록 location.key까지 본다. */
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('view') === 'resume') setViewMode('resume');
+  }, [location.key, location.search]);
+
   /* 정렬 드롭다운 외부 클릭 닫기 */
   useEffect(() => {
     const h = (e) => {
@@ -534,10 +542,10 @@ export default function ExperienceHub() {
         suffix: `개의 경험이 ${selectedYear}년 타임라인에 표시되어 있어요`,
       };
     }
-    if (viewMode === 'profile') {
+    if (viewMode === 'resume') {
       return {
         count: displayExperiences.length,
-        suffix: '개의 경험이 프로필에 반영되어 있어요',
+        suffix: '개의 경험을 이력서에 넣을 수 있어요',
       };
     }
     return {
@@ -564,8 +572,8 @@ export default function ExperienceHub() {
     },
     {
       selector: '[data-tour="experience-view-toggle"]',
-      title: '프로필 보기를 눌러서 나를 한눈에 정리해보세요',
-      body: '타임라인에서 기간을 확인했다면 프로필 보기로 바꿔보세요. 한 문장 소개, 대표 역량, 기술 스택, 커리어 요약이 자동으로 정리됩니다.',
+      title: '이력서 보기를 눌러서 지원 서류를 만들어보세요',
+      body: '타임라인에서 기간을 확인했다면 이력서 보기로 바꿔보세요. 넣을 경험을 고르고 초안 뽑기를 누르면 한 문장 소개, 대표 역량, 활동·수상, 소프트웨어가 이력서 형식으로 정리됩니다.',
       onEnter: () => setViewMode('timeline'),
     },
     {
@@ -853,7 +861,7 @@ export default function ExperienceHub() {
               { key: 'timeline', label: '타임라인' },
               { key: 'table', label: '목록' },
               { key: 'dashboard', label: '대시보드' },
-              { key: 'profile', label: '프로필' },
+              { key: 'resume', label: '이력서' },
             ].map(t => {
               const active = viewMode === t.key;
               return (
@@ -861,7 +869,7 @@ export default function ExperienceHub() {
                   key={t.key}
                   onClick={() => {
                     setViewMode(t.key);
-                    if (t.key === 'profile' && tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
+                    if (t.key === 'resume' && tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
                   }}
                   className={`relative px-3.5 pt-1 pb-3 text-[14.5px] font-bold transition-colors ${
                     active ? 'text-primary-700' : 'text-gray-400 hover:text-gray-600'
@@ -1288,9 +1296,9 @@ export default function ExperienceHub() {
             <CareerDashboard experiences={displayExperiences} user={user} profile={profile} />
           )}
 
-          {/* ═══ 프로필 (나를 한눈에) ═══ */}
-          {viewMode === 'profile' && (
-            <ProfileView experiences={sortedExperiences} user={user} profile={profile} />
+          {/* ═══ 이력서 (경험을 골라 초안 뽑기) ═══ */}
+          {viewMode === 'resume' && (
+            <ResumeView experiences={sortedExperiences} user={user} profile={profile} />
           )}
         </>
       )}
@@ -1564,7 +1572,7 @@ function seedAwardRows(profile) {
   })).filter(row => row.date || row.value);
 }
 
-function ProfileView({ experiences, user, profile }) {
+function ResumeView({ experiences, user, profile }) {
   const navigate = useNavigate();
   const uid = user?.uid;
   const draft = useMemo(() => buildProfileDraft(experiences), [experiences]);
@@ -1589,6 +1597,8 @@ function ProfileView({ experiences, user, profile }) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [iconPickerFor, setIconPickerFor] = useState(null); // 아이콘 선택 중인 스킬명
+  const [pickerOpen, setPickerOpen] = useState(false);      // 경험 선택 패널
+  const [pickIds, setPickIds] = useState([]);               // 이력서에 넣을 경험
 
   // 저장된 프로필 로드
   useEffect(() => {
@@ -1708,6 +1718,40 @@ function ProfileView({ experiences, user, profile }) {
     });
     setDirty(true);
   };
+
+  /* ── 경험에서 초안 뽑기 ──
+     고른 경험만 이력서에 남기고(나머지는 숨김), 비어 있는 항목은 그 경험들에서 뽑아 채운다.
+     이미 적어둔 소개·역량·소프트웨어는 덮어쓰지 않는다. */
+  const openExperiencePicker = () => {
+    const hidden = new Set(form?.hiddenIds || []);
+    setPickIds(experiences.filter(exp => !hidden.has(exp.id)).map(exp => exp.id));
+    setPickerOpen(true);
+  };
+  const togglePick = (id) => setPickIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const applyExperienceDraft = () => {
+    const picked = experiences.filter(exp => pickIds.includes(exp.id));
+    if (picked.length === 0) { toast.error('이력서에 넣을 경험을 한 개 이상 선택해주세요'); return; }
+    const pickedDraft = buildProfileDraft(picked);
+    setForm(f => {
+      const software = f.software || [];
+      const names = new Set(software.map(s => s.name.toLowerCase()));
+      const addedSoftware = pickedDraft.skills
+        .map(s => ({ name: s.name, icon: matchSkillIcon(s.name), level: Math.min(5, Math.max(2, s.count + 1)) }))
+        .filter(s => s.icon && !names.has(s.name.toLowerCase()));
+      return {
+        ...f,
+        oneLiner: f.oneLiner || settingsIntro || pickedDraft.oneLiner,
+        competencies: (f.competencies || []).some(c => c.keyword) ? f.competencies : pickedDraft.competencies.slice(0, 3),
+        hiddenIds: experiences.filter(exp => !pickIds.includes(exp.id)).map(exp => exp.id),
+        software: [...software, ...addedSoftware],
+      };
+    });
+    setDirty(true);
+    setPickerOpen(false);
+    setEditing(true);   // 뽑은 초안을 바로 다듬고 저장할 수 있게
+    toast.success(`경험 ${picked.length}개를 이력서에 넣었어요. 확인 후 저장해주세요`);
+  };
+
   const save = async () => {
     if (!uid) { toast.error('로그인이 필요합니다'); return; }
     setSaving(true);
@@ -1738,7 +1782,7 @@ function ProfileView({ experiences, user, profile }) {
       setSaved(careerProfile);
       setDirty(false);
       setEditing(false);
-      toast.success('프로필이 저장되었습니다');
+      toast.success('이력서가 저장되었습니다');
     } catch {
       toast.error('저장에 실패했습니다');
     }
@@ -1773,7 +1817,8 @@ function ProfileView({ experiences, user, profile }) {
   ].filter(row => cleanProfileText(row.value));
   const educationRows = normalizeProfileRows(form.educationRows, 'education').filter(row => row.date || row.value);
   const certificateRows = normalizeProfileRows(form.certificateRows, 'certificate').filter(row => row.date || row.value);
-  const experienceActivityRows = visibleItems.slice(0, 4).map(({ exp, start, end }) => {
+  // 이력서에 넣기로 고른 경험은 모두 보여준다 (선택은 초안 뽑기 패널에서 한다)
+  const experienceActivityRows = visibleItems.map(({ exp, start, end }) => {
     const defaultDate = start.getFullYear() === end.getFullYear()
       ? `${start.getFullYear()}`
       : `${start.getFullYear()} - ${end.getFullYear()}`;
@@ -1788,7 +1833,12 @@ function ProfileView({ experiences, user, profile }) {
     ...normalizeProfileRows(form.awardRows, 'award'),
     ...experienceActivityRows,
   ].filter(row => row.date || row.value);
-  const introText = form.oneLiner || settingsIntro || (subtitle ? `${subtitle}을 중심으로 경험을 쌓아온 ${name}입니다.` : `${name}님의 경험을 바탕으로 정리한 프로필입니다.`);
+  /* 인사담당자 기준은 이력서 2장, 3장부터는 안 읽힌다.
+     이 레이아웃에서 대략 그 경계가 되는 지점에서만 알려준다. */
+  const RESUME_ROW_LIMIT = 12;
+  const totalResumeRows = basicRows.length + educationRows.length + certificateRows.length + activityRows.length;
+  const overLength = totalResumeRows > RESUME_ROW_LIMIT;
+  const introText = form.oneLiner || settingsIntro || (subtitle ? `${subtitle}을 중심으로 경험을 쌓아온 ${name}입니다.` : `${name}님의 경험을 바탕으로 정리한 이력서입니다.`);
   const software = form.software || [];
   // 헤드라인 조립 — 이름 포함 여부·문장 종결에 따라 줄바꿈/조사가 깨지지 않게 처리
   const nameInIntro = Boolean(name && introText.includes(name));
@@ -1803,7 +1853,15 @@ function ProfileView({ experiences, user, profile }) {
   return (
     <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* ── 편집 툴바 ── */}
-      <div className="flex items-center justify-end gap-1.5 rounded-t-2xl border-b border-gray-100 bg-gray-50/60 px-5 py-2.5 sm:px-8">
+      <div className="flex flex-wrap items-center justify-end gap-1.5 rounded-t-2xl border-b border-gray-100 bg-gray-50/60 px-5 py-2.5 sm:px-8">
+        <button
+          onClick={() => pickerOpen ? setPickerOpen(false) : openExperiencePicker()}
+          className={`mr-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition-colors ${
+            pickerOpen ? 'bg-primary-600 text-white hover:bg-primary-700' : 'border border-primary-200 bg-white text-primary-600 hover:bg-primary-50'
+          }`}
+        >
+          <Sparkles size={12} /> 경험에서 초안 뽑기
+        </button>
         {editing ? (
           <>
             <button onClick={resetToDraft} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors" title="자동 초안으로 다시 채우기">
@@ -1822,6 +1880,76 @@ function ProfileView({ experiences, user, profile }) {
           </button>
         )}
       </div>
+
+      {overLength && !pickerOpen && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50/70 px-5 py-3 sm:px-8">
+          <p className="text-[12.5px] font-medium text-amber-800">
+            항목이 <span className="font-extrabold">{totalResumeRows}개</span>입니다. 인사담당자 기준은 이력서 2장이고 3장부터는 잘 읽히지 않아요 — 지원 직무와 가까운 것만 남기세요.
+          </p>
+          <button
+            type="button"
+            onClick={openExperiencePicker}
+            className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[12px] font-bold text-amber-800 transition-colors hover:bg-amber-100"
+          >
+            경험 다시 고르기
+          </button>
+        </div>
+      )}
+
+      {/* ── 경험 선택 → 초안 뽑기 ── */}
+      {pickerOpen && (
+        <div className="border-b border-gray-100 bg-primary-50/40 px-5 py-4 sm:px-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[13.5px] font-extrabold text-gray-900">이력서에 넣을 경험을 고르세요</p>
+            <p className="text-[12px] font-bold text-primary-600">{pickIds.length} / {careerItems.length}개 선택</p>
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-gray-500" style={{ wordBreak: 'keep-all' }}>
+            고른 경험은 활동 및 수상에 기간과 함께 들어가고, 아직 비어 있는 한 줄 소개·핵심 키워드·소프트웨어는 그 경험에서 뽑아 채웁니다.
+          </p>
+          <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+            {careerItems.map(({ exp, start, end }) => {
+              const on = pickIds.includes(exp.id);
+              const period = start.getFullYear() === end.getFullYear()
+                ? `${start.getFullYear()}`
+                : `${start.getFullYear()} - ${end.getFullYear()}`;
+              return (
+                <button
+                  key={exp.id}
+                  type="button"
+                  onClick={() => togglePick(exp.id)}
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                    on ? 'border-primary-300 bg-white' : 'border-gray-200 bg-white/60 hover:border-primary-200'
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                    on ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-300 bg-white'
+                  }`}>
+                    {on && <Check size={11} />}
+                  </span>
+                  <span className={`min-w-0 flex-1 truncate text-[13px] font-bold ${on ? 'text-gray-900' : 'text-gray-500'}`}>
+                    {stripMd(exp.title) || '제목 없는 경험'}
+                  </span>
+                  <span className="shrink-0 text-[11.5px] font-semibold tabular-nums text-gray-400">{period}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            <button
+              onClick={applyExperienceDraft}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-[12.5px] font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
+            >
+              선택한 경험으로 초안 뽑기
+            </button>
+            <button
+              onClick={() => setPickerOpen(false)}
+              className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-[12.5px] font-semibold text-gray-500 transition-colors hover:bg-gray-50"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-7 py-10 sm:px-12 lg:px-16">
         <div className="grid gap-x-16 gap-y-8 pb-10 md:grid-cols-[230px_1fr]">
@@ -1949,7 +2077,7 @@ function ProfileView({ experiences, user, profile }) {
                   <div>
                     <p className="mb-2 text-[12px] font-extrabold text-gray-500">경험에서 가져온 항목</p>
                     <div className="space-y-3">
-                    {careerItems.slice(0, 8).map(({ exp, start, end }) => {
+                    {careerItems.map(({ exp, start, end }) => {
                       const defaultDate = start.getFullYear() === end.getFullYear()
                         ? `${start.getFullYear()}`
                         : `${start.getFullYear()} - ${end.getFullYear()}`;

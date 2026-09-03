@@ -409,7 +409,13 @@ async function importFromGitHubRepo(owner, repo, path, originalUrl) {
 
   if (!response.ok) {
     const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: GH_HEADERS });
-    if (!repoResponse.ok) throw new Error('GitHub 리포지토리를 찾을 수 없습니다');
+    if (!repoResponse.ok) {
+      // 비공개/오타 리포지토리는 사용자가 고칠 문제다. status를 붙여 4xx로 응답해
+      // 서버 오류(500)로 잘못 집계되지 않게 한다.
+      const notFound = new Error('GitHub 리포지토리를 찾을 수 없습니다. 공개 리포지토리 URL인지 확인해주세요.');
+      notFound.status = 404;
+      throw notFound;
+    }
     const repoData = await repoResponse.json();
     return {
       source: 'github',

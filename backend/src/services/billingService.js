@@ -228,8 +228,32 @@ export function createDetachedBillingStore({
   };
 }
 
+// 지갑에 기록할 가입 축하 크레딧 지급액 — 이미 더 많이 받은 지갑은 그 값을 유지한다.
+function normalizeStarterGranted(granted) {
+  return Math.max(granted, STARTER_CREDITS);
+}
+
+/**
+ * 트랜잭션 안에서 실제로 쓰기가 일어나는 조건(마이그레이션·가입 보너스 정산)과 동일하게 판정한다.
+ * 아래 트랜잭션 본문의 분기와 짝을 이루므로 한쪽을 고치면 다른 쪽도 같이 고쳐야 한다.
+ */
+function walletNeedsWrite(wallet = {}) {
+  if (wallet.creditUnit !== 'api-cost-v1') return true;
+  const granted = Number(wallet.starterCreditsGranted || 0);
+  const inferredGranted = granted > 0 ? granted : LEGACY_STARTER_CREDITS;
+  if (STARTER_CREDITS - inferredGranted > 0) return true;
+  return wallet.starterCreditsGranted !== normalizeStarterGranted(granted);
+}
+
 export async function getOrCreateWallet(uid) {
   const ref = walletRef(uid);
+  // 호출 대부분(잔액 조회)은 쓸 게 없다. 그런데도 트랜잭션을 열면 문서 락 때문에 동시 요청이
+  // 10 ABORTED(cross-transaction contention)로 실패한다 — 프론트가 API 응답마다 지갑을 새로고침해
+  // 실제로 발생했다. 쓰기가 필요한 경우에만 트랜잭션에 들어간다.
+  const current = await ref.get();
+  if (current.exists && !walletNeedsWrite(current.data())) {
+    return { id: current.id, ...current.data() };
+  }
   await adminDb.runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (!snap.exists) {
@@ -294,8 +318,15 @@ export async function getOrCreateWallet(uid) {
           description: '가입 축하 크레딧 추가 지급',
           createdAt: new Date(),
         });
-      } else if (!wallet.starterCreditsGranted || wallet.starterCreditsGranted !== STARTER_CREDITS) {
-        updates.starterCreditsGranted = Math.max(granted, STARTER_CREDITS);
+      } else {
+        // 기록해야 할 값과 실제로 다를 때만 쓴다.
+        // (예전에는 `!== STARTER_CREDITS`를 조건으로 두고 `Math.max(granted, STARTER_CREDITS)`를 썼다.
+        //  granted가 STARTER_CREDITS보다 큰 지갑은 같은 값을 매번 다시 써 조건이 영원히 참으로 남았고,
+        //  지갑 조회마다 쓰기 트랜잭션이 돌아 10 ABORTED 경합을 일으켰다.)
+        const normalizedGranted = normalizeStarterGranted(granted);
+        if (wallet.starterCreditsGranted !== normalizedGranted) {
+          updates.starterCreditsGranted = normalizedGranted;
+        }
       }
 
       if (Object.keys(updates).length > 1) {

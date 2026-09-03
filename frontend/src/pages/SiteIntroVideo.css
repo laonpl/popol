@@ -1,0 +1,247 @@
+/* /video — 모션그래픽 홍보영상.
+   좌표는 1920×1080 으로 고정하고 화면에는 마지막에 scale 한 번만 건다.
+   모든 움직임은 CSS animation 으로만 만든다 — 캡처가 프레임마다 currentTime 을 고정하기 때문이다. */
+.iv-html { overflow: hidden; background: #05070c; }
+.iv-page, .iv-page * { box-sizing: border-box; margin: 0; padding: 0; }
+
+.iv-page {
+  width: 100vw; height: 100vh; overflow: hidden;
+  display: grid; place-items: center; background: #05070c;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  word-break: keep-all;
+}
+
+.iv-stage {
+  position: relative; flex: none;
+  width: 1920px; height: 1080px; overflow: hidden;
+  transform: scale(var(--iv-scale, 1)); transform-origin: center center;
+  --navy: #002F6C; --blue: #1E6FD9; --sky: #3B87F0; --gold: #FFD36E;
+  --ink: #141821; --line: rgba(12,26,48,.12);
+}
+
+/* 컷마다 배경색이 통째로 갈린다 */
+.iv-stage.tone-dark  { background: #10141C; color: #fff; --sub: #93A2B8; }
+.iv-stage.tone-light { background: #F1F5FA; color: var(--ink); --sub: #5C6B82; }
+.iv-stage.tone-blue  { background: linear-gradient(125deg, #2C7BE5 0%, #1450AE 100%); color: #fff; --sub: #CFE0F6; }
+.iv-stage.tone-navy  { background: linear-gradient(160deg, #0E1219 0%, #002F6C 130%); color: #fff; --sub: #B9CBE4; }
+
+.mg-body { position: absolute; inset: 0; z-index: 2; }
+
+/* 컷 시작마다 색 패널이 화면을 한 번 쓸고 지나간다 */
+.mg-wipe {
+  position: absolute; inset: 0; z-index: 9; display: block; pointer-events: none;
+  background: var(--gold);
+  animation: mg-wipe 560ms cubic-bezier(.76,0,.24,1) both;
+}
+.mg-wipe.is-alt { background: var(--blue); }
+@keyframes mg-wipe {
+  0%   { transform: translateX(-101%); }
+  36%  { transform: translateX(0); }
+  100% { transform: translateX(101%); }
+}
+
+/* ── 레이아웃 ── */
+.mg-center {
+  position: absolute; inset: 0; padding: 150px 130px 130px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+}
+.mg-split {
+  position: absolute; inset: 0; padding: 150px 130px 130px;
+  display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 90px;
+}
+
+/* ── 큰 카피 ── */
+.mg-copy { text-align: left; }
+.mg-body > .mg-copy {
+  position: absolute; inset: 0; padding: 150px 130px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.mg-line {
+  font-size: 118px; font-weight: 800; line-height: 1.14; letter-spacing: -.05em;
+  animation: mg-rise 620ms cubic-bezier(.18,.9,.3,1.1) both;
+}
+.mg-split .mg-line { font-size: 86px; }
+@keyframes mg-rise { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: none; } }
+.mg-copy-sub {
+  margin-top: 34px; font-size: 30px; font-weight: 600; line-height: 1.5; color: var(--sub);
+  animation: mg-rise 620ms cubic-bezier(.18,.9,.3,1.1) 520ms both;
+}
+
+/* ── 큰 숫자 ── */
+.mg-huge {
+  font-size: 300px; font-weight: 800; line-height: .88; letter-spacing: -.07em;
+  font-variant-numeric: tabular-nums; color: #fff;
+  animation: mg-pop 620ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-huge em { font-style: normal; font-size: 110px; margin-left: 10px; letter-spacing: -.04em; }
+.mg-huge.is-ink { color: var(--navy); }
+.mg-huge.is-gold { color: var(--gold); }
+@keyframes mg-pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+.mg-huge-sub {
+  margin-top: 40px; font-size: 40px; font-weight: 600; line-height: 1.45; color: var(--sub);
+  animation: mg-rise 560ms ease-out 420ms both;
+}
+.mg-huge-sub b { font-weight: 800; color: #fff; }
+.iv-stage.tone-light .mg-huge-sub b { color: var(--navy); }
+.mg-mid {
+  font-size: 54px; font-weight: 700; line-height: 1.4; letter-spacing: -.035em;
+  animation: mg-rise 560ms ease-out both;
+}
+.mg-mid b { font-weight: 800; color: var(--blue); }
+.mg-foot {
+  margin-top: 40px; font-size: 27px; font-weight: 600; color: var(--sub);
+  animation: mg-rise 520ms ease-out 700ms both;
+}
+.mg-foot.is-ink { color: #7C8CA4; }
+
+/* ── 떨어지는 파일 아이콘 ── */
+.mg-fall { position: absolute; inset: 0; z-index: 1; }
+.mg-fall-item {
+  position: absolute; width: 118px; height: 118px; border-radius: 30px; background: #1B2029;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 22px 50px rgba(0,0,0,.35);
+  animation: mg-drop 900ms cubic-bezier(.3,1.3,.5,1) both;
+}
+.mg-fall-item img { width: 56px; height: 56px; object-fit: contain; }
+.mg-fall-1 { left: 150px;  top: 150px;  }
+.mg-fall-2 { left: 330px;  bottom: 190px; }
+.mg-fall-3 { left: 120px;  top: 640px;  }
+.mg-fall-4 { right: 320px; top: 130px;  }
+.mg-fall-5 { right: 130px; top: 470px;  }
+.mg-fall-6 { right: 250px; bottom: 150px; }
+@keyframes mg-drop { from { opacity: 0; transform: translateY(-170px) rotate(-12deg); } to { opacity: 1; transform: none; } }
+
+/* ── 막대 ── */
+.mg-bars { display: flex; flex-direction: column; gap: 46px; }
+.mg-bar-label { display: block; font-size: 28px; font-weight: 700; color: var(--sub); }
+.mg-bar-track { margin-top: 16px; height: 46px; border-radius: 12px; background: #DFE7F1; overflow: hidden; }
+.mg-bar-track i { display: block; height: 100%; border-radius: 12px; background: linear-gradient(90deg, #2A6BD4, #4B95F5); }
+.mg-bar b { display: block; margin-top: 16px; font-size: 62px; font-weight: 800; letter-spacing: -.04em; color: var(--navy); font-variant-numeric: tabular-nums; }
+.mg-bar.is-drop .mg-bar-track i { background: linear-gradient(90deg, #C99A3E, #F0B14A); }
+.mg-bar.is-drop b { color: #C4881A; }
+
+/* ── 칩 ── */
+.mg-chip-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1400px; }
+.mg-chip-grid { display: flex; flex-wrap: wrap; gap: 18px; }
+.mg-chip {
+  display: inline-flex; align-items: center; gap: 16px;
+  padding: 22px 32px; border-radius: 20px; background: #fff;
+  box-shadow: 0 16px 40px rgba(12,32,64,.13);
+  font-size: 30px; font-weight: 700; color: #3B4A63;
+  animation: mg-pop-in 560ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-chip img { width: 44px; height: 44px; object-fit: contain; }
+.mg-chip.is-dark { background: #1B2029; color: #fff; }
+.mg-chip.is-dark img { filter: invert(1); }
+@keyframes mg-pop-in { from { opacity: 0; transform: scale(.7) translateY(20px); } to { opacity: 1; transform: none; } }
+.mg-chip-row + .mg-mid { margin-top: 70px; }
+
+/* ── 점 10개 (지원 10곳) ── */
+.mg-dots { display: flex; gap: 18px; margin-bottom: 56px; }
+.mg-dots i {
+  display: block; width: 58px; height: 18px; border-radius: 6px; background: var(--sky);
+  animation: mg-pop-in 420ms cubic-bezier(.2,1.5,.4,1) both;
+}
+
+/* ── 단계 화면 ── */
+.mg-tags { display: flex; flex-wrap: wrap; gap: 18px; }
+.mg-tags span {
+  padding: 22px 36px; border-radius: 999px; background: #fff; border: 2px solid #D6E2F2;
+  font-size: 34px; font-weight: 800; color: var(--navy);
+  animation: mg-pop-in 520ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-url {
+  display: flex; align-items: center; padding: 30px 36px; border-radius: 18px; background: #fff;
+  border: 2px solid #D6E2F2; font-size: 32px; font-weight: 700; color: #3B4A63;
+  animation: mg-rise 560ms ease-out 200ms both;
+}
+.mg-url span { color: #9BAAC2; margin-right: 4px; }
+.mg-url i { display: inline-block; width: 3px; height: 40px; margin-left: 8px; background: var(--blue); animation: mg-blink 900ms steps(1) infinite; }
+@keyframes mg-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.mg-outs { display: flex; flex-direction: column; gap: 20px; }
+.mg-outs span {
+  padding: 28px 36px; border-radius: 18px; background: #fff; box-shadow: 0 14px 34px rgba(12,32,64,.10);
+  font-size: 36px; font-weight: 800; color: var(--navy);
+  animation: mg-pop-in 520ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-outs span::before { content: '→'; margin-right: 18px; color: var(--sky); }
+
+/* ── 직군 칩 · 표준 ── */
+.mg-job-chips { margin-top: 56px; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; max-width: 1420px; }
+.mg-job-chips span {
+  padding: 18px 30px; border-radius: 16px; background: #E1ECFA; font-size: 32px; font-weight: 700; color: #24558F;
+  animation: mg-pop-in 460ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-job-chips .is-more { background: var(--navy); color: #fff; }
+.mg-std { margin-top: 52px; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+.mg-std span {
+  padding: 16px 28px; border-radius: 14px; border: 2px solid rgba(255,255,255,.22);
+  font-size: 28px; font-weight: 700; color: #C7D5E8;
+  animation: mg-pop-in 460ms cubic-bezier(.2,1.5,.4,1) both;
+}
+
+/* ── 사실 · 추정 라벨 ── */
+.mg-label-row { display: flex; gap: 26px; margin-bottom: 60px; }
+.mg-label {
+  padding: 22px 46px; border-radius: 18px; font-size: 44px; font-weight: 800;
+  animation: mg-pop-in 560ms cubic-bezier(.2,1.5,.4,1) both;
+}
+.mg-label.is-fact { background: #DFF3E7; color: #14713D; }
+.mg-label.is-guess { background: #FCEDD5; color: #9A6512; animation-delay: 200ms; }
+
+/* ── 브라우저 목업 ── */
+.mg-mock {
+  width: 1180px; border-radius: 24px; overflow: hidden; background: #fff;
+  border: 1px solid var(--line); box-shadow: 0 34px 90px rgba(0,47,108,.20);
+  animation: mg-rise 560ms cubic-bezier(.18,.9,.3,1.05) both;
+}
+.mg-mock-bar { display: flex; align-items: center; gap: 11px; padding: 20px 26px; background: #F4F7FB; border-bottom: 1px solid var(--line); }
+.mg-mock-bar i { width: 15px; height: 15px; border-radius: 50%; background: #D3DCE8; }
+.mg-mock-bar span { flex: 1; text-align: center; font-size: 24px; font-weight: 700; color: #8593A8; }
+.mg-mock img { display: block; width: 100%; height: 520px; object-fit: cover; object-position: top; }
+.mg-mock-cap { padding: 26px; font-size: 30px; font-weight: 800; color: var(--navy); }
+
+/* ── 3.2시간 → 12분 ── */
+.mg-swap { display: flex; align-items: baseline; gap: 46px; }
+.mg-swap s { font-size: 108px; font-weight: 700; color: rgba(255,255,255,.5); animation: mg-rise 520ms ease-out both; }
+.mg-swap b { font-size: 200px; font-weight: 800; letter-spacing: -.06em; color: var(--gold); animation: mg-pop 620ms cubic-bezier(.2,1.5,.4,1) 320ms both; }
+
+/* ── 로고 · CTA ── */
+.mg-logo { width: 168px; height: 168px; object-fit: contain; filter: invert(1); animation: mg-pop 700ms cubic-bezier(.2,1.4,.4,1) both; }
+.mg-logo.is-small { width: 128px; height: 128px; }
+.mg-slogan {
+  margin-top: 48px; font-size: 108px; font-weight: 800; line-height: 1.16; letter-spacing: -.05em; color: #fff;
+  animation: mg-rise 620ms cubic-bezier(.18,.9,.3,1.05) 260ms both;
+}
+.mg-slogan em { font-style: normal; color: var(--gold); }
+.mg-slogan.is-cta { font-size: 86px; }
+.mg-url-big {
+  margin-top: 42px; font-size: 74px; font-weight: 800; letter-spacing: -.02em; color: var(--gold);
+  animation: mg-rise 560ms ease-out 520ms both;
+}
+
+/* ── 상시 요소 ── */
+.iv-brand { position: absolute; top: 56px; left: 64px; z-index: 6; display: flex; align-items: center; gap: 14px; }
+.iv-brand img { width: 44px; height: 44px; object-fit: contain; }
+.iv-stage.tone-dark .iv-brand img,
+.iv-stage.tone-blue .iv-brand img,
+.iv-stage.tone-navy .iv-brand img { filter: invert(1); }
+.iv-brand span { font-size: 27px; font-weight: 800; letter-spacing: -.02em; }
+
+.mg-steps { position: absolute; left: 130px; bottom: 74px; z-index: 6; display: flex; gap: 30px; }
+.mg-steps span { font-size: 25px; font-weight: 800; letter-spacing: -.01em; color: #A9B6C8; }
+.mg-steps span.is-on { color: var(--blue); }
+
+.iv-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(120,140,170,.22); z-index: 7; }
+.iv-progress i { display: block; height: 100%; background: var(--sky); }
+
+/* ── 미리보기 컨트롤 (녹화 때는 렌더하지 않는다) ── */
+.iv-controls {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 20px; border-radius: 14px; background: rgba(255,255,255,.1); backdrop-filter: blur(8px);
+  color: #E6EDF7; font-size: 14px;
+}
+.iv-controls button { padding: 8px 16px; border: 0; border-radius: 9px; background: #1E6FD9; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+.iv-controls input { width: 420px; }
+.iv-controls-scene { opacity: .6; }

@@ -14,6 +14,7 @@ async function ghFetch(path, token) {
   const res = await fetch(`${GITHUB_API}${path}`, { headers });
   if (res.status === 404) throw new Error('레포지토리를 찾을 수 없습니다. URL 또는 공개 여부를 확인해주세요.');
   if (res.status === 403) throw new Error('GitHub API 요청 한도 초과입니다. 잠시 후 다시 시도해주세요.');
+  if (res.status === 401) throw new Error('GitHub 토큰이 유효하지 않습니다. 토큰을 비우고 다시 시도하거나 새 토큰을 발급해주세요.');
   if (!res.ok) throw new Error(`GitHub API 오류 (${res.status})`);
   return res.json();
 }

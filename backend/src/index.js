@@ -142,6 +142,13 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/share-links', shareLinkRoutes);
 
+// 릴스 캡처 등 로컬 전용 도구 — 운영에서는 마운트하지 않는다 (헤드리스 브라우저를 띄우는 무거운 작업)
+if (process.env.NODE_ENV !== 'production') {
+  const { default: devRoutes } = await import('./routes/dev.js');
+  app.use('/api/dev', devRoutes);
+  console.log('🛠  /api/dev 활성화 (개발 모드)');
+}
+
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {
   res.json({

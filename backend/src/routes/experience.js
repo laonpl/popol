@@ -50,6 +50,20 @@ function firestoreSafe(value, insideArray = false) {
   return out;
 }
 
+/**
+ * Firestore 문서 상한은 1MiB. 넘으면 INVALID_ARGUMENT가 500으로 끝나 사용자는 원인을 알 수 없다.
+ * (AI가 채운 structuredResult가 커지면서 실제로 발생) 저장 전에 크기를 재서 명확한 4xx로 돌려준다.
+ */
+const FIRESTORE_DOC_LIMIT = 900 * 1024; // 인코딩 차이를 감안한 여유분
+
+function isOversized(doc) {
+  try {
+    return Buffer.byteLength(JSON.stringify(doc), 'utf8') > FIRESTORE_DOC_LIMIT;
+  } catch {
+    return false; // 크기를 못 재면 통과시키고 Firestore 판단에 맡긴다
+  }
+}
+
 // 경험 문서 → 태깅용 요약 텍스트
 function experienceToTagText(data = {}) {
   const sr = data.structuredResult || {};
@@ -670,7 +684,7 @@ router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async
     const msg = error.message || '';
     // 실제 원인을 서버 로그와 응답 detail로 노출 (generic 500으로 원인 숨기지 않음)
     console.error('[analyze-git] 실패:', msg, '\n', error.stack);
-    if (msg.includes('찾을 수 없습니다') || msg.includes('유효한') || msg.includes('커밋을 찾을 수 없습니다')) {
+    if (msg.includes('찾을 수 없습니다') || msg.includes('유효한') || msg.includes('토큰이 유효하지') || msg.includes('커밋을 찾을 수 없습니다')) {
       return res.status(400).json({ error: msg });
     }
     if (msg.includes('요청 한도') || msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
@@ -702,6 +716,9 @@ router.post('/', authMiddleware, async (req, res, next) => {
       updatedAt: now(),
     };
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+    if (isOversized(payload)) {
+      return res.status(413).json({ error: '경험 내용이 너무 큽니다. 첨부한 원문 자료나 이미지를 줄인 뒤 다시 저장해주세요.' });
+    }
     const docRef = await adminDb.collection('experiences').add(payload);
     res.status(201).json({ id: docRef.id, ...payload });
   } catch (error) {
@@ -726,8 +743,12 @@ router.patch('/:id', authMiddleware, async (req, res, next) => {
     const snap = await ref.get();
     const data = snap.exists ? snap.data() : null;
     if (!requireExperienceOwner(data, req.user.uid, res)) return;
-    const update = { ...req.body, userId: req.user.uid, updatedAt: now() };
+    // POST와 동일하게 정규화 — 중첩 배열/undefined는 Firestore가 거부한다(invalid nested entity)
+    const update = { ...firestoreSafe(req.body || {}), userId: req.user.uid, updatedAt: now() };
     delete update.id;
+    if (isOversized({ ...data, ...update })) {
+      return res.status(413).json({ error: '경험 내용이 너무 큽니다. 첨부한 원문 자료나 이미지를 줄인 뒤 다시 저장해주세요.' });
+    }
     await ref.update(update);
     res.json({ id: req.params.id, ...data, ...update });
   } catch (error) {

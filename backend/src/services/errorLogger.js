@@ -15,6 +15,12 @@ function trim(value, max) {
  */
 export async function logError(entry = {}) {
   try {
+    // /admin 오류 로그는 운영 모니터링용이다. 로컬 개발 중 발생한 오류(편집 중 일시 상태,
+    // 로컬 전용 도구 실패 등)까지 쌓이면 실제 사용자 오류가 묻힌다. 콘솔에만 남긴다.
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`[errorLogger:dev] ${entry.method || ''} ${entry.path || ''} ${entry.message || ''}`.trim());
+      return;
+    }
     await adminDb.collection('errorLogs').add({
       source: entry.source || 'server',        // 'server' | 'client'
       level: entry.level === 'warn' ? 'warn' : 'error',

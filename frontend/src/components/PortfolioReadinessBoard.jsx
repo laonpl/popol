@@ -85,9 +85,10 @@ export default function PortfolioReadinessBoard({ experiences = [], compact = fa
             >
               포트폴리오 만들기
             </button>
+            {/* 이력서는 포트폴리오를 거치지 않는다 — 경험 정리의 이력서 탭에서 바로 만든다 */}
             <button
               type="button"
-              onClick={() => navigate('/app/portfolio/plan?output=resume')}
+              onClick={() => navigate('/app/experience?view=resume')}
               className="rounded-xl border border-primary-200 bg-white px-5 py-3 text-[14px] font-bold text-primary-600 transition-colors hover:border-primary-300 hover:bg-primary-50"
             >
               이력서 만들기

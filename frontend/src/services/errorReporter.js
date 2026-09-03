@@ -26,11 +26,36 @@ const IGNORED_PATTERNS = [
   'Connection to Indexed Database server lost',
   // 확장프로그램/외부 스크립트 노이즈
   'ResizeObserver loop',
+  // 인스타/페북 인앱 브라우저가 주입하는 네이티브 브리지 — 우리 코드가 아니고 조치 불가
+  'window.webkit.messageHandlers',
+  // 사용자가 화면을 벗어나 요청이 취소된 경우 (AbortError)
+  'The operation was aborted',
+  'signal is aborted without reason',
 ];
 
 function isIgnored(message) {
   const text = String(message || '');
   return IGNORED_PATTERNS.some(p => text.includes(p));
+}
+
+// 배포 직후에는 이전 빌드의 청크 URL이 사라져 lazy import가 실패한다(사용자 화면은 백지).
+// 새 빌드를 받으면 해소되므로 자동으로 한 번 새로고침하고, 그래도 실패하면 그때 실제 오류로 보고한다.
+const CHUNK_ERROR_PATTERN = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i;
+const RELOAD_AT_KEY = 'fitpoly:chunkReloadAt';
+const RELOAD_COOLDOWN_MS = 30000;
+
+function reloadedForChunkError(message) {
+  if (!CHUNK_ERROR_PATTERN.test(String(message || ''))) return false;
+  try {
+    // 직전에 이미 새로고침했는데 또 실패했다면 진짜 오류 — 무한 새로고침을 막고 보고로 넘긴다.
+    if (Date.now() - Number(sessionStorage.getItem(RELOAD_AT_KEY) || 0) < RELOAD_COOLDOWN_MS) return false;
+    sessionStorage.setItem(RELOAD_AT_KEY, String(Date.now()));
+    location.reload();
+    return true;
+  } catch {
+    // sessionStorage 사용 불가(프라이빗 모드 등) — 새로고침 없이 보고만 한다.
+    return false;
+  }
 }
 
 /**
@@ -40,7 +65,12 @@ function isIgnored(message) {
 export async function reportClientError({ message, stack, url, source = 'window', status, level = 'error' }) {
   try {
     if (!message) return;
+    // 개발 서버(Vite HMR)의 오류는 편집 중 일시 상태가 대부분이다.
+    // ('X is not defined', 모듈 재평가 실패 등 — 저장하는 순간 사라진다)
+    // 운영 오류를 덮어버리므로 운영 빌드에서만 수집한다.
+    if (import.meta.env.DEV) return;
     if (isIgnored(message)) return;
+    if (reloadedForChunkError(message)) return;
     const key = `${source}:${String(message).slice(0, 80)}`;
     if (!shouldSend(key)) return;
 

@@ -55,6 +55,7 @@ const ServiceDeck           = lazy(() => import('./pages/ServiceDeck')); // 슬�
 const Resultt               = lazy(() => import('./pages/Resultt')); // 직무별 경험정리 결과 예시
 const PmReelsVideo          = lazy(() => import('./pages/PmReelsVideo'));
 const FitPolyProductReel    = lazy(() => import('./pages/FitPolyProductReel'));
+const SiteIntroVideo        = lazy(() => import('./pages/SiteIntroVideo')); // 서비스 소개 영상 (16:9)
 
 function PageLoader() {
   return (
@@ -118,6 +119,7 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/deck" element={<ServiceDeck />} />
+      <Route path="/video" element={<SiteIntroVideo />} />
       <Route path="/video2" element={<PmReelsVideo />} />
       <Route path="/video3" element={<FitPolyProductReel />} />
       <Route path="/sample" element={<SampleOutput />} />

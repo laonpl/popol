@@ -70,10 +70,11 @@ function EditFrame({ editing, setEditing, canEdit, children }) {
   );
 }
 
-function JobCoreLayout({ sidebar, lead, children }) {
+/* dense — 기획/PM처럼 블록이 많은 직군은 한 화면에 들어오도록 간격을 좁힌다. */
+function JobCoreLayout({ sidebar, lead, children, dense = false }) {
   if (!sidebar) {
     return (
-      <div className="min-w-0 space-y-7">
+      <div className={`min-w-0 ${dense ? 'space-y-4' : 'space-y-7'}`}>
         {lead && <div className="min-w-0">{lead}</div>}
         {children && <div className="min-w-0">{children}</div>}
       </div>
@@ -81,7 +82,9 @@ function JobCoreLayout({ sidebar, lead, children }) {
   }
 
   return (
-    <div className="grid w-full min-w-0 grid-cols-1 items-start gap-7 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
+    <div className={`grid w-full min-w-0 grid-cols-1 items-start md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] ${
+      dense ? 'gap-4 md:gap-5 lg:gap-6' : 'gap-7 md:gap-8 lg:gap-10'
+    }`}>
       <div className="min-w-0">{sidebar}</div>
       <div className="min-w-0">{lead}</div>
       {children && <div className="min-w-0 md:col-span-2">{children}</div>}
@@ -587,8 +590,8 @@ function PmDecisionLog({ keyExperiences = [] }) {
   return (
     <div>
       <SectionLabel en="Decision & Problem-Solving">의사결정 &amp; 어려움 해결</SectionLabel>
-      {matrixItems.length > 0 && <div className="mb-4"><PriorityMatrix items={matrixItems} accent={ACCENT} /></div>}
-      <div className="space-y-4">
+      {matrixItems.length > 0 && <div className="mb-2.5"><PriorityMatrix items={matrixItems} accent={ACCENT} /></div>}
+      <div className="space-y-2.5">
         {items.map(({ ke, jd, index }) => {
           const quad = quadrantOf(Number(jd.impact), Number(jd.effort));
           const metric = clean(ke?.afterMetric) || clean(ke?.metric);
@@ -625,24 +628,24 @@ function PmDecisionLog({ keyExperiences = [] }) {
             { no: '04', label: '결과', body: <p className="text-[12.5px] font-semibold leading-[1.6] text-bluewood-900">{clean(ke?.result) || '—'}</p> },
           ];
           return (
-            <div key={index} className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
-              <div className="flex items-start gap-2.5 px-5 pt-4">
+            <div key={index} className="overflow-hidden rounded-xl border border-surface-200 bg-white">
+              <div className="flex items-start gap-2.5 px-4 pt-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-mono text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
+                    <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
                     {quad && (
                       <span className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide" style={{ backgroundColor: quad === 'QUICK WIN' ? 'rgba(4,120,87,0.1)' : 'rgba(0,47,108,0.07)', color: quad === 'QUICK WIN' ? '#047857' : ACCENT }}>{quad}</span>
                     )}
                   </div>
-                  <p className="text-[15px] font-extrabold leading-snug text-bluewood-900">{clean(ke?.title) || `의사결정 ${index + 1}`}</p>
+                  <p className="text-[13.5px] font-extrabold leading-snug text-bluewood-900">{clean(ke?.title) || `의사결정 ${index + 1}`}</p>
                 </div>
-                {metric && <p className="w-28 flex-shrink-0 pt-1 text-right text-[12px] font-bold text-caribbean-700">{metric}</p>}
+                {metric && <p className="w-24 flex-shrink-0 pt-1 text-right text-[11.5px] font-bold text-caribbean-700">{metric}</p>}
               </div>
-              <div className="px-5 py-3">
+              <div className="px-4 py-2">
                 <div className="divide-y divide-surface-100">
                   {stages.map(stage => (
-                    <div key={stage.no} className="flex gap-3 py-2.5">
-                      <span className="w-16 flex-shrink-0 pt-0.5 font-mono text-[11.5px] font-black text-bluewood-300">{stage.no} <span className="font-sans text-[11.5px] font-bold text-bluewood-400">{stage.label}</span></span>
+                    <div key={stage.no} className="flex gap-2.5 py-2">
+                      <span className="w-14 flex-shrink-0 pt-0.5 font-mono text-[10.5px] font-black text-bluewood-300">{stage.no} <span className="font-sans text-[10.5px] font-bold text-bluewood-400">{stage.label}</span></span>
                       <div className="min-w-0 flex-1">{stage.body}</div>
                     </div>
                   ))}
@@ -691,23 +694,26 @@ function PmTimelineStrip({ sr = {} }) {
   const slots = { 1: [0], 2: [0, 4], 3: [0, 2, 5], 4: [0, 1, 3, 5], 5: [0, 1, 2, 4, 6], 6: [0, 1, 2, 3, 4, 6], 7: [0, 1, 2, 3, 4, 5, 6], 8: [0, 1, 2, 3, 4, 5, 6, 7] };
   const activePositions = slots[items.length] || slots[8];
   const timelineDescription = clean(sr.pmTimeline?.description) || '문제 발견부터 검증과 배움까지, 제품이 발전한 핵심 흐름입니다.';
+  // 좌표는 원래 설계(높이 400)를 그대로 두고 렌더링에서만 축소한다.
+  const CURVE_H = 268;
+  const s = CURVE_H / 400;
   return (
     <section>
-      <div className="mb-4">
-        <p className="font-mono text-[10.5px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Product Journey</p>
-        <h3 className="mt-0.5 text-[15px] font-extrabold text-bluewood-900">제품 여정</h3>
-        <p className="mt-1 text-[11.5px] leading-[1.6] text-bluewood-400">{timelineDescription}</p>
+      <div className="mb-2.5">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Product Journey</p>
+        <h3 className="text-[13.5px] font-extrabold text-bluewood-900">제품 여정</h3>
+        <p className="text-[10.5px] leading-[1.5] text-bluewood-400">{timelineDescription}</p>
       </div>
-      <div className="relative hidden h-[400px] w-full min-w-0 overflow-hidden rounded-2xl border border-[#d8e4f0] bg-white xl:block">
-        <svg className="absolute left-0 top-0 h-[400px] w-full" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true"><path d="M 70 150 C 70 108, 105 80, 155 80 H 845 C 892 80, 915 108, 915 165 C 915 220, 886 250, 840 250 H 95" fill="none" stroke="#91a9c0" strokeWidth="1.5" strokeLinecap="round" /></svg>
+      <div className="relative hidden w-full min-w-0 overflow-hidden rounded-xl border border-[#d8e4f0] bg-white xl:block" style={{ height: CURVE_H }}>
+        <svg className="absolute left-0 top-0 w-full" style={{ height: CURVE_H }} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true"><path d="M 70 150 C 70 108, 105 80, 155 80 H 845 C 892 80, 915 108, 915 165 C 915 220, 886 250, 840 250 H 95" fill="none" stroke="#91a9c0" strokeWidth="1.5" strokeLinecap="round" /></svg>
         {items.map((item, i) => {
           const pos = positions[activePositions[i]];
-          return <div key={`${item.phase}-${i}`}><span className={`absolute z-[2] flex items-center justify-center rounded-full text-[7.5px] font-black text-white ${i === 0 ? 'h-[22px] w-[42px] rounded-[11px]' : 'h-[22px] w-[22px]'}`} style={{ left: pos.left, top: pos.nodeTop, transform: 'translate(-50%, -50%)', backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="absolute z-[1] w-[190px]" style={{ left: pos.cardLeft, top: pos.cardTop }}><p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p><p className="mt-0.5 text-[11.5px] font-black leading-tight text-bluewood-900">{item.label}</p><p className="mt-1.5 line-clamp-3 break-words text-[9.5px] leading-[1.5] text-bluewood-500">{item.value}</p></div></div>;
+          return <div key={`${item.phase}-${i}`}><span className={`absolute z-[2] flex items-center justify-center rounded-full text-[7px] font-black text-white ${i === 0 ? 'h-[18px] w-[34px] rounded-[9px]' : 'h-[18px] w-[18px]'}`} style={{ left: pos.left, top: pos.nodeTop * s, transform: 'translate(-50%, -50%)', backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="absolute z-[1] w-[168px]" style={{ left: pos.cardLeft, top: pos.cardTop * s }}><p className="font-mono text-[7px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p><p className="text-[10.5px] font-black leading-tight text-bluewood-900">{item.label}</p><p className="mt-1 line-clamp-3 break-words text-[9px] leading-[1.45] text-bluewood-500">{item.value}</p></div></div>;
         })}
       </div>
-      <ol className="relative space-y-0 overflow-hidden rounded-2xl border border-[#d8e4f0] bg-white px-4 py-3 xl:hidden">
-        <span className="absolute bottom-9 left-[27px] top-9 w-px bg-[#91a9c0]" />
-        {items.map((item, i) => <li key={`${item.phase}-${i}`} className="relative flex gap-3 py-3"><span className="relative z-[1] mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[7.5px] font-black text-white" style={{ backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="min-w-0"><p className="font-mono text-[8px] font-bold uppercase tracking-[0.12em] text-bluewood-300">{item.phase}</p><p className="text-[12px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-[1.6] text-bluewood-500">{item.value}</p></div></li>)}
+      <ol className="relative space-y-0 overflow-hidden rounded-xl border border-[#d8e4f0] bg-white px-3 py-2 xl:hidden">
+        <span className="absolute bottom-7 left-[22px] top-7 w-px bg-[#91a9c0]" />
+        {items.map((item, i) => <li key={`${item.phase}-${i}`} className="relative flex gap-2.5 py-2"><span className="relative z-[1] mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[7px] font-black text-white" style={{ backgroundColor: item.color }}>{String(i).padStart(2, '0')}</span><div className="min-w-0"><p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.12em] text-bluewood-300">{item.phase}</p><p className="text-[11.5px] font-extrabold text-bluewood-900">{item.label}</p><p className="whitespace-pre-wrap break-words text-[11px] leading-[1.5] text-bluewood-500">{item.value}</p></div></li>)}
       </ol>
     </section>
   );
@@ -914,10 +920,10 @@ function LeanCanvasCard({ sr = {} }) {
   if (!hasContent) return null;
 
   const Cell = ({ cell }) => (
-    <div className={`flex min-w-0 flex-col bg-[#fefefe] p-4 ${cell.tall ? 'min-h-[150px] sm:min-h-0' : 'min-h-[110px] sm:min-h-0'}`}>
-      <div className="mb-3 text-center">
-        <p className="text-[13px] font-black tracking-tight text-[#3d5262]">{cell.label}</p>
-        <span className="mt-0.5 block font-mono text-[7.5px] font-bold uppercase tracking-[0.12em] text-[#91a0ab]">{cell.en}</span>
+    <div className={`flex min-w-0 flex-col bg-[#fefefe] p-3 ${cell.tall ? 'min-h-[104px] sm:min-h-0' : 'min-h-[80px] sm:min-h-0'}`}>
+      <div className="mb-2 text-center">
+        <p className="text-[12px] font-black tracking-tight text-[#3d5262]">{cell.label}</p>
+        <span className="block font-mono text-[7px] font-bold uppercase tracking-[0.12em] text-[#91a0ab]">{cell.en}</span>
       </div>
       {cell.metrics ? (
         cell.metrics.length > 0 ? <ul className="space-y-1.5">{cell.metrics.map((item, i) => <li key={i} className="flex min-w-0 items-start justify-between gap-3 text-[11.5px] leading-[1.55]"><span className="min-w-0 break-words text-bluewood-500">{item.label || '검증 지표'}</span><span className="flex-shrink-0 font-black" style={{ color: ACCENT }}>{item.value || '—'}</span></li>)}</ul> : <p className="text-[11.5px] text-bluewood-300">검증 지표를 입력해 주세요</p>
@@ -931,15 +937,15 @@ function LeanCanvasCard({ sr = {} }) {
 
   return (
     <section className="w-full min-w-0">
-      <div className="mb-4 bg-[#3d5262] px-5 py-3.5 text-center text-white">
-        <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1">
-          <h2 className="text-[21px] font-bold tracking-tight sm:text-[24px]">리너 캔버스</h2>
-          <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
+      <div className="mb-2 bg-[#3d5262] px-4 py-2 text-center text-white">
+        <div className="flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-0.5">
+          <h2 className="text-[15px] font-bold tracking-tight sm:text-[17px]">리너 캔버스</h2>
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
         </div>
-        <p className="mt-1 text-[11.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
+        <p className="mt-0.5 text-[10.5px] leading-[1.45] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
       </div>
-      <div className="grid w-full min-w-0 gap-[4px] border-[4px] border-[#3d5262] bg-[#3d5262] sm:grid-cols-3">
-        {groups.map((group, i) => <div key={i} className="grid min-w-0 gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">{group.map(cell => <Cell key={cell.label} cell={cell} />)}</div>)}
+      <div className="grid w-full min-w-0 gap-[3px] border-[3px] border-[#3d5262] bg-[#3d5262] sm:grid-cols-3">
+        {groups.map((group, i) => <div key={i} className="grid min-w-0 gap-[3px] bg-[#3d5262] sm:grid-rows-[minmax(126px,auto)_minmax(88px,auto)]">{group.map(cell => <Cell key={cell.label} cell={cell} />)}</div>)}
       </div>
     </section>
   );
@@ -948,12 +954,12 @@ function LeanCanvasCard({ sr = {} }) {
 /* ── 기획/PM — 기획 사이클 스트립 (문서의 읽는 순서 = 일하는 방식) ── */
 function PmCycleStrip() {
   return (
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-surface-100 pb-3">
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 border-b border-surface-100 pb-2">
       {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단']].map(([en, ko], i) => (
-        <span key={en} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-[11.5px] text-bluewood-200">→</span>}
-          <span className="font-mono text-[9.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en}</span>
-          <span className="text-[11.5px] font-semibold text-bluewood-400">{ko}</span>
+        <span key={en} className="flex items-center gap-1">
+          {i > 0 && <span className="text-[10.5px] text-bluewood-200">→</span>}
+          <span className="font-mono text-[8.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en}</span>
+          <span className="text-[10.5px] font-semibold text-bluewood-400">{ko}</span>
         </span>
       ))}
     </div>
@@ -966,10 +972,10 @@ const STICKY_ROT = [-3, 2.2, -1.6, 3, -2.4, 1.4, -2.8, 2];
 function StickyNote({ text, idx = 0, colorIdx }) {
   return (
     <div
-      className="flex min-h-[104px] min-w-[130px] max-w-[260px] flex-1 items-center justify-center rounded-[2px] px-4 py-4 shadow-[0_6px_14px_-5px_rgba(15,40,80,0.3)] transition-transform hover:z-[2] hover:scale-[1.03] sm:min-w-[150px]"
+      className="flex min-h-[74px] min-w-[104px] max-w-[190px] flex-1 items-center justify-center rounded-[2px] px-2.5 py-2.5 shadow-[0_4px_10px_-4px_rgba(15,40,80,0.3)] transition-transform hover:z-[2] hover:scale-[1.03] sm:min-w-[118px]"
       style={{ backgroundColor: STICKY_COLORS[(colorIdx ?? idx) % STICKY_COLORS.length], transform: `rotate(${STICKY_ROT[idx % STICKY_ROT.length]}deg)` }}
     >
-      <p className="text-center text-[12.5px] font-bold leading-[1.55] text-[#1f2937]" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{text}</p>
+      <p className="text-center text-[10.5px] font-bold leading-[1.45] text-[#1f2937]" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{text}</p>
     </div>
   );
 }
@@ -995,14 +1001,14 @@ function PmAsIsToBeBoard({ sr = {} }) {
   const toRows = toBe.length ? toBe : ['개선된 목표 상태를 입력해 주세요'];
   return (
     <section className="w-full min-w-0">
-      <div className="mb-4"><p className="font-mono text-[10.5px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Transformation</p><h3 className="mt-0.5 text-[15px] font-extrabold text-bluewood-900">AS-IS → TO-BE</h3><p className="mt-1 text-[11.5px] leading-[1.6] text-bluewood-400">문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다.</p></div>
-      <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-surface-200 bg-white">
-        {hasPanels && <div className="relative p-4 sm:p-6">
-          <div className="grid grid-cols-2"><div className="pr-3 text-center sm:pr-8"><p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p><p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p></div><div className="pl-3 text-center sm:pl-8"><p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p><p className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p></div></div>
-          <div className="relative mt-3 grid min-w-0 grid-cols-2 gap-x-2 border-t-2 border-bluewood-200 pt-6 sm:gap-x-6"><span className="pointer-events-none absolute -top-[2px] bottom-2 left-1/2 w-[2px] -translate-x-1/2 rounded bg-bluewood-200" /><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-3 gap-y-4 pr-1 sm:pr-4">{asRows.map((text, i) => <StickyNote key={i} text={text} idx={i} />)}</div><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-3 gap-y-4 pl-1 sm:pl-4">{toRows.map((text, i) => <StickyNote key={i} text={text} idx={i + 3} colorIdx={i} />)}</div></div>
-          {decision && <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center"><span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span><p className="text-[12px] font-semibold leading-[1.55] text-primary-800">{decision}</p></div>}
+      <div className="mb-2.5"><p className="font-mono text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Transformation</p><h3 className="text-[13.5px] font-extrabold text-bluewood-900">AS-IS → TO-BE</h3><p className="text-[10.5px] leading-[1.5] text-bluewood-400">문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다.</p></div>
+      <div className="w-full min-w-0 overflow-hidden rounded-xl border border-surface-200 bg-white">
+        {hasPanels && <div className="relative p-3 sm:p-4">
+          <div className="grid grid-cols-2"><div className="pr-3 text-center sm:pr-6"><p className="text-[14px] font-black tracking-tight text-bluewood-500 sm:text-[16px]">AS-IS</p><p className="text-[10px] font-semibold text-bluewood-300">현재 · 문제 상태</p></div><div className="pl-3 text-center sm:pl-6"><p className="text-[14px] font-black tracking-tight sm:text-[16px]" style={{ color: ACCENT }}>TO-BE</p><p className="text-[10px] font-semibold text-bluewood-300">개선 · 목표 상태</p></div></div>
+          <div className="relative mt-2 grid min-w-0 grid-cols-2 gap-x-2 border-t-2 border-bluewood-200 pt-4 sm:gap-x-4"><span className="pointer-events-none absolute -top-[2px] bottom-1 left-1/2 w-[2px] -translate-x-1/2 rounded bg-bluewood-200" /><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-2 gap-y-2.5 pr-1 sm:pr-3">{asRows.map((text, i) => <StickyNote key={i} text={text} idx={i} />)}</div><div className="flex min-w-0 flex-wrap content-start justify-center gap-x-2 gap-y-2.5 pl-1 sm:pl-3">{toRows.map((text, i) => <StickyNote key={i} text={text} idx={i + 3} colorIdx={i} />)}</div></div>
+          {decision && <div className="mx-auto mt-3 flex max-w-2xl items-center justify-center gap-2 rounded-lg bg-primary-50/70 px-3 py-2 text-center"><span className="flex-shrink-0 font-mono text-[8px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span><p className="text-[11px] font-semibold leading-[1.5] text-primary-800">{decision}</p></div>}
         </div>}
-        {impacts.length > 0 && <div className="border-t border-surface-200 bg-surface-50/45 px-5 py-4 sm:px-6"><div className="mb-3 flex items-baseline justify-between gap-3"><h3 className="text-[12.5px] font-extrabold text-bluewood-900">변화를 증명한 핵심 수치</h3><span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Measured impact</span></div><div className={`grid overflow-hidden rounded-xl border border-surface-200 bg-white ${impacts.length === 2 ? 'sm:grid-cols-2 sm:divide-x' : impacts.length >= 3 ? 'sm:grid-cols-3 sm:divide-x' : ''} divide-surface-200`}>{impacts.map((item, i) => { const split = splitValue(item.actual); const actual = parseNum(item.actual); const before = parseNum(item.before); const max = Math.max(Math.abs(before || 0), Math.abs(actual || 0), 1); return <div key={i} className={`min-w-0 px-4 py-3.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}><p className="truncate text-[11.5px] font-bold text-bluewood-400">{item.label}</p><p className="mt-1 text-[22px] font-black leading-none tracking-tight text-bluewood-900">{split ? `${split.value.toLocaleString()}${split.unit}` : item.actual}</p>{before != null && before !== actual && <div className="mt-3 space-y-2">{[['이전', before, item.before, '#cbd5e1'], ['이후', actual, item.actual, ACCENT]].map(row => <div key={row[0]}><div className="mb-1 flex justify-between text-[8.5px] font-bold text-bluewood-300"><span>{row[0]}</span><span className="text-bluewood-500">{row[2]}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-surface-100"><span className="block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(row[1]) / max) * 100)}%`, backgroundColor: row[3] }} /></div></div>)}</div>}</div>; })}</div></div>}
+        {impacts.length > 0 && <div className="border-t border-surface-200 bg-surface-50/45 px-3.5 py-3 sm:px-4"><div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-[11.5px] font-extrabold text-bluewood-900">변화를 증명한 핵심 수치</h3><span className="font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Measured impact</span></div><div className={`grid overflow-hidden rounded-lg border border-surface-200 bg-white ${impacts.length === 2 ? 'sm:grid-cols-2 sm:divide-x' : impacts.length >= 3 ? 'sm:grid-cols-3 sm:divide-x' : ''} divide-surface-200`}>{impacts.map((item, i) => { const split = splitValue(item.actual); const actual = parseNum(item.actual); const before = parseNum(item.before); const max = Math.max(Math.abs(before || 0), Math.abs(actual || 0), 1); return <div key={i} className={`min-w-0 px-3 py-2.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}><p className="truncate text-[10.5px] font-bold text-bluewood-400">{item.label}</p><p className="mt-0.5 text-[17px] font-black leading-none tracking-tight text-bluewood-900">{split ? `${split.value.toLocaleString()}${split.unit}` : item.actual}</p>{before != null && before !== actual && <div className="mt-2 space-y-1.5">{[['이전', before, item.before, '#cbd5e1'], ['이후', actual, item.actual, ACCENT]].map(row => <div key={row[0]}><div className="mb-0.5 flex justify-between text-[8px] font-bold text-bluewood-300"><span>{row[0]}</span><span className="text-bluewood-500">{row[2]}</span></div><div className="h-1 overflow-hidden rounded-full bg-surface-100"><span className="block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(row[1]) / max) * 100)}%`, backgroundColor: row[3] }} /></div></div>)}</div>}</div>; })}</div></div>}
       </div>
     </section>
   );
@@ -1023,19 +1029,19 @@ function PmMetricTiles({ sr = {} }) {
     <div>
       <SectionLabel en="Evidence">검증 성과</SectionLabel>
       {kpis.length > 0 && (
-        <div className={`grid gap-2.5 ${kpis.length === 1 ? 'grid-cols-1 sm:grid-cols-2' : kpis.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        <div className={`grid gap-2 ${kpis.length === 1 ? 'grid-cols-1 sm:grid-cols-2' : kpis.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
           {kpis.map((k, i) => (
-            <div key={i} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white px-3.5 py-3">
-              <span className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: ACCENT }} />
-              <p className="truncate text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.label}</p>
-              <p className="mt-1 text-[17px] font-extrabold leading-tight text-bluewood-900">{k.value}</p>
-              {k.target && <p className="mt-0.5 truncate text-[11.5px] font-semibold text-bluewood-400">목표 {k.target}</p>}
+            <div key={i} className="relative overflow-hidden rounded-lg border border-surface-200 bg-white px-3 py-2">
+              <span className="absolute inset-x-0 top-0 h-[2px]" style={{ backgroundColor: ACCENT }} />
+              <p className="truncate text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{k.label}</p>
+              <p className="text-[15px] font-extrabold leading-tight text-bluewood-900">{k.value}</p>
+              {k.target && <p className="truncate text-[10.5px] font-semibold text-bluewood-400">목표 {k.target}</p>}
             </div>
           ))}
         </div>
       )}
       {goals.length > 0 && (
-        <div className={`space-y-2.5 rounded-xl border border-surface-200 bg-white p-4 ${kpis.length > 0 ? 'mt-3' : ''}`}>
+        <div className={`space-y-2 rounded-lg border border-surface-200 bg-white p-3 ${kpis.length > 0 ? 'mt-2' : ''}`}>
           {goals.map((goal, i) => {
             const target = numOf(goal.target), actual = numOf(goal.actual);
             const pct = target != null && actual != null && target !== 0 ? Math.max(0, Math.min(100, Math.round((actual / target) * 100))) : null;
@@ -1612,10 +1618,11 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
         <JobCoreLayout
+          dense
           sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
-          lead={<div className="space-y-6"><PmCycleStrip />{showLeanCanvas && <LeanCanvasCard sr={sr} />}</div>}
+          lead={<div className="space-y-3.5"><PmCycleStrip />{showLeanCanvas && <LeanCanvasCard sr={sr} />}</div>}
         >
-          <div className="space-y-6">
+          <div className="space-y-4">
             {showTimeline && <PmTimelineStrip sr={sr} />}
             {showTransformation && <PmAsIsToBeBoard sr={sr} />}
             {showDecisionLog && <PmDecisionLog keyExperiences={keyExperiences} />}

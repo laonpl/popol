@@ -17,13 +17,17 @@ import {
   Network,
   PanelLeft,
   PenLine,
-  Play,
   Search,
   Star,
   UploadCloud,
   X,
 } from 'lucide-react';
 import { CodeSnippet } from '../components/portfolio/GitInsights';
+// 공고 분석 결과와 완성 산출물은 서비스가 실제로 쓰는 컴포넌트를 그대로 렌더한다 (디자인 재현 X).
+import { JobAnalysisBadge } from '../components/JobLinkInput';
+import WebPortfolioRenderer from './portfolio/WebPortfolioTemplates';
+import { PORTFOLIO_EXAMPLES } from './portfolio/portfolioExampleData';
+import { getApiBaseUrl } from '../services/apiBase';
 
 const DEMO_STEPS = [
   {
@@ -107,36 +111,102 @@ const DEMO_STEPS = [
     guide: '핵심 로직과 구현 이유·효과를 함께 보여줘 개발 판단을 설명합니다.',
   },
   {
-    key: 'architecture',
-    label: '아키텍처 시각화',
-    short: '아키텍처',
+    key: 'flow',
+    label: '정리 흐름',
+    short: '흐름',
     duration: 5200,
-    caption: '저장소 구조와 문서 내용을 바탕으로 시스템 구성과 데이터 흐름을 읽기 쉬운 아키텍처로 만듭니다.',
-    guide: '복잡한 구조를 면접에서 설명할 수 있는 한 장의 다이어그램으로 바꿉니다.',
+    caption: '흩어진 기록이 어떤 단계를 거쳐 지원 서류가 되는지 보여줍니다.',
+    guide: '수집부터 공고 맞춤 배치까지 한 흐름으로 정리됩니다.',
+  },
+  {
+    key: 'job-link',
+    label: '기업 공고 연결',
+    short: '공고 연결',
+    duration: 5200,
+    caption: '지원할 공고 링크를 붙여넣으면 기업과 직무를 대신 읽습니다.',
+    guide: '공고 링크 하나로 기업·직무·요건 분석이 시작됩니다.',
+  },
+  {
+    key: 'job-analysis',
+    label: '공고 분석 결과',
+    short: '공고 분석',
+    duration: 7200,
+    caption: '기업 분석, 직무 분석, 지원 전략, 산업 트렌드까지 정리됩니다.',
+    guide: '공고에서 요구하는 역량과 평가 기준을 근거와 함께 보여줍니다.',
   },
   {
     key: 'complete',
-    label: '개발자 포트폴리오 완성',
-    short: '완성',
-    duration: 5200,
-    caption: '흩어진 개발 기록이 5분 만에 하나의 경험정리로 완성됩니다.',
-    guide: 'GitHub와 문서를 연결하면 설명 가능한 개발 경험이 빠르게 완성됩니다.',
+    label: '기업 맞춤 포트폴리오',
+    short: '맞춤 완성',
+    duration: 5600,
+    caption: '같은 경험이 그 기업의 요건 순서로 재배치됩니다.',
+    guide: '공고가 바뀌면 강조할 경험과 순서도 함께 바뀝니다.',
   },
 ];
 
-// 공감형 카피 + 시선이 쏠릴 키워드(hl)만 하이라이트로 강조한다.
-const REEL_CAPTIONS = {
-  'github-pain': [{ t: '커밋은 매일 쌓이는데', hl: '매일' }, { t: '포트폴리오는 아직도 백지', hl: '백지' }],
-  'files-pain': [{ t: '회고·캡처·기획서 다 흩어졌고', hl: '흩어졌고' }, { t: '찾다 지쳐서 또 포기', hl: '포기' }],
-  create: [{ t: '“쓸 만한 경험이 없다”고요?', hl: '경험이 없다' }, { t: '정리를 안 했을 뿐입니다', hl: '정리를 안 했을 뿐' }],
-  role: [{ t: '개발자 직군만 딱 고르면', hl: '개발자' }, { t: '분석 기준이 통째로 바뀝니다', hl: '통째로' }],
-  sources: [{ t: '회고 PDF 하나 + GitHub 하나', hl: 'GitHub' }, { t: '흩어진 기록을 통째로 긁어옵니다', hl: '통째로' }],
-  pipeline: [{ t: '커밋 수백 개를 알아서 훑고', hl: '수백 개' }, { t: '근거까지 싹 정리합니다', hl: '근거까지' }],
-  overview: [{ t: '백지였던 포트폴리오가', hl: '백지' }, { t: '단 한 화면으로 완성', hl: '한 화면' }],
-  commits: [{ t: '전체 345개 중 내 커밋 179개', hl: '179개' }, { t: '기여 비중 51.9% + 핵심 변경까지', hl: '핵심 변경' }],
-  review: [{ t: '“이 코드를 왜 썼는지”까지', hl: '왜 썼는지' }, { t: '그대로 면접 답변이 됩니다', hl: '면접 답변' }],
-  architecture: [{ t: '복잡한 저장소 구조도', hl: '복잡한' }, { t: '설명 가능한 한 장으로', hl: '한 장' }],
-  complete: [{ t: '흩어진 개발 기록이', hl: '흩어진' }, { t: '단 5분 만에 포트폴리오로', hl: '5분' }],
+/* 장면마다 자막의 위치와 크기를 바꾼다. 상자·띠 배경은 쓰지 않고
+   글씨만 얹은 뒤 핵심 단어에만 형광펜을 긋는다.
+
+   배경 상자가 없으니 화면 밝기가 곧 가독성이다. 제품 화면은 대부분 흰색이라
+   기본은 네이비 글씨이고, 어두운 화면(dark: true)에서만 흰 글씨로 뒤집는다.
+
+   place … top | center | bottom
+   punch … 크게 띄우는 한 방 (아픈 지점·전환점)
+   dark  … 화면이 어두워 흰 글씨를 써야 하는 장면
+   hl    … 형광펜을 그을 키워드 */
+const REEL_SCENES = {
+  'github-pain': {
+    place: 'center', punch: true, shake: true,
+    lines: [{ t: '아직도 깃허브 직접 훑고 계세요?', hl: '직접 훑고' }, { t: '커밋 345개를 눈으로 세는 중', hl: '눈으로' }],
+  },
+  'files-pain': {
+    place: 'center', punch: true, shake: true,
+    lines: [{ t: '폴더 뒤져서 자료 찾는 것부터가 일', hl: '폴더 뒤져서' }, { t: '정리하다 지쳐서 또 포기', hl: '또 포기' }],
+  },
+  create: {
+    place: 'bottom',
+    lines: [{ t: '“쓸 만한 경험이 없다”고요?', hl: '경험이 없다' }, { t: '정리를 안 했을 뿐입니다', hl: '정리를 안 했을 뿐' }],
+  },
+  role: {
+    place: 'top',
+    lines: [{ t: '개발자만 딱 고르면', hl: '개발자' }, { t: '분석 기준이 통째로 바뀝니다', hl: '통째로' }],
+  },
+  sources: {
+    place: 'bottom',
+    lines: [{ t: '회고·기획서·캡처 뭐든 넣으세요', hl: '뭐든' }, { t: '정리 안 된 파일도 그대로 됩니다', hl: '그대로' }],
+  },
+  pipeline: {
+    place: 'center', punch: true,
+    lines: [{ t: '커밋 수백 개를 알아서 훑고', hl: '수백 개' }, { t: '근거까지 싹 정리합니다', hl: '근거까지' }],
+  },
+  overview: {
+    place: 'top',
+    lines: [{ t: '백지였던 포트폴리오가', hl: '백지' }, { t: '단 한 화면으로 완성', hl: '한 화면' }],
+  },
+  commits: {
+    place: 'bottom',
+    lines: [{ t: '전체 345개 중 내 커밋 179개', hl: '179개' }, { t: '기여 비중 51.9%까지 자동 계산', hl: '51.9%' }],
+  },
+  review: {
+    place: 'top',
+    lines: [{ t: '“이 코드를 왜 썼는지”까지', hl: '왜 썼는지' }, { t: '그대로 면접 답변이 됩니다', hl: '면접 답변' }],
+  },
+  flow: {
+    place: 'bottom',
+    lines: [{ t: '흩어진 기록 하나하나가', hl: '흩어진 기록' }, { t: '지원 서류까지 한 흐름으로', hl: '한 흐름으로' }],
+  },
+  'job-link': {
+    place: 'bottom',
+    lines: [{ t: '지원할 공고 링크만 복사해서', hl: '링크만' }, { t: '그대로 붙여넣으면 끝', hl: '붙여넣으면' }],
+  },
+  'job-analysis': {
+    place: 'bottom',
+    lines: [{ t: '기업·직무·요건까지 대신 읽고', hl: '대신 읽고' }, { t: '무엇을 보여줘야 하는지 알려줍니다', hl: '무엇을 보여줘야' }],
+  },
+  complete: {
+    place: 'bottom', dark: true,
+    lines: [{ t: '같은 경험이 그 기업 순서로', hl: '그 기업 순서로' }, { t: '공고마다 다시 맞춰집니다', hl: '공고마다' }],
+  },
 };
 
 const DEMO_GIT_PROJECTS = [
@@ -289,65 +359,71 @@ const GITHUB_COMMITS = [
   ['1e7ca08', 'feat: add web-vitals dashboard events', 'minseo-dev', 'last month'],
 ];
 
+/* 인트로 커버 — "요즘 다들 이걸로 만든다며?" 톤.
+   밝은 배경 위에 큰 검정 헤드라인을 왼쪽 정렬로 얹는 숏폼 훅 구조다.
+   사진 대신, 이 데모가 다루는 실제 화면(커밋 목록)을 흐리게 깔아
+   배경이 맥락을 설명하게 했다. */
+function IntroBackdrop() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[#eceff3]">
+      {/* 흐릿하게 깔린 커밋 목록 — 무엇에 대한 이야기인지 배경이 먼저 말한다 */}
+      <div className="eng-intro-drift absolute -right-[18%] top-[16%] w-[104%] rotate-[-7deg] opacity-[0.5] blur-[2.5px]">
+        <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_40px_90px_rgba(15,23,42,0.16)]">
+          <div className="flex h-8 items-center gap-1.5 border-b border-[#e4e8ec] bg-[#f6f8fa] px-3">
+            <span className="h-2 w-2 rounded-full bg-[#ff5f57]" /><span className="h-2 w-2 rounded-full bg-[#febc2e]" /><span className="h-2 w-2 rounded-full bg-[#28c840]" />
+          </div>
+          {GITHUB_COMMITS.slice(0, 9).map(([hash, title, author, ago]) => (
+            <div key={hash} className="flex items-center justify-between gap-3 border-b border-[#eef1f4] px-4 py-[9px] last:border-0">
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-semibold text-[#1f2328]">{title}</p>
+                <p className="mt-0.5 text-[9.5px] text-[#8b949e]">{author} · {ago}</p>
+              </div>
+              <code className="shrink-0 text-[9.5px] text-[#0969da]">{hash}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 위아래로 밝게 눌러 글자가 항상 읽히게 한다 */}
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(236,239,243,0.97)_0%,rgba(236,239,243,0.72)_38%,rgba(236,239,243,0.5)_62%,rgba(236,239,243,0.93)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_22%,rgba(255,255,255,0.95),transparent_58%)]" />
+    </div>
+  );
+}
+
 function AttentionScreen() {
   return (
-    <div className="eng-demo-cover relative flex h-full flex-col overflow-hidden px-7 pb-8 pt-7 text-white">
-      <div className="pointer-events-none absolute -right-28 -top-24 h-80 w-80 rounded-full bg-[#c7ff4a]/[0.12] blur-[90px]" />
-      <div className="pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 rounded-full bg-[#3b82f6]/[0.15] blur-[110px]" />
+    <div className="relative h-full overflow-hidden bg-[#eceff3] text-[#0f1720]">
+      <IntroBackdrop />
 
-      <header className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[11.5px] font-black text-[#0b0f0e]">FP</span>
-          <div>
-            <p className="text-[12px] font-black tracking-[-0.02em]">FitPoly</p>
-            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/[0.45]">for developers</p>
-          </div>
-        </div>
-        <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1.5 text-[8px] font-extrabold uppercase tracking-[0.16em] text-white/[0.65]">GitHub → Portfolio</span>
-      </header>
+      <div className="relative z-10 flex h-full flex-col px-8 pb-9 pt-[92px]">
+        <span
+          className="eng-cover-rise inline-flex w-fit items-center rounded-full border border-[#0f1720]/25 px-4 py-[7px] text-[12.5px] font-semibold tracking-[-0.01em] text-[#0f1720]/75"
+          style={{ animationDelay: '80ms' }}
+        >
+          AI 개발자 포트폴리오
+        </span>
 
-      <div className="relative z-10 mt-[72px]">
-        <div className="inline-flex items-center gap-2 rounded-full bg-[#c7ff4a] px-3 py-1.5 text-[11.5px] font-black text-[#10150e]">
-          취준 개발자라면 잠깐
-        </div>
-        <h1 className="mt-5 text-[45px] font-black leading-[1.06] tracking-[-0.065em] sm:text-[51px]">
-          커밋 345개를<br />
-          <span className="text-[#c7ff4a]">채용 언어로</span><br />
-          바꾸는 법
+        <h1 className="mt-7 text-[43px] font-extrabold leading-[1.14] tracking-[-0.045em] sm:text-[47px]">
+          {['요즘 개발자들', '이걸로', '정리한다며?'].map((line, index) => (
+            <span
+              key={line}
+              className="eng-cover-rise block"
+              style={{ animationDelay: `${260 + index * 150}ms` }}
+            >
+              {line}
+            </span>
+          ))}
         </h1>
-        <p className="mt-5 text-[14px] font-semibold leading-[1.65] tracking-[-0.025em] text-white/60">GitHub만 연결하면 내가 한 일과<br />기여 근거가 포트폴리오가 됩니다.</p>
-      </div>
 
-      <div className="relative z-10 mt-8 rounded-[26px] border border-white/10 bg-white/[0.055] p-3.5 shadow-[0_30px_80px_rgba(0,0,0,0.34)] backdrop-blur-sm">
-        <div className="grid grid-cols-[1fr_34px_1fr] items-stretch gap-2">
-          <div className="rounded-[18px] border border-white/[0.08] bg-[#111816] p-4">
-            <div className="flex items-center gap-2 text-[10.5px] font-extrabold text-white/[0.55]"><Github size={13} /> GITHUB RECORD</div>
-            <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">345</p>
-            <p className="mt-2 text-[10.5px] font-bold text-white/40">commits · 127 files</p>
-            <div className="mt-5 flex h-8 items-end gap-1">
-              {[40, 72, 48, 88, 58, 100, 70, 92, 50, 78].map((height, index) => <span key={index} className="flex-1 rounded-[2px] bg-white/[0.15]" style={{ height: `${height}%` }} />)}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#c7ff4a]/30 bg-[#c7ff4a]/10 text-[14px] font-black text-[#c7ff4a]">→</span>
-          </div>
-
-          <div className="rounded-[18px] bg-[#f4f7f2] p-4 text-[#121713]">
-            <div className="flex items-center justify-between text-[10.5px] font-extrabold"><span>FITPOLY RESULT</span><CheckCircle2 size={13} className="text-emerald-600" /></div>
-            <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">51.9%</p>
-            <p className="mt-2 text-[10.5px] font-bold text-black/[0.45]">실제 기여 비중</p>
-            <div className="mt-5 space-y-1.5">
-              <span className="block h-1.5 w-full rounded-full bg-black/[0.08]"><span className="block h-full w-[78%] rounded-full bg-[#155eef]" /></span>
-              <div className="flex gap-1.5"><span className="rounded-full bg-[#dce8ff] px-2 py-1 text-[7px] font-black text-[#155eef]">핵심 경험 3</span><span className="rounded-full bg-[#e5f5d1] px-2 py-1 text-[7px] font-black text-[#3e6416]">구조도 완성</span></div>
-            </div>
-          </div>
+        <div className="eng-cover-rise mt-auto" style={{ animationDelay: '900ms' }}>
+          <span className="eng-intro-arrow flex h-[42px] w-[42px] items-center justify-center rounded-full border border-[#0f1720]/30 text-[17px] leading-none text-[#0f1720]/70">
+            ↓
+          </span>
+          <p className="mt-3.5 text-[11.5px] font-semibold tracking-[-0.01em] text-[#0f1720]/55">
+            커밋만 있으면 됩니다
+          </p>
         </div>
-      </div>
-
-      <div className="relative z-10 mt-auto flex items-center justify-between border-t border-white/10 pt-5">
-        <p className="text-[11.5px] font-bold leading-[1.5] text-white/[0.48]">3초 뒤,<br /><span className="text-white/80">만드는 과정 공개</span></p>
-        <span className="flex items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 text-[11.5px] font-black text-[#101310] shadow-[0_10px_35px_rgba(0,0,0,0.2)]">과정 보기 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c7ff4a]"><Play size={12} fill="currentColor" /></span></span>
       </div>
     </div>
   );
@@ -394,7 +470,7 @@ function GitHubPainScreen({ progress }) {
               ))}
             </div>
           </div>
-          <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[11.5px] font-bold text-white shadow-lg">스크롤 중 · 커밋 127개</div>
+          <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[11.5px] font-bold text-white shadow-lg">직접 훑는 중 · 커밋 345개</div>
         </div>
       </div>
     </div>
@@ -451,7 +527,7 @@ function FilesPainScreen({ progress }) {
             </div>
           </div>
         </div>
-        <div className="h-7 border-t border-[#e5e5e5] px-4 py-1 text-[11.5px] text-[#666]">10개 항목 · 파일을 찾는 중…</div>
+        <div className="h-7 border-t border-[#e5e5e5] px-4 py-1 text-[11.5px] text-[#666]">10개 항목 · 어느 게 최종본이더라…</div>
       </div>
     </div>
   );
@@ -563,7 +639,7 @@ function SourceInputScreen({ active }) {
       <div className="mb-5 rounded-2xl border border-primary-100 bg-white px-5 py-5 shadow-sm">
         <p className="mb-2 text-[12px] font-black uppercase tracking-[0.22em] text-primary-500">Data Collection · Step 2 of 3</p>
         <h1 className="text-[24px] font-black leading-tight tracking-[-0.02em] text-bluewood-950">자료 수집</h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-bluewood-500">파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출합니다.</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-bluewood-500">회고든 기획서든 캡처든, 가지고 있는 파일을 그대로 넣으면 AI가 핵심 경험을 추출합니다.</p>
       </div>
 
       <div className="space-y-5">
@@ -583,13 +659,42 @@ function SourceInputScreen({ active }) {
 
         <Spotlight active={active} pointer className="rounded-2xl">
           <div className="grid gap-5 rounded-2xl border border-primary-100 border-l-4 border-l-primary-600 bg-white p-5 shadow-sm md:grid-cols-[200px_1fr]">
-            <div className="flex items-start gap-3 pt-0.5"><span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[12px] font-black text-white shadow-sm">01</span><div><p className="text-[14px] font-extrabold text-bluewood-950">파일 첨부</p><p className="mt-1 text-[12px] text-bluewood-500">PDF · 이미지 · 최대 10개</p></div></div>
-            <div>
-              <div className="flex w-full flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/70 px-5 py-5 text-bluewood-600">
-                <UploadCloud size={18} className="text-primary-500" />
-                <p className="text-[13px] font-bold">클릭하거나 파일을 여기에 끌어오세요</p><p className="text-[12px] text-bluewood-400">PDF, JPG, PNG, WEBP · 최대 25MB</p>
+            <div className="flex items-start gap-3 pt-0.5">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[12px] font-black text-white shadow-sm">01</span>
+              <div>
+                <p className="text-[14px] font-extrabold text-bluewood-950">파일 첨부</p>
+                <p className="mt-1 text-[12px] text-bluewood-500">형식 상관없이 있는 그대로</p>
               </div>
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2"><CheckCircle2 size={12} className="flex-shrink-0 text-emerald-500" /><p className="flex-1 truncate text-[12px] font-semibold text-bluewood-800">온보딩_개선_회고.pdf</p><span className="text-[12px] text-bluewood-500">2.4 MB</span></div>
+            </div>
+            <div>
+              <div className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/70 px-5 py-5 text-bluewood-600">
+                <UploadCloud size={18} className="text-primary-500" />
+                <p className="text-[14px] font-extrabold text-bluewood-800">무슨 파일이든 그대로 넣으세요</p>
+                <p className="text-[12px] text-bluewood-400">정리 안 된 파일이어도 됩니다 · 최대 25MB</p>
+                {/* 실제로 받는 확장자 그대로 (backend/routes/upload.js DOC_EXT 기준) */}
+                <div className="mt-1 flex flex-wrap justify-center gap-1">
+                  {['PDF', 'PPTX', 'DOCX', 'HWP', 'XLSX', 'TXT', 'MD', 'ZIP', 'PNG'].map(ext => (
+                    <span key={ext} className="rounded bg-white px-1.5 py-0.5 text-[10.5px] font-bold text-primary-600 ring-1 ring-primary-100">{ext}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {[
+                  ['온보딩_개선_회고.pdf', '2.4 MB'],
+                  ['FlowDesk_기획서_v7.pptx', '8.7 MB'],
+                  ['가입완료율_대시보드_캡처.png', '1.2 MB'],
+                  ['커밋_정리할것.txt', '12 KB'],
+                ].map(([name, size]) => (
+                  <div key={name} className="flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2">
+                    <CheckCircle2 size={12} className="flex-shrink-0 text-emerald-500" />
+                    <p className="flex-1 truncate text-[12px] font-semibold text-bluewood-800">{name}</p>
+                    <span className="shrink-0 text-[12px] text-bluewood-500">{size}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2.5 text-[12px] leading-relaxed text-bluewood-500">
+                형식이 달라도 <strong className="text-primary-700">필요한 근거만 골라</strong> 하나의 경험으로 묶습니다.
+              </p>
             </div>
           </div>
         </Spotlight>
@@ -689,6 +794,8 @@ function DemoFactTable({ title, rows }) {
   );
 }
 
+/* 결과 페이지의 '개발 임팩트' 안에 들어가는 시스템 맵.
+   (릴스의 독립 장면에서는 빠졌지만, 경험정리 결과물 자체에는 그대로 남아 있다) */
 function PitchArchitectureMap() {
   const Node = ({ eyebrow, title, detail, tone = 'blue', wide = false }) => {
     const tones = {
@@ -722,21 +829,64 @@ function PitchArchitectureMap() {
   );
 }
 
-function ArchitectureFocusScreen() {
+/* 서비스가 자료를 어떤 순서로 정리하는지만 보여주는 화면.
+   예전에는 저장소 구조도(React Client → Express API → …)를 그렸는데,
+   시청자가 알아야 할 것은 우리 내부 구조가 아니라 "내 기록이 어떤 단계를 거쳐
+   지원 서류가 되는가"였다. 단계와 화살표만 남기고 장식을 걷어냈다. */
+const SERVICE_FLOW = [
+  { title: '흩어진 기록', detail: 'GitHub · 회고 · 기획서 · 캡처' },
+  { title: 'AI 교차 분석', detail: '커밋과 문서를 대조해 근거 확인' },
+  { title: '검증된 경험', detail: '문제 · 역할 · 행동 · 결과' },
+  { title: '공고 맞춤 배치', detail: '기업 요건 순서로 재정렬' },
+  { title: '지원 산출물', detail: '웹 링크 · PDF · PPT' },
+];
+
+function ServiceFlowScreen({ progress }) {
+  // 단계가 하나씩 차오르게 — 마지막 단계까지 도달한 뒤 잠시 머문다.
+  const reached = Math.min(SERVICE_FLOW.length, Math.floor(progress / 0.17) + 1);
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_85%_5%,#dbeafe_0%,transparent_30%),linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 pb-24 pt-28">
-      <div className="mx-auto w-full max-w-[500px]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full bg-primary-600 px-3 py-1.5 text-[11.5px] font-black tracking-[0.14em] text-white">REPOSITORY → SYSTEM MAP</span>
-          <span className="text-[11.5px] font-extrabold text-primary-500">자동 생성 완료 ✓</span>
-        </div>
-        <h1 className="mt-5 text-[30px] font-black leading-[1.08] tracking-[-0.055em] text-bluewood-950">코드 목록이 아니라<br />설명 가능한 구조로.</h1>
-        <p className="mt-3 text-[13px] font-semibold leading-[1.65] text-bluewood-500">호출 관계와 문서 맥락을 함께 분석해<br />면접에서 바로 설명할 수 있는 한 장을 만듭니다.</p>
+    <div className="flex h-full flex-col justify-center overflow-hidden bg-[#f5f7fa] px-8 pb-[23%] pt-10">
+      <div className="mx-auto w-full max-w-[420px]">
+        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-primary-500">How it works</p>
+        <h1 className="mt-2.5 text-[27px] font-extrabold leading-[1.26] tracking-[-0.035em] text-bluewood-900" style={{ wordBreak: 'keep-all' }}>
+          기록이 지원 서류가 되기까지
+        </h1>
 
-        <div className="mt-6 rounded-[22px] border-2 border-primary-300 bg-white p-3 shadow-[0_24px_70px_rgba(0,47,108,0.2)] ring-8 ring-white/55">
-          <PitchArchitectureMap />
+        <div className="mt-8">
+          {SERVICE_FLOW.map((item, index) => {
+            const on = index < reached;
+            const last = index === SERVICE_FLOW.length - 1;
+            return (
+              <div key={item.title} className="relative pl-9">
+                {/* 단계를 잇는 세로선 */}
+                {!last && (
+                  <span
+                    className={cx(
+                      'absolute left-[11px] top-[22px] w-px transition-colors duration-500',
+                      on ? 'bg-primary-300' : 'bg-gray-200',
+                    )}
+                    style={{ height: 'calc(100% - 22px)' }}
+                  />
+                )}
+                <span
+                  className={cx(
+                    'absolute left-0 top-[3px] flex h-[23px] w-[23px] items-center justify-center rounded-full text-[11px] font-black transition-all duration-500',
+                    on ? 'bg-primary-600 text-white' : 'bg-white text-gray-300 ring-1 ring-gray-200',
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <div className={cx('pb-7 transition-opacity duration-500', on ? 'opacity-100' : 'opacity-35')}>
+                  <p className={cx('text-[19px] font-extrabold tracking-[-0.03em]', on ? 'text-bluewood-900' : 'text-gray-400')}>
+                    {item.title}
+                  </p>
+                  <p className="mt-1 text-[13px] text-bluewood-400">{item.detail}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
-
       </div>
     </div>
   );
@@ -792,23 +942,19 @@ function CodeReasonEvidence({ active }) {
 }
 
 function ResultsScreen({ current }) {
-  const complete = current === 'complete';
   const viewportRef = useRef(null);
   const pageRef = useRef(null);
   const overviewRef = useRef(null);
   const commitsRef = useRef(null);
   const reviewRef = useRef(null);
   const architectureRef = useRef(null);
-  const completeRef = useRef(null);
   const [camera, setCamera] = useState({ x: 0, y: 0, scale: 0.72, ready: false });
 
   useLayoutEffect(() => {
+    // overview는 아래에서 페이지 전체를 맞추므로 대상 목록에 두지 않는다.
     const targets = {
-      overview: overviewRef,
       commits: commitsRef,
       review: reviewRef,
-      architecture: architectureRef,
-      complete: completeRef,
     };
     const viewport = viewportRef.current;
     const page = pageRef.current;
@@ -822,10 +968,12 @@ function ResultsScreen({ current }) {
         const pageHeight = page.offsetHeight;
         if (!viewportWidth || !viewportHeight || !pageWidth || !pageHeight) return;
 
-        if (complete) {
+        /* overview는 "완성된 한 장"을 보여주는 장면이라 특정 영역을 확대하면
+           위아래가 텅 빈 채로 잡힌다. 페이지 전체가 들어오도록 맞춘다. */
+        if (current === 'overview') {
           const scale = Math.min(
-            (viewportWidth - 34) / pageWidth,
-            (viewportHeight - 34) / pageHeight,
+            (viewportWidth - 26) / pageWidth,
+            (viewportHeight - 26) / pageHeight,
           );
           setCamera({
             x: (viewportWidth - pageWidth * scale) / 2,
@@ -850,7 +998,7 @@ function ResultsScreen({ current }) {
         }
         const targetCenterY = targetTop + targetHeight / 2;
         const targetCenterX = targetLeft + targetWidth / 2;
-        const focusScaleLimit = current === 'commits' ? 1.08 : current === 'architecture' ? 0.92 : 1;
+        const focusScaleLimit = current === 'commits' ? 1.08 : 1;
         const scale = Math.min(
           focusScaleLimit,
           (viewportWidth - 28) / Math.max(1, targetWidth),
@@ -907,7 +1055,7 @@ function ResultsScreen({ current }) {
           </div>
         </div>
 
-        <article ref={completeRef} className="mx-auto max-w-6xl px-5 py-7 sm:px-8 sm:py-9">
+        <article className="mx-auto max-w-6xl px-5 py-7 sm:px-8 sm:py-9">
           <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
             <aside className="lg:pr-2">
               <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -923,7 +1071,7 @@ function ResultsScreen({ current }) {
             </aside>
 
             <section className="min-w-0">
-              <DemoDevImpactSection architectureRef={architectureRef} architectureFocus={current === 'architecture'} />
+              <DemoDevImpactSection architectureRef={architectureRef} />
               <div ref={reviewRef} className="mt-8">
                 <CodeReasonEvidence active={current === 'review'} />
               </div>
@@ -935,8 +1083,283 @@ function ResultsScreen({ current }) {
   );
 }
 
+
+
+/* 공고 분석 데모 데이터 — JobAnalysisBadge 가 실제로 받는 모양 그대로 채운다.
+   화면은 서비스가 진짜 렌더하는 컴포넌트를 그대로 쓰고, 내용만 이 값으로 넣는다. */
+const DEMO_JOB_ANALYSIS = {
+  company: '토스',
+  position: '백엔드 개발자 (신입)',
+  deadline: '2026.08.31',
+  skills: ['Java', 'Spring Boot', 'MySQL', 'Kafka', 'AWS'],
+  coreValues: ['자율과 책임', '빠른 실행'],
+  tasks: ['금융 서비스 API 설계·개발', '대용량 트래픽 처리 구조 개선', '장애 대응 및 모니터링 체계 운영'],
+  requirements: {
+    essential: [
+      { text: '서버 개발 경험 또는 이에 준하는 프로젝트 경험', reason: '실제 서비스 수준의 코드를 작성해본 적이 있는지 봅니다.' },
+      { text: 'RDBMS 이해와 쿼리 최적화 경험', reason: '금융 데이터 특성상 정합성과 성능이 함께 요구됩니다.' },
+      { text: '협업 도구(Git) 기반 개발 경험', reason: '코드 리뷰 문화가 강해 협업 이력을 확인합니다.' },
+    ],
+    preferred: [
+      { text: '대용량 트래픽 처리 경험', reason: '트래픽이 몰리는 구간을 다뤄본 경험을 우대합니다.' },
+      { text: '테스트 코드 작성 습관', reason: '변경에 강한 코드를 만드는 태도를 봅니다.' },
+    ],
+  },
+  // 기업 분석 탭 맨 위에 나오는 '포트폴리오 요건' 카드용
+  portfolioRequirements: {
+    required: [
+      '포트폴리오 (PDF 또는 웹 링크)',
+      'GitHub 저장소 주소',
+      '이력서 (자유 양식)',
+    ],
+    format: [
+      '허용 형식: PDF, 웹 링크',
+      '최대 파일 크기: 20MB',
+      '분량 제한 없음 · 핵심 프로젝트 2~3개 권장',
+    ],
+    content: [
+      '맡은 역할과 실제 기여 범위를 프로젝트마다 명시',
+      '기술 선택의 이유와 대안 비교 과정',
+      '성능·안정성 개선은 개선 전후 수치로 표기',
+      '협업 방식과 코드 리뷰 경험',
+    ],
+    submission: '채용 페이지 지원서에 파일 업로드 또는 링크 입력 · 마감 당일 18:00까지',
+  },
+  applicationFormat: {
+    documents: ['포트폴리오', 'GitHub 링크', '이력서'],
+    fileConstraints: { format: 'PDF, 웹 링크', maxSize: '20MB' },
+    questions: [
+      '가장 어려웠던 기술적 문제와 해결 과정을 서술해 주세요. (1,000자)',
+      '협업 과정에서 의견이 갈렸을 때의 경험을 적어주세요. (800자)',
+    ],
+  },
+  companyAnalysis: {
+    overview: '토스는 송금·결제·증권·보험을 하나의 앱에서 제공하는 금융 플랫폼입니다. 사용자 경험을 기준으로 금융 서비스를 재설계하는 것을 핵심 전략으로 삼고 있습니다.',
+    industry: '핀테크 · 금융 플랫폼',
+    businessAreas: ['간편송금·결제', '증권', '보험', '대출 비교'],
+    strengths: [
+      '압도적인 사용자 경험 설계 역량과 빠른 제품 출시 주기',
+      '금융 라이선스와 자체 데이터를 함께 보유해 서비스 확장이 유리함',
+    ],
+    weaknesses: [
+      '서비스 확장 속도만큼 안정성·규제 대응 부담이 함께 커지는 구조',
+    ],
+    culture: '자율과 책임, 빠른 실행, 근거 기반 의사결정',
+    recentTrends: '금융 서비스 전반의 트래픽 증가로 백엔드 안정성과 장애 대응 역량의 중요도가 커지고 있습니다.',
+  },
+  positionAnalysis: {
+    roleDescription: '금융 서비스의 핵심 API를 설계·개발하고, 트래픽 증가에 견디는 구조로 개선하는 역할입니다.',
+    dailyTasks: 'API 설계 및 개발, 성능 개선, 장애 대응, 코드 리뷰',
+    keyCompetencies: [
+      { name: '문제 정의와 원인 분석', weight: 9, description: '장애와 성능 저하의 원인을 구조적으로 찾는 능력' },
+      { name: '데이터베이스 설계', weight: 8, description: '정합성과 성능을 함께 고려한 스키마·쿼리 설계' },
+      { name: '협업과 코드 리뷰', weight: 8, description: '변경 의도를 설명하고 합의를 만들어내는 역량' },
+      { name: '테스트와 안정성', weight: 7, description: '변경에 강한 코드를 유지하는 습관' },
+    ],
+    challengeLevel: { score: 8, description: '신입이라도 실제 서비스 수준의 문제를 다뤄본 근거가 있으면 강하게 평가됩니다.' },
+    growthPath: '서비스 백엔드 → 도메인 오너십 → 아키텍처 설계로 확장되는 경로입니다.',
+  },
+  applicationStrategy: {
+    motivationPoints: [
+      { point: '트래픽·정합성 문제를 직접 해결한 경험을 첫 사례로 배치', how: '문제 상황 → 판단 근거 → 결과 순서로 정리하면 평가자가 빠르게 이해합니다.' },
+    ],
+    appealPoints: ['원인 분석 과정', '쿼리·구조 개선 수치', 'Git 기반 협업 이력', '테스트 코드 작성'],
+    portfolioTips: [
+      '백엔드 직무와 가장 가까운 프로젝트를 첫 번째 사례로 배치',
+      '커밋과 코드 변경으로 본인 기여 범위를 수치로 증명',
+      '장애·성능 문제를 어떻게 정의하고 판단했는지 함께 서술',
+    ],
+    cautionPoints: ['공고에 없는 성과를 단정적으로 쓰지 말고 검증 가능한 기록 위주로 작성하세요.'],
+  },
+  industryTrends: [
+    {
+      trend: '백엔드 채용에서 장애 대응·관측 역량 비중 확대',
+      description: '기능 구현만이 아니라 문제가 생겼을 때 원인을 찾아내는 과정을 확인합니다.',
+      impact: '포트폴리오에 트러블슈팅 흐름을 근거와 함께 담는 것이 유리합니다.',
+      keywords: ['모니터링', '성능 개선', '장애 대응'],
+      level: 'rising',
+    },
+  ],
+};
+
+const JOB_ANALYSIS_STAGES = ['기업 분석', '직무 분석', '지원 전략', '산업 트렌드'];
+
+/* 공고 링크를 붙여넣는 화면 — JobLinkInput 의 실제 입력 UI와 같은 구성. */
+function JobLinkPasteScreen({ progress }) {
+  const FULL_URL = 'https://toss.im/career/job-detail?job_id=5312840';
+  const typed = FULL_URL.slice(0, Math.round(Math.min(1, progress / 0.62) * FULL_URL.length));
+  const analyzing = progress > 0.72;
+  const pct = analyzing ? Math.min(96, Math.round((progress - 0.72) / 0.28 * 96)) : 0;
+
+  return (
+    <div className="h-full overflow-hidden bg-[#f5f5f5] px-6 pb-[23%] pt-8" style={{ wordBreak: 'keep-all' }}>
+      <div className="mx-auto w-full max-w-[400px]">
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-primary-600">Step 5</p>
+        <h2 className="mt-2 text-[22px] font-extrabold leading-[1.32] tracking-[-0.03em] text-bluewood-900">
+          지원할 공고를 붙여넣으세요
+        </h2>
+        <p className="mt-2 text-[12.5px] leading-[1.6] text-bluewood-400">
+          링크만 넣으면 기업·직무·요건을 대신 읽습니다.
+        </p>
+
+        <div className="mt-5 flex gap-1 rounded-xl bg-surface-100 p-1">
+          {['공고 링크', '공고 본문', '직접 입력'].map((label, index) => (
+            <span key={label} className={cx('flex flex-1 items-center justify-center rounded-lg py-2.5 text-[12.5px] font-bold transition-colors', index === 0 ? 'bg-white text-primary-700 shadow-sm' : 'text-bluewood-400')}>
+              {label}
+            </span>
+          ))}
+        </div>
+
+        {/* 실제 입력창처럼 한 줄로 유지한다 — URL이 길어 줄바꿈되면 배지 위치가 밀린다 */}
+        <div className="relative mt-3">
+          <div className={cx(
+            'flex h-[46px] w-full items-center overflow-hidden whitespace-nowrap rounded-lg border border-surface-200 bg-white px-4 text-[13px] text-bluewood-800',
+            typed.includes('toss.im') && 'pr-16',
+          )}>
+            <span className="truncate">
+              {typed || <span className="text-bluewood-300">https:// 지원할 공고 링크를 입력하세요</span>}
+            </span>
+            {!analyzing && <span className="eng-caret ml-0.5 inline-block h-[15px] w-[2px] shrink-0 bg-primary-500" />}
+          </div>
+          {typed.includes('toss.im') && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-[#3182f6] px-2 py-0.5 text-[11px] font-semibold text-white">토스</span>
+          )}
+        </div>
+
+        {analyzing ? (
+          <div className="mt-3 space-y-4 rounded-xl border border-primary-100 bg-primary-50 p-6">
+            <div className="text-center">
+              <div className="mb-1 text-4xl font-black text-primary-600">{pct}%</div>
+              <p className="text-[13px] font-semibold text-primary-700">{JOB_ANALYSIS_STAGES[Math.min(3, Math.floor(pct / 25))]} 중...</p>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-primary-100">
+              <div className="h-2 rounded-full bg-primary-600 transition-all duration-300 ease-out" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {JOB_ANALYSIS_STAGES.map((label, index) => (
+                <div key={label} className={cx('text-[12px] font-medium', pct >= index * 25 ? 'text-primary-600' : 'text-bluewood-200')}>
+                  <div className={cx('mx-auto mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold', pct >= index * 25 ? 'bg-primary-600 text-white' : 'bg-surface-200 text-bluewood-300')}>
+                    {pct >= (index + 1) * 25 ? '✓' : index + 1}
+                  </div>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="mt-3 w-full rounded-lg bg-primary-600 py-3 text-[14px] font-bold text-white shadow-sm shadow-primary-100">
+            공고 링크로 기업 분석하기
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* 분석 결과 — 서비스가 실제로 쓰는 JobAnalysisBadge 를 그대로 렌더한다.
+   길이가 길어 화면을 넘기므로 진행도에 맞춰 천천히 훑어 내려간다. */
+function JobAnalysisResultScreen({ progress }) {
+  const scrollRef = useRef(null);
+  const [overflow, setOverflow] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    const measure = () => setOverflow(Math.max(0, el.scrollHeight - el.clientHeight));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // 처음 12%는 멈춰서 상단을 보여주고, 이후 천천히 내려간다.
+  const eased = Math.max(0, (progress - 0.12) / 0.88);
+
+  return (
+    <div className="h-full overflow-hidden bg-[#f5f5f5] px-4 pb-[23%] pt-6">
+      <div className="mx-auto h-full max-w-[440px] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.12)]">
+        <div ref={scrollRef} className="h-full overflow-hidden px-5 py-5">
+          <div style={{ transform: `translateY(-${eased * overflow}px)`, transition: 'transform 120ms linear' }}>
+            <JobAnalysisBadge analysis={DEMO_JOB_ANALYSIS} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* 마무리 — /example1 의 웹사이트형 A 포트폴리오를 그대로 보여준다.
+   따로 그리지 않고 서비스가 실제 렌더하는 WebPortfolioRenderer 에
+   같은 예시 데이터를 넣는다. 데스크톱 설계 폭에서 렌더한 뒤 프레임 폭에
+   맞춰 축소해야 레이아웃이 깨지지 않는다(ReelStage 와 같은 이유). */
+const COMPLETE_SRC_WIDTH = 1180;
+
+function CompleteScreen({ progress }) {
+  const frameRef = useRef(null);
+  const pageRef = useRef(null);
+  const [box, setBox] = useState({ scale: 0.4, overflow: 0 });
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const page = pageRef.current;
+    if (!frame || !page) return undefined;
+    const measure = () => {
+      const scale = frame.clientWidth / COMPLETE_SRC_WIDTH;
+      setBox({ scale, overflow: Math.max(0, page.scrollHeight * scale - frame.clientHeight) });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, []);
+
+  // 앞 10%는 히어로에 머무르고, 이후 아래로 훑어 내려간다.
+  const scrolled = Math.max(0, (progress - 0.1) / 0.9) * box.overflow;
+
+  /* 자막이 아래 26% 구역에 놓이므로 브라우저 창은 그 위에서 끝나야 한다.
+     예전에는 창 아래에 설명 문구를 하나 더 뒀는데 자막과 같은 자리라 겹쳐 보였다. */
+  return (
+    <div className="h-full overflow-hidden bg-[#0b1220] px-4 pb-[26%] pt-6">
+      <div className="mx-auto flex h-full max-w-[460px] flex-col">
+        <p className="text-center text-[10.5px] font-black uppercase tracking-[0.26em] text-white/45">Result</p>
+        <p className="mt-1.5 text-center text-[15px] font-extrabold tracking-[-0.02em] text-white">
+          공고에 맞춘 웹 포트폴리오
+        </p>
+
+        {/* 브라우저 창 — 완성물이 실제 링크로 열린다는 것을 보여준다 */}
+        <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+          <div className="flex h-8 items-center gap-1.5 border-b border-[#e4e8ec] bg-[#f6f8fa] px-3">
+            <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
+            <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
+            <span className="h-2 w-2 rounded-full bg-[#28c840]" />
+            <div className="mx-auto flex h-5 max-w-[62%] items-center truncate rounded bg-white px-2.5 font-mono text-[9.5px] text-[#8b949e]">
+              fitpoly.kr/p/dohyun-dev
+            </div>
+          </div>
+
+          <div ref={frameRef} className="relative h-[calc(100%-32px)] overflow-hidden">
+            <div
+              style={{
+                width: COMPLETE_SRC_WIDTH,
+                transform: `scale(${box.scale}) translateY(-${box.overflow ? scrolled / box.scale : 0}px)`,
+                transformOrigin: 'top left',
+              }}
+            >
+              <div ref={pageRef}>
+                <WebPortfolioRenderer portfolio={PORTFOLIO_EXAMPLES.example1} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // 캡션 안에서 핵심 단어만 컬러로 구분한다.
-function renderCaption(caption) {
+function renderCaption(caption, tone = 'onDark') {
   if (typeof caption === 'string') return caption;
   const { t, hl } = caption;
   if (!hl || !t.includes(hl)) return t;
@@ -944,39 +1367,99 @@ function renderCaption(caption) {
   return (
     <>
       {before}
-      <mark className="eng-demo-hl">{hl}</mark>
+      <mark className={tone === 'onLight' ? 'eng-demo-hl-light' : 'eng-demo-hl'}>{hl}</mark>
       {rest.join(hl)}
     </>
   );
 }
 
-// 숏폼 하단 자막의 위치를 고정해 화면과 시선이 매 장면마다 흔들리지 않게 한다.
-const CAPTION_POS = {
-  'github-pain': 'bottom-[8%]',
-  'files-pain': 'bottom-[8%]',
-  create: 'bottom-[8%]',
-  role: 'bottom-[8%]',
-  sources: 'bottom-[8%]',
-  pipeline: 'bottom-[8%]',
-  overview: 'bottom-[8%]',
-  commits: 'bottom-[8%]',
-  review: 'bottom-[8%]',
-  complete: 'bottom-[8%]',
+const PLACEMENT = {
+  top: 'top-[9%] items-start',
+  center: 'inset-y-0 items-center',
+  bottom: 'bottom-[9%] items-end',
 };
 
 function DemoSubtitle({ step, progress }) {
-  const captions = REEL_CAPTIONS[step.key] || [step.caption];
-  const captionIndex = progress < 0.48 ? 0 : Math.min(1, captions.length - 1);
-  const caption = captions[captionIndex];
+  const scene = REEL_SCENES[step.key] || { place: 'bottom', lines: [step.caption] };
+  const lineIndex = progress < 0.48 ? 0 : Math.min(1, scene.lines.length - 1);
+  const line = scene.lines[lineIndex];
+
+  const enter = scene.punch
+    ? (scene.shake ? 'eng-cap-shake' : 'eng-cap-pop')
+    : scene.place === 'top' ? 'eng-cap-drop' : 'eng-cap-slide';
+
+  /* 자막 상자를 쓰지 않는다. 글씨만 얹고 핵심 단어에만 형광펜을 긋는다.
+     배경 상자가 없으므로 화면 밝기에 따라 글씨 색을 뒤집고(dark 플래그),
+     번잡한 화면 위에서도 읽히도록 반대색 헤일로를 깐다. */
+  const onDark = Boolean(scene.dark);
 
   return (
-    <div className={cx(
-      'pointer-events-none absolute inset-x-5 z-50 flex justify-center px-1 text-center',
-      CAPTION_POS[step.key] || 'bottom-[14%]',
-    )}>
-      <p key={`${step.key}-${captionIndex}`} className="eng-demo-reel-caption max-w-full text-[21px] font-extrabold leading-[1.34] tracking-[-0.04em] text-white sm:text-[24px]">
-        {renderCaption(caption)}
+    <div className={cx('pointer-events-none absolute inset-x-0 z-50 flex justify-center px-7', PLACEMENT[scene.place])}>
+      <p
+        key={`${step.key}-${lineIndex}`}
+        className={cx(
+          enter,
+          'max-w-full text-center font-extrabold tracking-[-0.04em]',
+          onDark ? 'eng-cap-ondark' : 'eng-cap-onlight',
+          scene.punch ? 'text-[29px] leading-[1.28] sm:text-[33px]' : 'text-[21px] leading-[1.4] sm:text-[23px]',
+        )}
+        style={{ wordBreak: 'keep-all' }}
+      >
+        {renderCaption(line, onDark ? 'onDark' : 'onLight')}
       </p>
+    </div>
+  );
+}
+
+/* 화면 녹화는 화질이 떨어져서, 프레임을 한 장씩 찍어 mp4 로 만드는 백엔드 도구를 부른다.
+   헤드리스 브라우저를 띄우는 무거운 작업이라 로컬 개발에서만 동작한다. */
+function ReelDownloadButton() {
+  const [state, setState] = useState('idle'); // idle | working | done | error
+  const [message, setMessage] = useState('');
+
+  const download = async () => {
+    setState('working');
+    setMessage('프레임 캡처 중… 몇 분 걸립니다');
+    try {
+      const query = new URLSearchParams({ fps: '30', width: '1080', origin: window.location.origin });
+      const response = await fetch(`${getApiBaseUrl()}/dev/reel?${query}`);
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.error || `캡처 실패 (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'fitpoly-reel-1080p.mp4';
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setState('done');
+      setMessage('다운로드 완료');
+    } catch (error) {
+      setState('error');
+      setMessage(error.message || '캡처에 실패했습니다');
+    }
+  };
+
+  return (
+    <div className="pointer-events-auto fixed bottom-5 right-5 z-[200] flex flex-col items-end gap-2">
+      {message && (
+        <span className={cx(
+          'rounded-lg px-3 py-1.5 text-[12px] font-bold shadow-lg',
+          state === 'error' ? 'bg-red-500 text-white' : 'bg-white text-bluewood-700',
+        )}>
+          {message}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={download}
+        disabled={state === 'working'}
+        className="rounded-full bg-primary-600 px-5 py-3 text-[13px] font-bold text-white shadow-[0_10px_30px_rgba(0,21,54,0.45)] transition-colors hover:bg-primary-700 disabled:opacity-60"
+      >
+        {state === 'working' ? '만드는 중…' : '영상 다운로드 (1080p)'}
+      </button>
     </div>
   );
 }
@@ -1016,10 +1499,41 @@ export default function DeveloperPitchDemo() {
   });
   const [progress, setProgress] = useState(0);
   const step = DEMO_STEPS[stepIndex];
-  const resultsStep = ['overview', 'commits', 'review', 'architecture', 'complete'].includes(step.key);
-  const desktopStep = ['attention', 'github-pain', 'files-pain'].includes(step.key);
+
+  /* 녹화 모드(?capture=1) — 자동 재생을 끄고 원하는 시각으로 직접 이동시킨다.
+     화면 녹화는 화질이 떨어지므로 캡처 스크립트가 프레임을 한 장씩 찍는데,
+     그러려면 "지금 몇 ms 지점" 을 정확히 지정할 수 있어야 한다.
+     (backend/scripts/capture-eng-reel.mjs 가 이 두 함수를 쓴다) */
+  const captureMode = useMemo(() => new URLSearchParams(window.location.search).has('capture'), []);
 
   useEffect(() => {
+    const total = DEMO_STEPS.reduce((sum, item) => sum + item.duration, 0);
+    window.__engReelDurationMs = total;
+    if (captureMode) {
+      // 반환값은 '현재 장면이 시작된 뒤 흐른 ms' — CSS 등장 애니메이션을 같은 지점으로 맞추는 데 쓴다.
+      window.__engSeek = (ms) => {
+        let remain = ((Number(ms) || 0) % total + total) % total;
+        let index = 0;
+        while (index < DEMO_STEPS.length - 1 && remain >= DEMO_STEPS[index].duration) {
+          remain -= DEMO_STEPS[index].duration;
+          index += 1;
+        }
+        setStepIndex(index);
+        setProgress(Math.min(0.9999, remain / DEMO_STEPS[index].duration));
+        return remain;
+      };
+    }
+    return () => {
+      delete window.__engReelDurationMs;
+      delete window.__engSeek;
+    };
+  }, [captureMode]);
+  // 공고 연결 이후 장면들은 편집 화면이 아니라 각자 전용 화면을 그린다.
+  const resultsStep = ['overview', 'commits', 'review'].includes(step.key);
+  const desktopStep = ['attention', 'github-pain', 'files-pain', 'flow', 'job-link', 'job-analysis', 'complete'].includes(step.key);
+
+  useEffect(() => {
+    if (captureMode) return undefined; // 캡처 중에는 스크립트가 시간을 직접 옮긴다
     let frame;
     const startedAt = performance.now() - (progress * step.duration);
     const tick = (now) => {
@@ -1036,7 +1550,7 @@ export default function DeveloperPitchDemo() {
     return () => cancelAnimationFrame(frame);
     // progress는 단계 내부 애니메이션에만 사용하며 프레임마다 effect를 재시작하지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIndex, step.duration]);
+  }, [stepIndex, step.duration, captureMode]);
 
   const screen = useMemo(() => {
     if (step.key === 'attention') return <AttentionScreen />;
@@ -1046,7 +1560,10 @@ export default function DeveloperPitchDemo() {
     if (step.key === 'role') return <ReelStage><RoleSelectionScreen active /></ReelStage>;
     if (step.key === 'sources') return <ReelStage><SourceInputScreen active /></ReelStage>;
     if (step.key === 'pipeline') return <ReelStage><PipelineScreen progress={progress} /></ReelStage>;
-    if (step.key === 'architecture') return <ArchitectureFocusScreen />;
+    if (step.key === 'flow') return <ServiceFlowScreen progress={progress} />;
+    if (step.key === 'job-link') return <JobLinkPasteScreen progress={progress} />;
+    if (step.key === 'job-analysis') return <JobAnalysisResultScreen progress={progress} />;
+    if (step.key === 'complete') return <CompleteScreen progress={progress} />;
     return <ResultsScreen current={step.key} />;
   }, [step.key, progress]);
 
@@ -1060,9 +1577,11 @@ export default function DeveloperPitchDemo() {
         {!desktopStep && !resultsStep && <ProductHeader />}
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <main key={resultsStep ? 'results' : step.key} className={cx(step.key !== 'attention' && 'eng-demo-screen-enter', 'h-full min-h-0 overflow-hidden bg-[#f5f5f5]')}>{screen}</main>
-          {!['attention', 'architecture'].includes(step.key) && <DemoSubtitle step={step} progress={progress} />}
+          {step.key !== 'attention' && <DemoSubtitle step={step} progress={progress} />}
         </div>
       </div>
+      {/* 캡처 중에는 버튼이 영상에 찍히면 안 되고, 운영 배포에는 라우트 자체가 없다 */}
+      {!captureMode && import.meta.env.DEV && <ReelDownloadButton />}
     </div>
   );
 }

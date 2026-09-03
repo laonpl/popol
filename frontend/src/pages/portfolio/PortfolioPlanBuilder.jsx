@@ -10,6 +10,7 @@ import {
   PORTFOLIO_SLOT_META,
   PORTFOLIO_SLOT_ORDER,
 } from '../../utils/experienceReadiness';
+import { extractJdKeywords, matchExperienceToJd, summarizeJdCoverage } from '../../utils/jdMatch';
 import { trackActivation } from '../../services/activationMetrics';
 import { clearActivationTask } from '../../services/activationJourney';
 
@@ -77,6 +78,9 @@ export default function PortfolioPlanBuilder() {
     role: profile?.targetPosition || profile?.jobTitle || '',
     deadline: '',
   });
+  // 서류 통과 이력서는 공고와 키워드 중복도가 높다 — 공고를 붙여넣으면 그 기준으로 경험을 고른다.
+  const [jdText, setJdText] = useState('');
+  const jdKeywords = useMemo(() => extractJdKeywords(jdText), [jdText]);
 
   useEffect(() => {
     if (user?.uid) fetchExperiences(user.uid);
@@ -107,6 +111,17 @@ export default function PortfolioPlanBuilder() {
   const selectedCoverage = new Set(selectedItems.flatMap(item => item.readiness.portfolioRoles));
   const unconfirmedSelected = selectedItems.filter(item => !item.readiness.portfolioReady);
 
+  /* 공고를 붙여넣으면 일치도 우선, 아니면 기존처럼 준비도 순으로 보여준다. */
+  const rankedItems = useMemo(() => summary.items
+    .map(item => ({ ...item, match: matchExperienceToJd(item.experience, jdKeywords) }))
+    .sort((a, b) => (b.match.score - a.match.score) || (b.readiness.score - a.readiness.score)),
+  [summary.items, jdKeywords]);
+
+  const jdCoverage = useMemo(
+    () => summarizeJdCoverage(selectedItems.map(item => item.experience), jdKeywords),
+    [selectedItems, jdKeywords],
+  );
+
   const toggleExperience = id => {
     setSelectedIds(prev => {
       if (prev.includes(id)) return prev.filter(item => item !== id);
@@ -135,6 +150,8 @@ export default function PortfolioPlanBuilder() {
       targetRole: target.role.trim(),
       targetCompany: target.company.trim(),
       deadline: target.deadline || null,
+      // 공고 원문은 저장하지 않는다. 이후 단계에서 필요한 건 키워드뿐이다.
+      targetKeywords: jdKeywords.map(item => item.keyword),
       desiredExperienceCount: selectedIds.length >= 4 ? 4 : 3,
       selectedExperienceIds: selectedIds,
       slots,
@@ -149,6 +166,8 @@ export default function PortfolioPlanBuilder() {
       experienceCountReady: selectedItems.filter(item => item.readiness.portfolioReady).length,
       coveredSlots: selectedCoverage.size,
       targetRole: target.role.trim(),
+      jdKeywordCount: jdKeywords.length,
+      jdCoverage: jdCoverage.score,
     });
     clearActivationTask(user?.uid);
     sessionStorage.setItem('fitpoly-pending-portfolio-plan', JSON.stringify(portfolioPlan));
@@ -205,6 +224,42 @@ export default function PortfolioPlanBuilder() {
               </Field>
             </div>
             <p className="mt-4 text-[12px] text-gray-400">아직 정하지 않았다면 비워두고 일반 포트폴리오로 진행할 수 있어요.</p>
+
+            <div className="mt-7">
+              <Field label="채용공고 원문 (선택)">
+                <textarea
+                  value={jdText}
+                  onChange={event => setJdText(event.target.value)}
+                  rows={jdText ? 5 : 3}
+                  placeholder="지원할 공고의 주요 업무·자격 요건을 붙여넣으면, 공고 기준으로 어떤 경험을 넣을지 골라드려요."
+                  className={`${UNDERLINE_INPUT} resize-y leading-relaxed`}
+                />
+              </Field>
+              {jdKeywords.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[12px] text-gray-400">
+                    공고에서 찾은 핵심 키워드 <span className="font-bold text-gray-600">{jdKeywords.length}개</span>
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {jdKeywords.map(({ keyword }) => (
+                      <span
+                        key={keyword}
+                        className={`rounded px-1.5 py-0.5 text-[11.5px] font-medium ${
+                          jdCoverage.covered.includes(keyword)
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-gray-100 text-gray-400'
+                        }`}
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2.5 text-[12px] leading-relaxed text-gray-400">
+                    초록색은 지금 선택한 경험이 이미 덮고 있는 키워드입니다.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="mt-11 border-t border-gray-100 pt-9">
@@ -227,9 +282,8 @@ export default function PortfolioPlanBuilder() {
               </div>
             ) : (
               <div>
-                {summary.items
-                  .sort((a, b) => b.readiness.score - a.readiness.score)
-                  .map(({ experience, readiness }) => {
+                {rankedItems
+                  .map(({ experience, readiness, match }) => {
                     const selected = selectedIds.includes(experience.id);
                     const summary = oneLine(readiness.preview.context || readiness.preview.outcome);
                     const did = [oneLine(readiness.preview.role, 26), oneLine(readiness.preview.action, 64)]
@@ -269,9 +323,28 @@ export default function PortfolioPlanBuilder() {
                               <span key={tag} className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">{tag}</span>
                             )) : <span className="text-[11px] text-gray-300">태그 없음</span>}
                           </span>
+                          {jdKeywords.length > 0 && (
+                            <span className="mt-1.5 block text-[11.5px] leading-relaxed">
+                              {match.matched.length > 0 ? (
+                                <>
+                                  <span className="font-bold text-primary-600">공고 일치 {match.matched.length}</span>
+                                  <span className="text-gray-400"> · {match.matched.slice(0, 6).join(', ')}</span>
+                                </>
+                              ) : (
+                                <span className="text-gray-300">이 공고와 겹치는 키워드가 없습니다</span>
+                              )}
+                            </span>
+                          )}
                         </span>
 
-                        <span className="shrink-0 pt-0.5 text-[12.5px] font-bold text-gray-300">{readiness.score}%</span>
+                        <span className="shrink-0 pt-0.5 text-right">
+                          <span className="block text-[12.5px] font-bold text-gray-300">{readiness.score}%</span>
+                          {jdKeywords.length > 0 && (
+                            <span className={`mt-0.5 block text-[11.5px] font-bold ${match.score >= 50 ? 'text-primary-600' : 'text-gray-300'}`}>
+                              적합 {match.score}%
+                            </span>
+                          )}
+                        </span>
                       </button>
                     );
                   })}
@@ -300,6 +373,20 @@ export default function PortfolioPlanBuilder() {
                 })}
               </div>
             </div>
+
+            {jdKeywords.length > 0 && (
+              <div className="mt-6 border-t border-gray-100 pt-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[15px] font-bold text-gray-900">공고 키워드 반영</p>
+                  <span className="shrink-0 text-[15px] font-extrabold text-primary-600">{jdCoverage.score}%</span>
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-gray-500">
+                  {jdCoverage.uncovered.length === 0
+                    ? '공고의 주요 키워드를 모두 덮었습니다.'
+                    : `아직 안 나온 키워드: ${jdCoverage.uncovered.slice(0, 8).join(', ')}`}
+                </p>
+              </div>
+            )}
 
             <div className="mt-5 flex items-baseline justify-between border-t border-gray-100 pt-4">
               <span className="text-[14px] font-bold text-gray-900">선택한 경험</span>

@@ -113,11 +113,12 @@ const ROLES = [
 ];
 
 const GRASS_COLORS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
-const GRASS_CELLS = Array.from({ length: 168 }, (_, index) => {
-  const wave = Math.sin(index * 1.31) + Math.cos(index * 0.47);
-  if (index % 19 === 0) return 0;
-  return Math.max(1, Math.min(4, Math.round(wave + 2.55)));
-});
+const GRASS_WEEKS = 30;
+/* 30주 × 7일. 주말은 비고, 스프린트 주는 진해지도록 미리 만들어 둔 값 — 렌더할 때마다 같은 잔디가 나온다.
+   (일요일이 첫 행, 열 하나가 한 주) */
+const GRASS_CELLS = '024340220111200320121011211003202200020000122424001113202234110014143044134103133100020121104201000204113010200203104100302200040334004110400442412321232001020300220231000000010201000341000003302000021200404133'.split('').map(Number);
+/* 월이 바뀌는 열에만 라벨을 단다 — GitHub 잔디와 같은 방식 */
+const GRASS_MONTHS = [['1월', 0], ['2월', 4], ['3월', 8], ['4월', 13], ['5월', 17], ['6월', 22], ['7월', 26]];
 
 function RoleTabs({ activeId, onChange }) {
   return (
@@ -209,38 +210,37 @@ function ResultHeader({ role }) {
 }
 
 function CommitGrass() {
+  // 칸 크기를 13px 로 묶어 둔다 — 폭이 넓어져도 GitHub 잔디처럼 작은 정사각형을 유지한다
+  const cols = { gridTemplateColumns: `repeat(${GRASS_WEEKS}, minmax(0, 13px))`, gap: '2px' };
   return (
     <div className="min-w-0">
-      <div className="mb-1.5 grid grid-cols-4 pl-5 text-center text-[8px] font-semibold text-slate-300">
-        <span>4월</span><span>5월</span><span>6월</span><span>7월</span>
+      <div className="mb-1 grid text-[8px] font-semibold text-slate-300" style={{ ...cols, paddingLeft: 19 }}>
+        {GRASS_MONTHS.map(([label, week]) => (
+          <span key={label} style={{ gridColumn: `${week + 1} / span 4` }}>{label}</span>
+        ))}
       </div>
-      <div className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-1.5">
-        <div className="grid grid-rows-7 gap-0.5 text-right text-[7px] leading-[7px] text-slate-300">
-          {['월', '', '수', '', '금', '', ''].map((label, index) => <span key={index} className="h-[7px]">{label}</span>)}
+      <div className="grid min-w-0" style={{ gridTemplateColumns: '14px minmax(0, 1fr)', gap: '5px' }}>
+        <div className="grid text-right text-[7px] leading-none text-slate-300" style={{ gridTemplateRows: 'repeat(7, 1fr)', gap: '2px' }}>
+          {['', '월', '', '수', '', '금', ''].map((label, index) => (
+            <span key={index} className="flex items-center justify-end">{label}</span>
+          ))}
         </div>
-        <div
-          className="grid min-w-0"
-          style={{
-            gridTemplateColumns: 'repeat(24, minmax(5px, 1fr))',
-            gridTemplateRows: 'repeat(7, 7px)',
-            gridAutoFlow: 'column',
-            gap: '2px',
-          }}
-        >
+        {/* 열 하나가 한 주 — 칸은 항상 정사각형이라 폭이 바뀌어도 잔디 모양이 유지된다 */}
+        <div className="grid min-w-0" style={{ ...cols, gridTemplateRows: 'repeat(7, auto)', gridAutoFlow: 'column' }}>
           {GRASS_CELLS.map((level, index) => (
             <span
               key={index}
-              className="block min-w-0 rounded-[1.5px]"
-              style={{ backgroundColor: GRASS_COLORS[level] }}
+              className="block min-w-0 rounded-[2px]"
+              style={{ aspectRatio: '1 / 1', backgroundColor: GRASS_COLORS[level], boxShadow: 'inset 0 0 0 1px rgba(27,31,35,0.06)' }}
               title={`${level * 2} contributions`}
             />
           ))}
         </div>
       </div>
-      <div className="mt-1.5 flex items-center justify-between text-[8px] font-semibold text-slate-300">
-        <span>최근 24주 커밋 활동 · 179개</span>
+      <div className="mt-2 flex items-center justify-between text-[8px] font-semibold text-slate-300">
+        <span>최근 30주 커밋 활동</span>
         <span className="flex items-center gap-1">
-          적음 {GRASS_COLORS.map(color => <i key={color} className="h-1.5 w-1.5 rounded-[1px]" style={{ backgroundColor: color }} />)} 많음
+          적음 {GRASS_COLORS.map(color => <i key={color} className="h-[7px] w-[7px] rounded-[1.5px]" style={{ backgroundColor: color, boxShadow: 'inset 0 0 0 1px rgba(27,31,35,0.06)' }} />)} 많음
         </span>
       </div>
     </div>
