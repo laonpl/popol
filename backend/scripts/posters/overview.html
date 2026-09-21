@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>FitPoly 서비스 한눈에 — 구조 / 실제 화면 흐름</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+  /* posters.html 과 동일한 토큰·문법을 그대로 사용한다 */
+  :root {
+    --navy: #002F6C;
+    --blue: #1E6FD9;
+    --blue-lite: #E8F0FB;
+    --blue-mid: #B6CFEC;
+    --ink: #223049;
+    --ink-600: #4c5c76;
+    --ink-400: #8593a8;
+    --dash: #c6d3e4;
+    --hair: #e2e9f3;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #6b7280;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 40px; padding: 40px;
+    word-break: keep-all;
+  }
+  .poster {
+    position: relative; overflow: hidden;
+    width: 1600px; height: 900px;
+    background: #fff; color: var(--ink);
+    display: flex; flex-direction: column;
+    padding: 76px 88px 72px;
+  }
+
+  /* ── 09 와 동일한 헤더 ── */
+  .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: .2em; color: #7f9bc4; }
+  .ttl { margin-top: 10px; font-size: 40px; font-weight: 800; line-height: 1.2; letter-spacing: -.035em; color: var(--ink); }
+  .ttl em { font-style: normal; color: var(--blue); }
+  .lead { margin-top: 10px; font-size: 16px; line-height: 1.6; color: var(--ink-600); }
+
+  /* 가운데 정렬 헤더 (04 · 08 과 동일) */
+  .head { text-align: center; }
+  .head .squiggle { display: block; margin: 0 auto 14px; }
+  .head .title { font-size: 46px; font-weight: 800; line-height: 1.2; letter-spacing: -.035em; color: var(--ink); }
+  .head .title em { font-style: normal; color: var(--blue); }
+  .head .sub { margin-top: 14px; font-size: 20px; font-weight: 500; line-height: 1.5; color: var(--ink-600); }
+
+  /* ── 09 와 동일한 소제목 · 스크린샷 · 캡션 ── */
+  .obh { display: flex; align-items: baseline; gap: 12px; }
+  .obh .no { width: 24px; height: 24px; flex-shrink: 0; border-radius: 8px; background: var(--navy); color: #fff;
+             font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; align-self: center; }
+  .obh .t { font-size: 19px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+  .obh .s { font-size: 14.5px; color: var(--ink-400); }
+
+  .win { border-radius: 12px; overflow: hidden; border: 1px solid #e0e7f1; box-shadow: 0 6px 20px rgba(0,47,108,.08); }
+  .win .chrome { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f4f7fb; border-bottom: 1px solid #e6ecf5; }
+  .win .dots { display: flex; gap: 5px; }
+  .win .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .win .url { flex: 1; font-size: 12px; font-weight: 700; color: #8593a8; text-align: center; letter-spacing: -.01em; }
+  .view { position: relative; overflow: hidden; background: #fff; }
+  .view img { position: absolute; max-width: none; display: block; }
+  .ax { margin-top: 9px; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: var(--ink-400); }
+  .ax b { color: var(--ink); font-weight: 800; }
+
+  /* ── 08 과 동일한 하단 네이비 밴드 ── */
+  .band { margin-top: auto; border-radius: 16px; background: var(--navy); color: #fff; padding: 22px 30px; display: flex; gap: 30px; }
+  .band .b { flex: 1; display: flex; gap: 20px; align-items: center; }
+  .band .b + .b { border-left: 1px solid rgba(255,255,255,.16); padding-left: 30px; }
+  .band .bk { width: 84px; flex-shrink: 0; font-size: 14px; font-weight: 800; letter-spacing: .06em; color: #8FB7E8; }
+  .band .bt { font-size: 16px; line-height: 1.5; color: #DCE7F6; }
+  .band .bt b { font-weight: 800; color: #fff; }
+  .band .chain { display: flex; align-items: center; gap: 11px; }
+  .band .chain span { font-size: 16.5px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
+  .band .chain i { font-style: normal; color: #5C8DCB; font-size: 15px; font-weight: 800; }
+
+  /* ══ 10 · 서비스 한눈에 — INPUT › AI › OUTPUT ══════════════ */
+  #o1 .pipe { margin-top: 24px; height: 499px; display: flex; }
+  #o1 .col { display: flex; flex-direction: column; position: relative; }
+  #o1 .col + .col { margin-left: 32px; padding-left: 32px; border-left: 1px solid var(--hair); }
+  #o1 .chev { position: absolute; left: -33px; top: 240px; width: 26px; height: 26px; margin-left: -13px;
+              background: #fff; display: flex; align-items: center; justify-content: center; }
+
+  #o1 .list { margin-top: 12px; }
+  #o1 .list .it { display: flex; gap: 11px; padding: 6px 0; border-bottom: 1px solid #eef2f8; }
+  #o1 .list .it:last-child { border-bottom: 0; }
+  #o1 .list .it > i { flex-shrink: 0; margin-top: 6px; width: 7px; height: 7px; border-radius: 2px; background: var(--blue-mid); display: block; }
+  #o1 .list .it .no2 { flex-shrink: 0; width: 20px; height: 20px; border-radius: 6px; background: var(--blue-lite);
+                       color: var(--blue); font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  #o1 .list b { display: block; font-size: 13.5px; font-weight: 700; line-height: 1.35; color: var(--ink);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #o1 .list span { display: block; margin-top: 3px; font-size: 12px; line-height: 1.4; color: var(--ink-400); }
+  #o1 .note { margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--blue); }
+
+  #o1 .shotblock { margin-top: auto; padding-top: 18px; }
+  #o1 .shotblock .view { height: 158px; }
+  #o1 .orow { margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  #o1 .orow .view { height: 385px; }
+
+  /* ══ 11 · 실제 화면 흐름 ═══════════════════════════════════ */
+  #o2 .rail4 { position: relative; margin-top: 40px; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
+  #o2 .rail4::before { content: ''; position: absolute; left: 12.5%; right: 12.5%; top: 50%; border-top: 2px dashed var(--dash); }
+  #o2 .rail4 .p { position: relative; }
+  #o2 .rail4 .p::after { content: attr(data-step); position: absolute; left: 50%; top: -27px; transform: translateX(-50%);
+                         font-size: 13px; font-weight: 800; letter-spacing: .14em; color: #7f9bc4; white-space: nowrap; }
+  #o2 .rail4 .p.on::after { color: var(--blue); }
+  #o2 .dot { display: block; width: 15px; height: 15px; border-radius: 50%; background: #fff;
+             border: 3px solid var(--blue-mid); position: relative; z-index: 1; margin: 0 auto; }
+  #o2 .dot.on { background: var(--blue); border-color: var(--blue); }
+
+  #o2 .steps4 { margin-top: 26px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; }
+  #o2 .steps4 .view { height: 305px; }
+  #o2 .steps4 .nm { margin-top: 16px; font-size: 25px; font-weight: 800; letter-spacing: -.03em; color: var(--navy); }
+  #o2 .steps4 .de { margin-top: 10px; font-size: 15.5px; line-height: 1.55; color: #3b5b86; }
+  #o2 .steps4 .de b { font-weight: 800; color: var(--navy); }
+</style>
+</head>
+<body>
+
+<!-- ═══ 10 서비스 한눈에 ═══ -->
+<section class="poster" id="o1">
+  <div>
+    <p class="eyebrow">SERVICE OVERVIEW</p>
+    <h2 class="ttl">가지고 있는 파일을 넣으면 <em>지원할 수 있는 경험</em>이 나옵니다</h2>
+    <p class="lead">과제·공모전·사이드 프로젝트로 흩어진 자료를 그대로 넣으면, AI가 역할·과정·성과를 찾아 정리하고 이력서와 웹 포트폴리오까지 만들어 줍니다.</p>
+  </div>
+
+  <div class="pipe">
+    <!-- INPUT -->
+    <div class="col" style="width:300px">
+      <div class="obh"><span class="no">1</span><span class="t">넣는 것</span></div>
+      <div class="list">
+        <div class="it"><i></i><div><b>캠퍼스_서비스개선_README.md</b><span>문서 · 발표자료 (PDF / DOCX / MD)</span></div></div>
+        <div class="it"><i></i><div><b>github.com/seoyeon/campus-project</b><span>GitHub 리포지토리 · 커밋 기여도</span></div></div>
+        <div class="it"><i></i><div><b>velog.io/@seoyeon/retro</b><span>기술 블로그 · 회고 링크</span></div></div>
+        <div class="it"><i></i><div><b>“기억나는 대로 적은 메모”</b><span>완성된 문서가 아니어도 시작할 수 있습니다</span></div></div>
+      </div>
+      <p class="note">넷 중 편한 것 하나만 넣어도 됩니다</p>
+      <div class="shotblock">
+        <div class="win">
+          <div class="chrome">
+            <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+            <span class="url">fitpoly.kr · 2 / 4 자료 입력</span>
+          </div>
+          <div class="view"><img src="../../../frontend/public/motion/actual-chat-materials-ready-preview.png"
+                                 style="width:386px;left:-43px;top:-71px" alt="자료 입력 화면" /></div>
+        </div>
+        <p class="ax">파일 · 링크 · 메모를 한 화면에서 받습니다</p>
+      </div>
+    </div>
+
+    <!-- AI -->
+    <div class="col" style="width:300px">
+      <div class="chev">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M5.5 2.5l6 5.5-6 5.5" stroke="#B6CFEC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="obh"><span class="no">2</span><span class="t">AI가 하는 일</span></div>
+      <div class="list">
+        <div class="it"><span class="no2">1</span><div><b>자료를 읽고 텍스트를 추출</b><span>문서 · 링크 · 메모를 한 덩어리로 정리</span></div></div>
+        <div class="it"><span class="no2">2</span><div><b>GitHub 커밋 · 코드 근거 분석</b><span>내 기여도와 트러블슈팅 근거까지 확인</span></div></div>
+        <div class="it"><span class="no2">3</span><div><b>역할 · 과정 · 성과로 구조화</b><span>문제 → 목표 → 실행 → 결과(PAR)</span></div></div>
+      </div>
+      <p class="note">보통 1~2분이면 끝납니다</p>
+      <div class="shotblock">
+        <div class="win">
+          <div class="chrome">
+            <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+            <span class="url">fitpoly.kr · 3 / 4 AI 분석</span>
+          </div>
+          <div class="view"><img src="../../../frontend/public/motion/actual-chat-loading-preview.png"
+                                 style="width:441px;left:-71px;top:-39px" alt="AI 분석 화면" /></div>
+        </div>
+        <p class="ax">읽는 과정을 그대로 보여 줍니다</p>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="col" style="flex:1;min-width:0">
+      <div class="chev">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M5.5 2.5l6 5.5-6 5.5" stroke="#B6CFEC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="obh"><span class="no">3</span><span class="t">손에 남는 것</span><span class="s">한 번 정리하면 세 가지가 함께 만들어집니다</span></div>
+      <div class="orow">
+        <div>
+          <div class="win">
+            <div class="chrome">
+              <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+              <span class="url">fitpoly.kr · 경험정리 결과</span>
+            </div>
+            <div class="view"><img src="../../../frontend/public/motion/actual-experience-full-preview.png"
+                                   style="width:298px;left:-43px;top:-9px" alt="경험정리 결과" /></div>
+          </div>
+          <p class="ax"><b>경험정리 결과</b><br />문제 → 목표 → 실행 → 성과(PAR)와 포지셔닝 진단</p>
+        </div>
+        <div>
+          <div class="win">
+            <div class="chrome">
+              <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+              <span class="url">seoyeon_이력서.pdf</span>
+            </div>
+            <div class="view"><img src="../../../frontend/public/motion/actual-resume.png"
+                                   style="width:273px;left:-27px;top:0" alt="이력서 PDF" /></div>
+          </div>
+          <p class="ax"><b>이력서 PDF</b><br />학력 · 경력 · 성과 문장까지 채워진 채로 바로 제출</p>
+        </div>
+        <div>
+          <div class="win">
+            <div class="chrome">
+              <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+              <span class="url">fitpoly.kr/p/parkseoyeon</span>
+            </div>
+            <div class="view"><img src="../../../frontend/public/motion/actual-portfolio-full-preview.png"
+                                   style="width:217px;left:0;top:0" alt="웹 포트폴리오" /></div>
+          </div>
+          <p class="ax"><b>웹 포트폴리오</b><br />직군에 맞는 템플릿으로 렌더링된 공개 링크</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="b">
+      <span class="bk">4단계</span>
+      <div class="chain">
+        <span>경험 선택</span><i>›</i><span>자료 입력</span><i>›</i><span>AI 분석</span><i>›</i><span>결과 완성</span>
+      </div>
+    </div>
+    <div class="b">
+      <span class="bk">소요 시간</span>
+      <p class="bt">한 경험당 <b>약 7~10분</b> · 자료가 완벽하지 않아도 시작할 수 있고, 저장 전까지 자유롭게 고칠 수 있습니다</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 11 실제 화면 흐름 ═══ -->
+<section class="poster" id="o2">
+  <div class="head">
+    <svg class="squiggle" width="78" height="20" viewBox="0 0 78 20" fill="none">
+      <path d="M2 13C10 3 20 3 28 11s18 8 26-2" stroke="#1E6FD9" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="70" cy="6" r="3" fill="#1E6FD9"/>
+    </svg>
+    <h2 class="title">실제 화면 그대로, <em>네 단계면 끝납니다</em></h2>
+    <p class="sub">아래는 모두 FitPoly가 실제로 렌더한 화면입니다. 분야를 고르고 가진 자료를 넣으면 나머지는 기다리기만 하면 됩니다.</p>
+  </div>
+
+  <div class="rail4">
+    <div class="p on" data-step="STEP 01"><span class="dot on"></span></div>
+    <div class="p" data-step="STEP 02"><span class="dot"></span></div>
+    <div class="p" data-step="STEP 03"><span class="dot"></span></div>
+    <div class="p" data-step="STEP 04"><span class="dot"></span></div>
+  </div>
+
+  <div class="steps4">
+    <div>
+      <div class="win">
+        <div class="chrome">
+          <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+          <span class="url">fitpoly.kr · 1 / 4 경험 선택</span>
+        </div>
+        <div class="view"><img src="../../../frontend/public/motion/actual-chat-select-preview.png"
+                               style="width:409px;left:-36px;top:-34px" alt="경험 선택 화면" /></div>
+      </div>
+      <p class="nm">경험 선택</p>
+      <p class="de">정리할 분야를 하나 고르면 <b>개발자 · 마케팅 · 기획</b> 등 직군 기준으로 읽습니다.</p>
+    </div>
+    <div>
+      <div class="win">
+        <div class="chrome">
+          <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+          <span class="url">fitpoly.kr · 2 / 4 자료 입력</span>
+        </div>
+        <div class="view"><img src="../../../frontend/public/motion/actual-chat-materials-ready-preview.png"
+                               style="width:432px;left:-48px;top:-72px" alt="자료 입력 화면" /></div>
+      </div>
+      <p class="nm">자료 입력</p>
+      <p class="de">문서 · GitHub · 링크 · 짧은 메모 중 <b>편한 것만</b> 넣으면 됩니다.</p>
+    </div>
+    <div>
+      <div class="win">
+        <div class="chrome">
+          <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+          <span class="url">fitpoly.kr · 3 / 4 AI 분석</span>
+        </div>
+        <div class="view"><img src="../../../frontend/public/motion/actual-chat-loading-preview.png"
+                               style="width:550px;left:-107px;top:0" alt="AI 분석 화면" /></div>
+      </div>
+      <p class="nm">AI 분석</p>
+      <p class="de">자료와 커밋을 읽어 역할 · 과정 · 성과를 찾아냅니다. <b>보통 1~2분.</b></p>
+    </div>
+    <div>
+      <div class="win">
+        <div class="chrome">
+          <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+          <span class="url">fitpoly.kr · 경험정리 결과</span>
+        </div>
+        <div class="view"><img src="../../../frontend/public/motion/actual-experience-full-preview.png"
+                               style="width:454px;left:-62px;top:-24px" alt="경험정리 결과 화면" /></div>
+      </div>
+      <p class="nm">결과 완성</p>
+      <p class="de">성과 지표 · 포지셔닝 진단 · <b>핵심 강점 3가지</b>가 정리된 경험 카드로 남습니다.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="b">
+      <span class="bk">산출물</span>
+      <p class="bt">이 결과가 그대로 <b>경험정리 결과 · 이력서 PDF · 웹 포트폴리오</b> 세 가지가 됩니다</p>
+    </div>
+    <div class="b">
+      <span class="bk">공유</span>
+      <p class="bt"><b>fitpoly.kr/p/내아이디</b> 링크 하나로 제출하고, 공개 여부는 본인이 직접 켜고 끕니다</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

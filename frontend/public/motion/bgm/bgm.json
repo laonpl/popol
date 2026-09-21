@@ -1,0 +1,160 @@
+{
+  "duration": 52,
+  "default": "playful-marimba",
+  "groups": [
+    {
+      "id": "service",
+      "label": "서비스 소개 영상"
+    },
+    {
+      "id": "classic",
+      "label": "많이 쓰는 장르"
+    },
+    {
+      "id": "trend",
+      "label": "요즘 유행"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "corporate-uplift",
+      "title": "코퍼레이트 업라이트",
+      "note": "밝은 플럭과 피아노 — 회사 소개의 표준",
+      "group": "service",
+      "file": "/motion/bgm/corporate-uplift.mp3"
+    },
+    {
+      "id": "clean-tech",
+      "title": "클린 테크 인트로",
+      "note": "미니멀 아르페지오 — 제품 투어·SaaS 데모",
+      "group": "service",
+      "file": "/motion/bgm/clean-tech.mp3"
+    },
+    {
+      "id": "infographic-pizz",
+      "title": "인포그래픽 피치카토",
+      "note": "스타카토 현과 손뼉 — 설명 영상의 기본값",
+      "group": "service",
+      "file": "/motion/bgm/infographic-pizz.mp3"
+    },
+    {
+      "id": "brand-story",
+      "title": "브랜드 스토리 피아노",
+      "note": "피아노로 시작해 스트링이 차오름 — 창업 이야기",
+      "group": "service",
+      "file": "/motion/bgm/brand-story.mp3"
+    },
+    {
+      "id": "launch-day",
+      "title": "런치 데이 팝",
+      "note": "손뼉과 코드 스탭 — 런칭·발표 영상",
+      "group": "service",
+      "file": "/motion/bgm/launch-day.mp3"
+    },
+    {
+      "id": "lofi-study",
+      "title": "로파이 스터디",
+      "note": "스윙 비트와 노이즈 — 브이로그·공부 영상",
+      "group": "classic",
+      "file": "/motion/bgm/lofi-study.mp3"
+    },
+    {
+      "id": "calm-piano",
+      "title": "잔잔한 피아노",
+      "note": "조용한 피아노와 스트링 — 내레이션을 가장 적게 가린다",
+      "group": "classic",
+      "file": "/motion/bgm/calm-piano.mp3"
+    },
+    {
+      "id": "soft-ambient",
+      "title": "소프트 앰비언트",
+      "note": "리듬 없는 패드 — 브랜드·제품 영상",
+      "group": "classic",
+      "file": "/motion/bgm/soft-ambient.mp3"
+    },
+    {
+      "id": "bright-pop",
+      "title": "밝은 신스팝",
+      "note": "가벼운 4비트와 플럭 리드 — 광고·프로모션",
+      "group": "classic",
+      "file": "/motion/bgm/bright-pop.mp3"
+    },
+    {
+      "id": "warm-acoustic",
+      "title": "따뜻한 어쿠스틱",
+      "note": "핑거피킹 기타 — 사람 이야기에 가까운 톤",
+      "group": "classic",
+      "file": "/motion/bgm/warm-acoustic.mp3"
+    },
+    {
+      "id": "hopeful-build",
+      "title": "희망의 빌드업",
+      "note": "영상 전개에 맞춰 악기가 늘어남",
+      "group": "classic",
+      "file": "/motion/bgm/hopeful-build.mp3"
+    },
+    {
+      "id": "cinematic-rise",
+      "title": "시네마틱 상승",
+      "note": "드론과 스트링 스웰 — 트레일러·리빌",
+      "group": "classic",
+      "file": "/motion/bgm/cinematic-rise.mp3"
+    },
+    {
+      "id": "playful-marimba",
+      "title": "경쾌한 마림바",
+      "note": "가볍고 빠른 마림바 — 설명 영상",
+      "group": "classic",
+      "file": "/motion/bgm/playful-marimba.mp3"
+    },
+    {
+      "id": "minimal-tech",
+      "title": "미니멀 테크",
+      "note": "깔끔한 16비트 펄스 — B2B·제품 데모",
+      "group": "classic",
+      "file": "/motion/bgm/minimal-tech.mp3"
+    },
+    {
+      "id": "night-chill",
+      "title": "나이트 칠",
+      "note": "낮은 베이스와 로즈 — 차분한 버전",
+      "group": "classic",
+      "file": "/motion/bgm/night-chill.mp3"
+    },
+    {
+      "id": "drift-phonk",
+      "title": "드리프트 펑크",
+      "note": "카우벨과 눌린 808 — 숏폼에서 가장 크게 번진 장르",
+      "group": "trend",
+      "file": "/motion/bgm/drift-phonk.mp3"
+    },
+    {
+      "id": "amapiano",
+      "title": "아마피아노",
+      "note": "로그드럼과 셰이커 — 가장 빠르게 퍼지는 장르",
+      "group": "trend",
+      "file": "/motion/bgm/amapiano.mp3"
+    },
+    {
+      "id": "jersey-club",
+      "title": "저지 클럽",
+      "note": "다섯 번 튀는 킥 — 릴스 편집의 리듬",
+      "group": "trend",
+      "file": "/motion/bgm/jersey-club.mp3"
+    },
+    {
+      "id": "hyper-plugg",
+      "title": "하이퍼팝 플럭",
+      "note": "디튠된 밝은 플럭과 종소리",
+      "group": "trend",
+      "file": "/motion/bgm/hyper-plugg.mp3"
+    },
+    {
+      "id": "dream-bedroom",
+      "title": "드림 베드룸팝",
+      "note": "리버브에 잠긴 기타 — 감성 편집",
+      "group": "trend",
+      "file": "/motion/bgm/dream-bedroom.mp3"
+    }
+  ]
+}

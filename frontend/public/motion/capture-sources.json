@@ -1,0 +1,7 @@
+{
+  "upload": "frontend/src/components/ImportModal.jsx (local file selection only)",
+  "experience": "frontend/src/pages/experience/ExperienceResult.jsx (id=demo)",
+  "portfolio": "/example2 — WebPortfolioTemplates.jsx with PORTFOLIO_EXAMPLES.example2",
+  "resume": "backend/src/services/resumePdfService.js — buildResumeHtml(PORTFOLIO_EXAMPLES.example2)",
+  "note": "Actual product components with example data. File processing was not sent to an AI or server."
+}

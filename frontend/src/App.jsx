@@ -56,6 +56,7 @@ const Resultt               = lazy(() => import('./pages/Resultt')); // 직무�
 const PmReelsVideo          = lazy(() => import('./pages/PmReelsVideo'));
 const FitPolyProductReel    = lazy(() => import('./pages/FitPolyProductReel'));
 const SiteIntroVideo        = lazy(() => import('./pages/SiteIntroVideo')); // 서비스 소개 영상 (16:9)
+const MotionFilm            = lazy(() => import('./pages/MotionFilm'));
 
 function PageLoader() {
   return (
@@ -122,6 +123,7 @@ const router = createBrowserRouter(
       <Route path="/video" element={<SiteIntroVideo />} />
       <Route path="/video2" element={<PmReelsVideo />} />
       <Route path="/video3" element={<FitPolyProductReel />} />
+      <Route path="/motion" element={<MotionFilm />} />
       <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
