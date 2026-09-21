@@ -1,0 +1,31 @@
+{
+  "actual-experience-full": {
+    "width": 4290,
+    "height": 13803,
+    "tileHeight": 1536,
+    "tiles": [
+      "/motion/actual-experience-full-tile-0.png",
+      "/motion/actual-experience-full-tile-1.png",
+      "/motion/actual-experience-full-tile-2.png",
+      "/motion/actual-experience-full-tile-3.png",
+      "/motion/actual-experience-full-tile-4.png",
+      "/motion/actual-experience-full-tile-5.png",
+      "/motion/actual-experience-full-tile-6.png",
+      "/motion/actual-experience-full-tile-7.png",
+      "/motion/actual-experience-full-tile-8.png"
+    ]
+  },
+  "actual-portfolio-full": {
+    "width": 4290,
+    "height": 8712,
+    "tileHeight": 1536,
+    "tiles": [
+      "/motion/actual-portfolio-full-tile-0.png",
+      "/motion/actual-portfolio-full-tile-1.png",
+      "/motion/actual-portfolio-full-tile-2.png",
+      "/motion/actual-portfolio-full-tile-3.png",
+      "/motion/actual-portfolio-full-tile-4.png",
+      "/motion/actual-portfolio-full-tile-5.png"
+    ]
+  }
+}

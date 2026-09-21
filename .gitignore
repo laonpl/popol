@@ -5,3 +5,5 @@ serviceAccountKey.json
 *.log
 .DS_Store
 *.traineddata
+build/motion-masters/
+__pycache__/

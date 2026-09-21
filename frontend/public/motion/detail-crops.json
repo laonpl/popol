@@ -1,0 +1,22 @@
+{
+  "crop-metrics": {
+    "width": 3012,
+    "height": 770
+  },
+  "crop-strengths": {
+    "width": 2046,
+    "height": 924
+  },
+  "crop-results": {
+    "width": 2340,
+    "height": 1780
+  },
+  "crop-portfolio-card": {
+    "width": 1760,
+    "height": 1460
+  },
+  "crop-resume-entry": {
+    "width": 4092,
+    "height": 858
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "defaultBgm": "playful-marimba",
+  "voiceId": "ava",
+  "voice": "에이바 · en-US-AvaMultilingualNeural",
+  "variants": [
+    {
+      "file": "/motion/downloads/fitpoly-film-cc-voice.mp4",
+      "bgm": "playful-marimba",
+      "captions": true,
+      "narration": true,
+      "size": 64893193
+    },
+    {
+      "file": "/motion/downloads/fitpoly-film-cc.mp4",
+      "bgm": "playful-marimba",
+      "captions": true,
+      "narration": false,
+      "size": 64903517
+    },
+    {
+      "file": "/motion/downloads/fitpoly-film-voice.mp4",
+      "bgm": "playful-marimba",
+      "captions": false,
+      "narration": true,
+      "size": 63686337
+    },
+    {
+      "file": "/motion/downloads/fitpoly-film.mp4",
+      "bgm": "playful-marimba",
+      "captions": false,
+      "narration": false,
+      "size": 63695863
+    }
+  ]
+}
