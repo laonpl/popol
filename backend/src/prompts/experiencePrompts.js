@@ -13,6 +13,8 @@ import {
   getCareerFieldProfile,
 } from './careerFieldProfiles.js';
 import { clampMaterial } from '../utils/materialText.js';
+import { PM_EVIDENCE_GUIDE, PM_JOB_DATA_SCHEMA } from './pmEvidencePrompts.js';
+import { MARKETER_EVIDENCE_GUIDE, MARKETER_JOB_DATA_SCHEMA } from './marketerEvidencePrompts.js';
 
 const PR_GUIDELINES = `
 [10가지 성과 공식 — 가장 잘 맞는 유형으로 분류]
@@ -466,6 +468,8 @@ const GLOBAL_PORTFOLIO_TECHNIQUES = `
 // ============================================================
 // 마케터 특별 규칙 (ma.md 기반 — 마케터 경험정리 AI 운영 문서)
 // ============================================================
+// 캠페인 근거 사슬 가이드(MARKETER_EVIDENCE_GUIDE)는 keyExperiences 추출부에만 붙인다.
+// 여기에 다시 붙이면 초안 프롬프트에 같은 지침이 두 번 들어가 응답이 비대해지고 내용이 얇아진다.
 const MARKETER_RULES = `
 [🎯 마케터 경험정리 특별 규칙 — 반드시 준수]
 당신은 단순 글정리 도우미가 아니라 마케터 커리어 자료를 설계하는 AI 커리어 전략가입니다.
@@ -490,17 +494,17 @@ const MARKETER_RULES = `
 //   개발자가 커밋에서 코드·트러블슈팅을 추출하듯, PM은 "의사결정"을 추출한다.
 //   프론트 PM 화면의 제품 판단 프로필·의사결정 로그·가설 검증 카드가 이 데이터로 그려진다.
 // ============================================================
-const PM_RULES = `
+const PM_RULES = PM_EVIDENCE_GUIDE + `
 [🎯 기획자/PM 경험정리 특별 규칙 — 반드시 준수]
 당신은 단순 글정리 도우미가 아니라 PM 커리어 자료를 설계하는 AI 프로덕트 전략가입니다.
 "이 경험이 어떤 프로덕트 판단력을 증명하는가?"를 찾아내는 것이 최우선 목표입니다.
 
 1. 구조: 경험을 "업무 나열"이 아니라 문제 프레이밍 → 검증 가능한 가설 → 성공·반증 기준 → 트레이드오프 → 실행 → 근거 수집 → 판단 업데이트 구조로 재구성하세요.
 2. 의사결정 단위: keyExperiences는 반드시 "의사결정" 단위로 추출하세요. 무엇을 하기로 했고(decision), 어떤 대안을 왜 기각했으며(alternatives), 누구를 어떤 근거로 설득했고(stakeholders), 어떻게 검증했는지(validation)가 각각 드러나야 합니다. learning에는 검증 전 믿음과 달라진 점을 적으세요.
-3. impact/effort: 각 의사결정의 비즈니스 임팩트(1~5)와 투입 리소스·난이도(1~5)를 원본 근거로 추정해 반드시 정수로 채우세요. (우선순위 매트릭스 좌표로 사용됨 — 근거가 전혀 없을 때만 비움)
+3. impact/effort: 원문에 1~5 척도 점수가 명시되고 priorityQuote로 인용할 수 있을 때만 사용하세요. 수치 성과가 있다는 이유로 점수나 좌표를 추정하지 마세요.
 4. 성공 신호: 원본에 목표·성공·반증 기준 단서가 있으면 portfolioVisuals.goals에 목표(label)/목표치(target)/실제(actual)/달성 여부(achieved)를 채우세요. 목표치·실제 수치는 원본에 있는 것만 사용하고, 달성 여부는 원본 서술로 판단하세요.
 5. 수치: DAU·전환율·매출·리텐션은 원본에 없으면 절대 창작 금지 — "[확인 필요]"로 표기하고, 대체 근거(사용자 인터뷰, 사용성 테스트, VOC 패턴, 이해관계자 합의 등)를 제안하세요.
-6. 직무 번역: 단순 활동을 PM 직무 언어로 번역하세요. (예: "회의를 진행했다" → "개발·디자인 리소스 제약 안에서 우선순위 기준을 합의시키는 의사결정 회의를 리드했다")
+6. 직무 번역: 실제로 수행한 활동 범위 안에서만 정리하세요. "회의에 참여했다"를 "우선순위를 합의시키고 회의를 리드했다"로 확대하지 마세요. 대안·제약·합의·주도 여부는 원문 근거가 있어야 합니다.
 7. 역할 구분: 팀의 결정과 "내가 주도한 결정"을 반드시 구분하고, 내 오너십 범위(단독 결정/제안 후 합의/실행 담당)를 명시하세요.
 8. 판단의 변화: 좋은 PM 경험은 가설이 맞았다는 자랑만 하지 않습니다. 예상과 달랐던 신호, 버린 가설, 그 결과 다음 결정 원칙이 어떻게 바뀌었는지를 반드시 찾으세요.
 9. 금지: "소통했습니다", "조율했습니다", "참여했습니다"로 끝나는 문장과 근거 없는 역량 태그 나열 금지 — 무엇을 어떤 기준과 근거로 결정해 무엇이 바뀌었는지까지 쓰세요.
@@ -688,6 +692,28 @@ const MARKETER_KIT_SCHEMA = `,
     "evidenceChecklist": ["증거 자료"]
   }`;
 
+// 초안(draft)용 축소 키트 — 자소서·면접·액션플랜·포트폴리오 페이지까지 한 응답에 요구하면
+// 출력이 잘리거나 파싱에 실패해 정작 자료의 내용이 초안에 안 담긴다.
+// 초안 화면이 실제로 그리는 블록만 요청하고, 나머지는 '보강하기'(buildOverviewPrompt)가 채운다.
+const MARKETER_KIT_DRAFT_SCHEMA = `,
+  "marketerKit": {
+    "positioning": "추천 방향을 한 문장으로 압축. 예: 콘텐츠 기획과 채널 운영 경험을 가진 신입 콘텐츠 마케터",
+    "positioningReport": {
+      "recommendedPositions": [
+        { "name": "콘텐츠 마케터", "score": 78, "reason": "자료의 어떤 사실이 이 방향을 뒷받침하는지. 점수는 진단용 추정치이며 성과 수치가 아님" }
+      ],
+      "strengths": ["자료에서 확인되는 강점 3~5개"],
+      "weaknesses": ["보완이 필요한 점 3~5개"],
+      "recommendation": "추천 포지셔닝 문장. 어떤 마케터로 보이면 좋은지 명확히",
+      "priorityFixes": ["우선 보완할 것 3~5개"]
+    },
+    "funnel": { "problem": "해결하려던 문제/기회", "goal": "목표·KPI", "target": "타깃", "strategy": "전략", "execution": "실행", "result": "성과", "insight": "인사이트" },
+    "kpis": [ { "name": "지표명", "value": "값 또는 [확인 필요]", "status": "확인됨|확인 필요" } ],
+    "altMetrics": ["수치가 없을 때 쓸 대체 지표 — 제작물 수·운영 기간·게시 빈도·실험 횟수·정성 피드백"],
+    "jdKeywords": ["직무 키워드"],
+    "evidenceChecklist": ["확보하면 좋은 증거 자료"]
+  }`;
+
 const MARKETER_DRAFT_JOB_SCHEMA = `,
   "jobSpecific": {
     "funnel": "문제→목표→타깃→전략→실행→성과→인사이트 구조의 캠페인 스토리 (4~7문장)",
@@ -695,7 +721,7 @@ const MARKETER_DRAFT_JOB_SCHEMA = `,
     "kpiEvidence": "확인된 지표 / [확인 필요] 지표 / 대체 지표 / 확보할 증거 자료 정리",
     "resumeBullets": "이력서 bullet 2~3개 (한 줄씩 개행으로 구분)",
     "jdKeywordMap": "직무 키워드와 각 키워드를 증명하는 사실 연결"
-  }${MARKETER_KIT_SCHEMA}`;
+  }${MARKETER_KIT_DRAFT_SCHEMA}`;
 // 직무별 핵심 경험 추출 스키마 (keyExperiences[].jobData)
 //   직무마다 "핵심 경험"의 단위와 구성 요소가 다르다:
 //   마케터=캠페인, PM=의사결정, 디자이너=개선 반복, DA=분석, HR=프로그램, 세일즈=딜, AI/ML=실험, 데브옵스=인시던트/개선.
@@ -714,13 +740,13 @@ const JOB_KEYEXP_META = {
   },
   marketer: {
     unit: '캠페인/실험',
-    guide: '비즈니스 문제 → 타깃에 대한 관찰 → 채널·메시지 가설 → 비교한 집행안 → KPI와 중단/확대 기준 → 실행 → 반응 → 귀인 한계 → 다음 실험 순으로 추출하세요. 조회수 자체보다 그 숫자를 보고 예산·메시지·타깃 판단을 어떻게 바꿨는지가 중요합니다.',
-    schema: '{ "businessProblem": "캠페인이 풀려던 비즈니스 문제", "target": "실제 근거가 있는 타깃 페르소나·세그먼트", "audienceInsight": "타깃을 이렇게 본 사용자/VOC/데이터 근거", "channels": ["검토·집행한 채널"], "creative": "메시지·크리에이티브 가설", "experimentOptions": ["비교한 타깃·채널·소재 대안"], "kpis": [ { "name": "지표명", "value": "실제 값", "decisionUse": "이 값을 보고 내린 판단" } ], "attributionLimit": "성과 귀인의 한계·외부 변수", "nextExperiment": "다음에 검증할 가설" }',
+    guide: MARKETER_EVIDENCE_GUIDE,
+    schema: MARKETER_JOB_DATA_SCHEMA,
   },
   pm: {
     unit: '의사결정',
-    guide: '각 핵심 경험을 하나의 프로덕트 의사결정 단위로 추출: 사용자·비즈니스 문제에서 어떤 가설을 세웠고, 무엇을 하기로 결정했으며, 어떤 대안을 왜 기각했고, 실행 중 어떤 난관에 부딪혀 어떻게 돌파했으며, 가설을 어떤 데이터·인터뷰·실험으로 검증해 무엇을 판단했는지가 드러나야 합니다. hypothesis에는 실행 내용이나 이미 달성한 성과를 요약하지 마세요. 반드시 검증 전 믿음·예상만 짧은 현재형 문장으로 쓰세요(예: "사용자는 핵심 루프를 완주한다", "AI 결과는 별도 수정 없이 채택할 만큼 유용하다"). "베타 테스트를 설계했다", "팔로워 481명을 확보했다", "시스템을 구축했다" 같은 실행·결과 문장은 hypothesis에 금지합니다. obstacle에는 실행 중 가장 막혔던 지점(리소스·이해관계·기술 제약)을, resolution에는 그것을 돌파한 구체적 방법을 적으세요. learning에는 단순 소감이 아니라 검증 전 믿음과 달라진 점, 다음 결정에서 바꿀 원칙을 작성하세요. impact/effort는 원본 근거로 1~5 정수를 반드시 추정해 채우세요(우선순위 매트릭스 좌표로 그려짐) — 근거가 전혀 없을 때만 비웁니다.',
-    schema: '{ "problemSignal": "처음 문제를 의심한 사용자 행동·VOC·데이터", "hypothesis": "검증 전의 믿음·예상을 나타내는 짧은 현재형 가설 1문장 (실행 내용·달성 성과 금지)", "successCriteria": "실행 전에 정한 성공·반증 기준", "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "obstacle": "실행 중 부딪힌 가장 큰 난관·제약 1문장", "resolution": "그 난관을 돌파한 구체적 방법 1문장", "validation": "가설 검증 방법·기준·근거 (데이터·인터뷰·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
+    guide: PM_EVIDENCE_GUIDE,
+    schema: PM_JOB_DATA_SCHEMA,
   },
   designer: {
     unit: '개선 반복',
@@ -932,7 +958,7 @@ ${tail}`;
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
   "keywords": []${EXPERIENCE_PROFILE_SCHEMA}${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
 }
-${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${EXPERIENCE_PROFILE_GUIDE}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${EXPERIENCE_PROFILE_GUIDE}${isMarketer ? '\nmarketerKit와 jobSpecific은 자료에 실제로 있는 내용(타깃·채널·소재·실행 방식·반응)을 최대한 구체적으로 옮겨 담으세요. 일반적인 마케팅 조언으로 칸을 채우지 말고, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기한 뒤 대체 지표를 함께 제시하세요.' : ''}
 ${tail}`;
 }
 

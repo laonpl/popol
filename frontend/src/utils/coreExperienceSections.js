@@ -8,6 +8,9 @@
  * 이 같은 섹션 목록을 공유한다. 섹션 type은 'core'.
  */
 import { buildJdEvidenceMap } from './jdEvidenceMap';
+import { buildMarketerEvidenceExportSections } from './marketerEvidence';
+import { buildPmEvidenceExportSections, getPmPriorityItems } from './pmEvidence';
+import { caseArtifacts } from './roleArtifacts';
 
 function sanitizeText(text) {
   if (text == null) return '';
@@ -80,7 +83,7 @@ function buildKeyExperienceExportSection(keyExperiences = [], keyExpImages = {},
         coreLine('기각한 대안', jd.alternatives),
         coreLine('이해관계자', jd.stakeholders),
         coreLine('검증 방법', jd.validation),
-        impact >= 1 && effort >= 1 ? `임팩트/리소스: Impact ${impact} · Effort ${effort}` : '',
+        getPmPriorityItems([item]).length ? `임팩트/리소스(원문 명시): Impact ${impact} · Effort ${effort}` : '',
       ] : []),
       coreLine(isPm ? '실행·돌파' : '행동', item?.action),
       coreLine('결과', item?.result),
@@ -190,11 +193,12 @@ function buildLeanCanvasSection(sr = {}) {
   const pv = sr.portfolioVisuals || {};
   const metricItems = [
     ...(Array.isArray(pv.kpis) ? pv.kpis : []).map(k => ({ label: coreText(k?.label), value: coreText(k?.value) })),
-    ...(Array.isArray(pv.goals) ? pv.goals : []).map(g => ({ label: coreText(g?.label), value: coreText(g?.actual) || coreText(g?.target) })),
+    ...(Array.isArray(pv.goals) ? pv.goals : []).map(g => ({ label: coreText(g?.label), value: `목표 ${coreText(g?.target) || '미기록'} / 관찰값 ${coreText(g?.actual) || '미측정·미기록'}` })),
   ].filter(m => m.label || m.value).slice(0, 3);
   const content = joinCoreLines([
     coreLine('문제', product.problem),
-    coreLine('기존 솔루션', canvas.existingAlternatives || product.solution),
+    coreLine('기존 솔루션', canvas.existingAlternatives),
+    coreLine('제안 솔루션', product.solution),
     coreLine('고유 가치 제안', canvas.uvp),
     coreLine('고객 세그먼트', canvas.customers),
     coreLine('얼리어답터', canvas.earlyAdopters),
@@ -434,13 +438,37 @@ export function buildCoreExperienceSections({ jobCategory = 'common', sr = {}, c
   if (CORE_DEV_GIT_JOBS.includes(jobCategory)) {
     sections = [buildProductIntroSection(sr), buildGitImpactSection(sr), buildGitProblemSection(sr), keyExpSection];
   } else if (jobCategory === 'pm') {
-    sections = [buildLeanCanvasSection(sr), keyExpSection, buildPmValidationSection(sr, keyExperiences)];
+    const ov = sr.projectOverview || {};
+    const brief = joinCoreLines([
+      coreText(caseStudy?.summary || sr.intro),
+      coreLine('내 역할과 책임', caseStudy?.meta?.role || ov.role),
+      coreLine('프로젝트 기간', caseStudy?.meta?.duration || ov.duration),
+      coreLine('함께한 팀', caseStudy?.meta?.team || ov.team),
+      coreLine('대상 문제', sr.product?.problem),
+    ]);
+    sections = [{ key: 'core-pm-brief', label: '프로젝트 맥락과 역할', type: 'core', content: brief, enabled: !!brief }, ...buildPmEvidenceExportSections(sr)];
   } else if (jobCategory === 'marketer') {
-    sections = [keyExpSection, buildMarketerCampaignSection(sr), buildMarketerResumeSection(sr)];
+    const brief = joinCoreLines([coreText(caseStudy?.summary || sr.intro), coreLine('내 역할과 책임', caseStudy?.meta?.role || sr.projectOverview?.role), coreLine('프로젝트 기간', caseStudy?.meta?.duration || sr.projectOverview?.duration)]);
+    sections = [{ key: 'core-marketer-brief', label: '프로젝트 맥락과 역할', type: 'core', content: brief, enabled: !!brief }, ...buildMarketerEvidenceExportSections({ ...sr, keyExperiences: keyExperiences.length ? keyExperiences : sr.keyExperiences })];
   } else if (JOB_SIGNATURE[jobCategory]) {
     sections = [keyExpSection, buildJobSignatureSection(jobCategory, keyExperiences)];
   } else {
     sections = [keyExpSection];
+  }
+  if (['pm', 'marketer'].includes(jobCategory)) {
+    // Keep actual work samples in exports, not just plaintext URLs.
+    const cases = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
+    cases.forEach((experience, sourceIndex) => {
+      if (!experience) return;
+      const jd = experience.jobData || {};
+      const records = jobCategory === 'pm' ? jd.pmEvidence || [] : jd.marketerEvidence || [];
+      const workProducts = jobCategory === 'pm' ? jd.pmWorkProducts || {} : jd.marketerWorkProducts || {};
+      const metrics = jobCategory === 'pm' ? jd.pmMetrics || [] : jd.marketerMetrics || [];
+      const files = caseArtifacts(sr, { sourceIndex, records, workProducts, metrics }).filter(file => file.image);
+      const legacy = Array.isArray(keyExpImages[sourceIndex]) ? keyExpImages[sourceIndex] : caseStudy?.keyExps?.[sourceIndex]?.images || [];
+      const images = [...files.map(file => ({ url: file.url, caption: file.caption || file.name })), ...legacy].filter((image, index, all) => image?.url && all.findIndex(other => other?.url === image.url) === index);
+      if (images.length) sections.push({ key: `core-${jobCategory}-samples-${sourceIndex}`, label: `${experience.title || '핵심 경험'} · 원본 작업물`, type: 'core', enabled: true, blocks: images.map(image => makeImageBlock(image.url, image.caption || experience.title, image.width)) });
+    });
   }
   sections.push(buildJdEvidenceSection(sr, jobAnalysis, expTitle));
   sections.push(buildArtifactEvidenceSection(sr));

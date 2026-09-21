@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import { requireCredits } from '../services/billingService.js';
+import { roleAnalysisContent, preserveRolePresentation } from '../utils/roleMaterials.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
@@ -129,11 +130,16 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
           ? Number(momentsCount)
           : (data.momentsCount || 3));
 
+    const analysisContent = roleAnalysisContent(data);
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common', data.careerStage || 'first');
+      analysis = await analyzeExperience(analysisContent, count, moments, data.jobCategory || 'common', data.careerStage || 'first');
     } catch (aiError) {
       const errMsg = aiError.message || '';
+      if (['pm', 'marketer'].includes(data.jobCategory) && data.structuredResult?.keyExperiences?.length) {
+        // A failed extraction must not replace reviewed work products with a lossy fallback.
+        return res.json({ ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' });
+      }
       const hasFallbackInput = (moments && moments.length > 0)
         || Object.values(data.content || {}).some(value => String(value || '').trim());
       if (hasFallbackInput) {
@@ -162,6 +168,7 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
         analysis.interviewPlan = data.structuredResult?.interviewPlan || analysis.interviewPlan || null;
         analysis.interviewSession = data.structuredResult?.interviewSession || analysis.interviewSession || null;
         analysis.deliverables = data.structuredResult?.deliverables || analysis.deliverables || [];
+        analysis = preserveRolePresentation(analysis, data.structuredResult);
         await docRef.update({
           structuredResult: analysis,
           keywords: analysis.keywords || [],
@@ -195,6 +202,9 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     }
 
     // 재분석 시 유실 방지: GitHub 기여도·분석원본은 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
+    if (analysis?._fallback && ['pm', 'marketer'].includes(data.jobCategory) && data.structuredResult?.keyExperiences?.length) {
+      return res.json({ ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' });
+    }
     analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
     analysis.gitAnalysis = data.structuredResult?.gitAnalysis || analysis.gitAnalysis || null;
     analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
@@ -209,6 +219,7 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     analysis.interviewPlan = data.structuredResult?.interviewPlan || analysis.interviewPlan || null;
     analysis.interviewSession = data.structuredResult?.interviewSession || analysis.interviewSession || null;
     analysis.deliverables = data.structuredResult?.deliverables || analysis.deliverables || [];
+    analysis = preserveRolePresentation(analysis, data.structuredResult);
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({

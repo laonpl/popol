@@ -33,6 +33,7 @@ export function mergeCaseStudyIntoStructured(structuredResult, caseStudy) {
   const prevKE = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
   const keyExperiences = (Array.isArray(caseStudy.keyExps) ? caseStudy.keyExps : []).map((k, i) => ({
     ...(prevKE[i] || {}),
+    ...(['pm', 'marketer'].includes(sr.jobCategory) ? { id: prevKE[i]?.id || k.id || `case-${i + 1}` } : {}),
     title: k.title || '',
     // 간략 보기의 'metric'은 결과 수치 → 자세히 보기의 afterMetric에 대응 (deriveCaseStudy와 동일 규칙)
     afterMetric: k.metric || '',

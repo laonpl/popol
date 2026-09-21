@@ -55,7 +55,7 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res) =>
 });
 
 // 프로젝트 산출물 문서(PDF·PPT·HWP·DOC 등) 업로드용 — 이미지 외 파일 허용
-const DOC_EXT = /\.(pdf|ppt|pptx|hwp|hwpx|doc|docx|key|xls|xlsx|txt|md|zip|jpg|jpeg|png|webp)$/i;
+const DOC_EXT = /\.(pdf|ppt|pptx|hwp|hwpx|doc|docx|key|xls|xlsx|csv|tsv|txt|md|zip|jpg|jpeg|png|webp|gif)$/i;
 const uploadDoc = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB

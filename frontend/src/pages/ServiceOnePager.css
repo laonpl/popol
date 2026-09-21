@@ -1,0 +1,58 @@
+/* /pic — 한 장 소개 이미지 보기·내려받기 화면. */
+
+.pic-page {
+  min-height: 100vh;
+  background: #eef2f7;
+  padding: 0 0 40px;
+}
+
+.pic-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(238, 242, 247, .93);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #dfe6ee;
+}
+.pic-bar-title { font-size: 13.5px; font-weight: 700; color: #002F6C; }
+.pic-bar-download {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 9px;
+  background: #002F6C;
+  padding: 9px 15px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+}
+.pic-bar-download:hover { background: #00255a; color: #fff; }
+.pic-bar-download:focus-visible { outline: 2px solid #4b83b8; outline-offset: 3px; }
+
+/* 이미지는 원본 비율 그대로. 좁은 화면에서는 폭에 맞춰 줄인다.
+   가로형(2100×1510) 한 장 소개 — 제출용. */
+.pic-image {
+  display: block;
+  width: 100%;
+  max-width: 1500px;
+  height: auto;
+  margin: 22px auto 0;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -32px rgba(15, 40, 80, .38);
+}
+
+@media (max-width: 1280px) {
+  .pic-image { margin: 14px auto 0; border-radius: 10px; }
+}
+
+@media print {
+  .pic-page { background: #fff; padding: 0; }
+  .pic-bar { display: none; }
+  .pic-image { margin: 0; border-radius: 0; box-shadow: none; max-width: 100%; }
+}

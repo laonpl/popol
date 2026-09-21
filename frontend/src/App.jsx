@@ -57,6 +57,7 @@ const PmReelsVideo          = lazy(() => import('./pages/PmReelsVideo'));
 const FitPolyProductReel    = lazy(() => import('./pages/FitPolyProductReel'));
 const SiteIntroVideo        = lazy(() => import('./pages/SiteIntroVideo')); // 서비스 소개 영상 (16:9)
 const MotionFilm            = lazy(() => import('./pages/MotionFilm'));
+const ServiceOnePager       = lazy(() => import('./pages/ServiceOnePager')); // 한 장 서비스 소개 (/pic)
 
 function PageLoader() {
   return (
@@ -120,6 +121,7 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/deck" element={<ServiceDeck />} />
+      <Route path="/pic" element={<ServiceOnePager />} />
       <Route path="/video" element={<SiteIntroVideo />} />
       <Route path="/video2" element={<PmReelsVideo />} />
       <Route path="/video3" element={<FitPolyProductReel />} />

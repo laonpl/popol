@@ -386,6 +386,11 @@ const JOB_FIELD_LABELS = Object.fromEntries(
 /** 경험 정리 전체 → 초안 블록 (제목 + 속성 + 서비스 개요 + 작성된 섹션 + 핵심경험 + 직군 산출물) */
 export function experienceDraftBlocks(exp, imageData = {}) {
   const sr = exp?.structuredResult || {};
+  // PM은 기존 MSC·린 캔버스와 일반 성과 카드를 다시 덧붙이지 않는다.
+  if (['pm', 'marketer'].includes(exp?.jobCategory || sr.jobCategory)) {
+    return [headingBlock(sanitizeText(exp?.title) || '제품 의사결정', 'HeadingOne'),
+      ...contentBearingCoreSections(exp).flatMap(section => sectionToBlocks(normSection(section), imageData))];
+  }
   const overview = sr.projectOverview || {};
   const blocks = [headingBlock(sanitizeText(exp?.title) || '제목 없음', 'HeadingOne')];
 

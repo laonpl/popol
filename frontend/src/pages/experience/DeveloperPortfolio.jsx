@@ -8,6 +8,8 @@ import { computeDevDiagnostic, devSectionFilled, getJobPortfolioMeta, normalizeP
 import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
 import { KpiTileRow, FunnelChart, DumbbellCompare, MixBar, GoalBoard, ProcessFlow, SectionShell } from '../../components/portfolio/JobVisuals';
 import JobHero from '../../components/portfolio/JobHero';
+import PmEvidenceCaseStudy from '../../components/portfolio/PmEvidenceCaseStudy';
+import MarketerEvidenceCaseStudy from '../../components/portfolio/MarketerEvidenceCaseStudy';
 import JobExperienceCard, { hasJobExperienceCard } from '../../components/portfolio/JobExperienceCards';
 import { PriorityMatrix, DoubleDiamond, ImageShowcase, PairedBars, MetricLeaderboard, CampaignFlow, TopDealsChart, parseWon, PipelineKanban, normalizeStage, BeforeAfterShowcase, pickBeforeAfterPairs, AimlIcon } from '../../components/portfolio/JobSignature';
 import { PipelineDiagram, TopologyDiagram } from '../../components/portfolio/JobDiagram';
@@ -136,6 +138,7 @@ export default function DeveloperPortfolio() {
   const sr = data.structuredResult || {};
   const ov = sr.projectOverview || {};
   const jobCategory = data.jobCategory || sr.jobCategory || 'dev';
+  const hasPmEvidence = ['pm', 'marketer'].includes(jobCategory);
   const jobMeta = JOB_CATEGORIES.flatMap(g => g.items).find(it => it.value === jobCategory);
   const jobLabel = jobMeta?.label || '개발자';
   const pmeta = getJobPortfolioMeta(jobCategory);
@@ -225,6 +228,7 @@ export default function DeveloperPortfolio() {
 
   // ── 직군 특화 경험 인라인 편집: 진입/취소/저장 ──
   const enterEditContent = () => {
+    if (jobCategory === 'pm') { navigate(`/app/experience/result/${id}`); return; }
     setJsDraft({ ...(sr.jobSpecific || {}) });
     setPvDraft({ ...(sr.portfolioVisuals || {}) });
     setEditContent(true);
@@ -285,7 +289,7 @@ export default function DeveloperPortfolio() {
   const visuals = normalizePortfolioVisuals(sr, { jobSections, keyExperiences: keyExps, texts: narrativeTexts, jobSpecific: effectiveJobSpecific });
 
   // 직무별 전용 히어로 사용 여부 (dev·common은 기존 헤더)
-  const hasCustomHero = ['marketer', 'sales', 'hr', 'pm', 'da', 'designer', 'aiml', 'devops'].includes(jobCategory);
+  const hasCustomHero = ['marketer', 'sales', 'hr', 'da', 'designer', 'aiml', 'devops'].includes(jobCategory);
   // 히어로·쇼케이스가 이미 보여주는 블록은 본문에서 중복 제거 (같은 데이터를 두 번 그리지 않기)
   const HERO_CONSUMED = { marketer: ['kpis'], sales: ['kpis'], hr: ['funnel'], aiml: ['kpis'], designer: ['process'], devops: ['process'] };
   const SHOWCASE_CONSUMED = { marketer: ['mix'], hr: ['funnel'], devops: ['process'] };
@@ -302,7 +306,7 @@ export default function DeveloperPortfolio() {
   ));
 
   // 다이어그램으로 시각화하는 섹션은 텍스트 카드에서 제외 (dev=architecture, aiml=datasetArch, devops=infraArch)
-  const analysisSections = jobSections.filter(f => f.key !== diagramKey && devSectionFilled(effectiveJobSpecific[f.key]));
+  const analysisSections = hasPmEvidence ? [] : jobSections.filter(f => f.key !== diagramKey && devSectionFilled(effectiveJobSpecific[f.key]));
   const projectsTitle = {
     marketer: '핵심 캠페인', sales: '핵심 딜 · 성과', hr: '핵심 프로그램', pm: '핵심 프로덕트',
     da: '핵심 분석 프로젝트', designer: '핵심 프로젝트', aiml: '핵심 모델 · 실험', devops: '핵심 인프라 작업',
@@ -315,19 +319,7 @@ export default function DeveloperPortfolio() {
   }[jobCategory] || '상세 분석';
 
   // ── 직무 시그니처 아티팩트 데이터 ──
-  // PM: 우선순위 매트릭스 — jobData.impact/effort(1~5) 우선, 없으면 휴리스틱(수치 있는 결정=임팩트↑, 좌표는 겹치지 않게 분산)
-  const EFFORT_SPREAD = [1.8, 3.9, 2.8, 4.5, 1.4];
-  const IMPACT_SPREAD = [4.4, 3.4, 4.0, 2.6, 3.0];
-  const clampScale = (v, d) => { const n = Number(v); return Number.isFinite(n) && n >= 1 && n <= 5 ? n : d; };
-  const matrixItems = jobCategory === 'pm' ? keyExps.slice(0, 5).map((k, i) => {
-    const hasMetric = Boolean(clean(k.afterMetric) || clean(k.metric));
-    return {
-      label: clean(k.title) || `결정 ${i + 1}`,
-      impact: clampScale(k.jobData?.impact, Math.min(5, IMPACT_SPREAD[i % IMPACT_SPREAD.length] + (hasMetric ? 0.4 : -0.3))),
-      effort: clampScale(k.jobData?.effort, EFFORT_SPREAD[i % EFFORT_SPREAD.length]),
-      n: i + 1,
-    };
-  }) : [];
+  // 원문에서 명시된 1~5점만 사용한다. 위치를 만들기 위한 임의 좌표는 금지한다.
   // DA: A/B 대조군 vs 실험군 (AI 추출 jobData 기반)
   const abRows = jobCategory === 'da' ? keyExps
     .filter(k => k.jobData?.control && k.jobData?.variant)
@@ -383,7 +375,7 @@ export default function DeveloperPortfolio() {
   // 보드가 뜨면 같은 수치를 반복하는 KPI 타일 블록은 숨김 (직무 시그니처가 있으면 보드 대신 시그니처)
   const showBoard = boardRows.length > 0 && abRows.length === 0 && baselineRows.length === 0
     && campaignFlows.length === 0 && topDeals.length === 0;
-  const finalVisualBlocks = showBoard ? visualBlocks.filter(v => v.type !== 'kpis') : visualBlocks;
+  const finalVisualBlocks = jobCategory === 'pm' ? [] : showBoard ? visualBlocks.filter(v => v.type !== 'kpis') : visualBlocks;
 
   const isEmpty = analysisSections.length === 0 && keyExps.length === 0 && gitExps.length === 0 && !hasDiagram && visualBlocks.length === 0;
 
@@ -510,7 +502,9 @@ export default function DeveloperPortfolio() {
         )}
 
         {/* ════ 완성도 진단 — 전 직군 상단 고정 (개발자 포트폴리오와 동일) ════ */}
-        {diagSection}
+        {!hasPmEvidence && diagSection}
+        {jobCategory === 'pm' && <div className="mt-8"><PmEvidenceCaseStudy sr={sr} sourceText={data.content?.rawInput || data.rawInput || undefined} readOnly /></div>}
+        {jobCategory === 'marketer' && <div className="mt-8"><MarketerEvidenceCaseStudy sr={sr} sourceText={data.content?.rawInput || data.rawInput || undefined} readOnly /></div>}
 
         {/* ════ 직군 특화 경험 인라인 편집 — 이 화면에서 바로 섹션 텍스트·차트 데이터 수정 ════ */}
         {editContent && (
@@ -553,7 +547,6 @@ export default function DeveloperPortfolio() {
         {githubStats && <ContributionStats stats={githubStats} />}
 
         {/* ════ 직무 시그니처 아티팩트 — 개발자의 아키텍처·코드에 해당하는 킬러 시각화 ════ */}
-        {matrixItems.length > 0 && <PriorityMatrix items={matrixItems} accent={pmeta.accent} />}
         {jobCategory === 'designer' && <DoubleDiamond steps={visuals.process} accent={pmeta.accent} />}
         {beforeAfterPairs.length > 0 && <BeforeAfterShowcase pairs={beforeAfterPairs} accent={pmeta.accent} />}
         {showcaseImages.length > 0 && <ImageShowcase images={showcaseImages} accent={pmeta.accent} />}
@@ -730,7 +723,7 @@ export default function DeveloperPortfolio() {
               {gitExps.map((exp, i) => <GitProjectCard key={i} exp={exp} index={i} />)}
             </div>
           </SectionShell>
-        ) : keyExps.length > 0 && (
+        ) : !hasPmEvidence && keyExps.length > 0 && (
           <SectionShell icon={Briefcase} title={`${projectsTitle} (${keyExps.length})`} accent={pmeta.accent}>
             <div className="space-y-4">
               {/* 직무별 경험 카드 — 직무마다 경험 단위·구성 요소가 다름 (캠페인/의사결정/개선반복/분석/딜/실험/프로그램/인시던트) */}

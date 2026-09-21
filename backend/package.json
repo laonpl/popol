@@ -9,7 +9,8 @@
     "dev": "nodemon --delay 500ms src/index.js",
     "start": "node src/index.js",
     "postinstall": "puppeteer browsers install chrome",
-    "capture:reel": "node scripts/capture-eng-reel.mjs"
+    "capture:reel": "node scripts/capture-eng-reel.mjs",
+    "capture:intro": "node scripts/render-site-intro.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",

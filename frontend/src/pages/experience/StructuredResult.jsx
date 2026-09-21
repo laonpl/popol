@@ -10,6 +10,8 @@ import VisualDataEditor from '../../components/portfolio/VisualDataEditor';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+import PmEvidenceCaseStudy from '../../components/portfolio/PmEvidenceCaseStudy';
+import MarketerEvidenceCaseStudy from '../../components/portfolio/MarketerEvidenceCaseStudy';
 import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
@@ -1920,6 +1922,7 @@ export default function StructuredResult() {
 
   const handleEnhanceDraft = async () => {
     if (!id || enhancingDraft) return;
+    if (dirty) { toast('수정한 내용을 먼저 저장한 뒤 산출물을 다시 추출해 주세요.'); return; }
     setEnhancingDraft(true);
     try {
       const reviewedMoments = editedKeyExperiences.map((item, index) => ({
@@ -1940,6 +1943,7 @@ export default function StructuredResult() {
         reviewedMoments: reviewedMoments.length > 0 ? reviewedMoments : undefined,
       });
       applyStructuredResult(structured);
+      if (['pm', 'marketer'].includes(experience?.jobCategory || structured?.jobCategory)) setActiveTab('keyexp');
       if (structured?._fallback) {
         toast('AI 보강이 일시적으로 불안정해 초안을 유지했습니다. 다시 시도할 수 있어요.');
       } else {
@@ -3133,14 +3137,14 @@ export default function StructuredResult() {
               </span>
             )}
 
-            {experience?.structuredResult?._draft && (
+            {(experience?.structuredResult?._draft || ['pm', 'marketer'].includes(experience?.jobCategory || experience?.structuredResult?.jobCategory)) && (
               <button
                 onClick={handleEnhanceDraft}
                 disabled={enhancingDraft}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-lg text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
               >
                 {enhancingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강하기'}
+                {enhancingDraft ? 'AI 보강 중...' : (!experience?.structuredResult?._draft ? `${jobCategory === 'pm' ? 'PM' : '마케터'} 산출물 다시 추출` : 'AI로 보강하기')}
               </button>
             )}
 
@@ -3219,14 +3223,25 @@ export default function StructuredResult() {
       {/* 핵심 경험 슬라이더 */}
       {activeTab === 'keyexp' && (
       <div className="mb-5">
-        <KeyExperienceSlider
+        {jobCategory === 'pm' ? <PmEvidenceCaseStudy
+          sr={{ ...(experience?.structuredResult || {}), keyExperiences: editedKeyExperiences }}
+          readOnly={viewOnly}
+          onChange={next => handleKeyExperiencesChange(next.keyExperiences)}
+          onRecordChange={(caseIndex, recordIndex, claim) => handleKeyExperiencesChange(editedKeyExperiences.map((item, index) => index !== caseIndex ? item : {
+            ...item, jobData: { ...item.jobData, pmEvidence: (item.jobData?.pmEvidence || []).map((record, ri) => ri !== recordIndex ? record : { ...record, claim, userEdited: true }) },
+          }))}
+        /> : jobCategory === 'marketer' ? <MarketerEvidenceCaseStudy
+          sr={{ ...(experience?.structuredResult || {}), keyExperiences: editedKeyExperiences }}
+          readOnly={viewOnly}
+          onChange={next => handleKeyExperiencesChange(next.keyExperiences)}
+        /> : <KeyExperienceSlider
           ref={sliderRef}
           keyExperiences={editedKeyExperiences}
           onUpdate={viewOnly ? undefined : handleKeyExperiencesChange}
           viewOnly={viewOnly}
           listMode={!viewOnly}
           onDirty={markDirty}
-        />
+        />}
       </div>
       )}
 

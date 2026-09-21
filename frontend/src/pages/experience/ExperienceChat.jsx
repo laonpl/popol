@@ -223,7 +223,8 @@ const MATERIAL_PRESETS = {
     ],
   },
   pm: {
-    intro: '기획 경험은 기획서·PRD·회고 문서에 가장 잘 남아 있어요. 목표 지표(KPI·MSC)나 우선순위 결정 근거가 담긴 자료일수록 의사결정·MSC 달성·로드맵 중심으로 깊게 분석해드려요.',
+    intro: 'PM의 핵심은 문제를 발견하고, 대안을 선택하고, 결과에 따라 판단을 바꾸는 과정이에요. 자료에서 본인의 결정과 실행 범위를 찾고, 목표와 실제 관찰을 구분해 정리해드려요. 출시 전 경험도 괜찮아요.',
+    evidenceGuide: ['고객 조사·사업 검토 → 인사이트 맵, 가치 교환 구조, 대안 비교', 'PRD·정책·운영 흐름 → 고객/화면/운영/시스템 블루프린트와 인수 기준', '지표 정의·실험 → 선행지표와 결과지표의 연결, 보호 지표, 검증 결과', '출시 계획·회의록·회고 → 범위·의존성·출시 기준, 조율과 리스크 대응', '그로스·서비스기획·신사업/B2B 중 실제로 수행한 산출물만 추출합니다'],
     accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '기획서 · PRD · 회고/지표 리포트 (PDF / DOCX)',
     links: [
@@ -1563,6 +1564,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
 
   return (
     <div className={bare ? 'space-y-5' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-5 animate-fadeIn'}>
+      {preset.evidenceGuide && <div className="rounded-xl border border-primary-100 bg-primary-50/40 p-4 text-[12.5px] leading-relaxed text-bluewood-600"><p className="mb-2 font-bold">자료에서 이런 PM 경험을 추출해요</p><ul className="space-y-1">{preset.evidenceGuide.map(line => <li key={line}>{line}</li>)}</ul><p className="mt-2 text-bluewood-400">민감한 고객·회사 정보는 가리고 올려주세요. 읽지 못한 링크는 성과 근거로 사용하지 않아요.</p></div>}
       {/* 파일 */}
       <div>
         <label className="block text-[13px] font-bold text-bluewood-700">자료 파일</label>
@@ -2003,7 +2005,7 @@ export default function ExperienceChat() {
           if (content.trim()) {
             piece = `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
           } else {
-            piece = `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
+            piece = `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 링크 존재만 기록하고 내용·본인 실행·성과의 근거로 사용하지 마세요.)`;
           }
         }
         setStep(idx, 'done');
@@ -2113,7 +2115,7 @@ export default function ExperienceChat() {
         // 초안(개요·README)은 파일/텍스트 자료 + 핵심경험으로만 생성 —
         // git 커밋 상세는 개요를 지배하지 않도록 주입하지 않고 '문제 해결 과정'에서 별도 표시.
         // (기술스택 힌트만, 아키텍처 다이어그램 폴백용으로 가볍게 전달)
-        const draftContent = { 자료: cleaned, ...(momentsText ? { 핵심경험: momentsText } : {}) };
+        const draftContent = { 자료: ['pm', 'marketer'].includes(jobCategory) ? allText : cleaned, ...(momentsText ? { 핵심경험: momentsText } : {}) };
         const techStacks = (gitRef.current?.gitAnalysis?.experiences || []).map(e => e.core_tech_stack).filter(Boolean);
         if (techStacks.length) draftContent.기술스택 = [...new Set(techStacks.join(', ').split(/,\s*/))].filter(Boolean).join(', ');
         analysis = await draftAnalyze({

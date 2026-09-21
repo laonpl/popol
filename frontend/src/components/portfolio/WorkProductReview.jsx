@@ -1,0 +1,26 @@
+import { useState } from 'react';
+import { appendReviewedWorkProduct } from '../../utils/roleProofMap';
+
+function AddWorkProduct({ sr, item, groups, role, onChange }) {
+  const [kind, setKind] = useState(''), [draft, setDraft] = useState({}), [source, setSource] = useState(''), [saved, setSaved] = useState(false);
+  const group = groups.find(entry => entry.key === kind);
+  const references = [...new Map((item.evidenceRows || []).filter(row => ['source_excerpt', 'self_report'].includes(row.basis) && row.quote?.length >= 12).map(row => [row.sourceName + '|' + row.quote, row])).values()];
+  return <details className="work-product-add"><summary>빠진 핵심 산출물 직접 정리</summary><p>{role === 'pm' ? '비교한 대안·서비스 단계·정책·인수 기준 등 실제로 한 판단을 추가하세요.' : '소재 문안·채널별 역할·CRM 조건·개선 기록 등 실제로 한 작업을 추가하세요.'} 원문을 선택해도 내용과 실행 여부가 자동 검증되지는 않습니다.</p><label>추가할 산출물<select value={kind} onChange={event => { setKind(event.target.value); setDraft({}); setSaved(false); }}>{<option value="">유형 선택</option>}{groups.map(entry => <option key={entry.key} value={entry.key} disabled={(item.workProducts[entry.key] || []).length >= entry.limit}>{entry.label}{(item.workProducts[entry.key] || []).length >= entry.limit ? ' · 최대 개수 도달' : ''}</option>)}</select></label>{group && <form onSubmit={event => { event.preventDefault(); const next = appendReviewedWorkProduct(sr, item, role, group, draft, references[Number(source)] && source !== '' ? references[Number(source)] : null); if (next !== sr) { onChange(next); setKind(''); setDraft({}); setSource(''); setSaved(true); } }}><div className="work-product-add-fields">{group.fields.map(([field, label], i) => <label key={field}>{label}<textarea required={i === 0} rows={2} maxLength={600} value={draft[field] || ''} onChange={event => setDraft({ ...draft, [field]: event.target.value })} /></label>)}</div><label>이미 연결된 원문<select value={source} onChange={event => setSource(event.target.value)}><option value="">원문 없이 초안으로 추가</option>{references.map((row, i) => <option value={i} key={i}>{row.basis === 'self_report' ? '본인 진술' : row.sourceName} · {row.quote.slice(0, 40)}</option>)}</select></label>{source !== '' && references[Number(source)] && <blockquote>{references[Number(source)].quote}</blockquote>}<p>직접 작성한 초안으로 저장되며 실행 단계는 ‘확인 필요’입니다. 화면 밖으로 나가기 전에 경험 저장을 눌러주세요.</p><button type="submit">산출물 추가</button></form>}{saved && <p role="status">핵심 경험에 추가했습니다. 경험을 저장해 주세요.</p>}</details>;
+}
+
+// Manual edits never manufacture a new source match. The original excerpt stays immutable.
+export default function WorkProductReview({ sr, item, groups, role, onChange }) {
+  const [selected, setSelected] = useState('');
+  const [draft, setDraft] = useState({});
+  const entries = groups.flatMap(group => (item.workProducts[group.key] || []).map((row, index) => ({ group, row, index, id: `${group.key}:${index}` })));
+  const current = entries.find(entry => entry.id === selected);
+  if (!onChange) return null;
+  if (role === 'pm' && !entries.length) return null;
+  return <div className="work-product-editor print:hidden">{entries.length > 0 && <details className="work-product-review"><summary>추출된 산출물 내용 검토 · 수정</summary><p>자료에 없던 사실을 추가하지 마세요. 원문은 유지되며 직접 수정한 내용으로 표시됩니다.</p><label>수정할 산출물<select value={selected} onChange={event => { setSelected(event.target.value); setDraft({ ...(entries.find(entry => entry.id === event.target.value)?.row || {}) }); }}><option value="">항목 선택</option>{entries.map(entry => <option key={entry.id} value={entry.id}>{entry.group.label} · {entry.index + 1}</option>)}</select></label>{current && <form onSubmit={event => {
+    event.preventDefault();
+    const key = role === 'pm' ? 'pmWorkProducts' : 'marketerWorkProducts';
+    const values = Object.fromEntries(current.group.fields.map(([field]) => [field, String(draft[field] || '').trim().slice(0, 600)]));
+    const keyExperiences = (sr.keyExperiences || []).map((experience, index) => index !== item.sourceIndex ? experience : { ...experience, jobData: { ...experience.jobData, [key]: { ...experience.jobData?.[key], [current.group.key]: (experience.jobData?.[key]?.[current.group.key] || []).map((row, ri) => ri !== (current.row.sourceRowIndex ?? current.index) ? row : { ...row, ...values, userEdited: true }) } } });
+    onChange({ ...sr, keyExperiences }); setSelected('');
+  }}>{current.group.fields.map(([field, label]) => <label key={field}>{label}<textarea value={draft[field] || ''} maxLength={600} rows={2} onChange={event => setDraft({ ...draft, [field]: event.target.value })} /></label>)}<blockquote>{current.row.quote || '연결된 원문이 없습니다.'}</blockquote><button type="submit">수정 적용</button>{role === 'marketer' && current.row.manuallyAdded && <button type="button" className="work-product-remove" onClick={() => { const key = 'marketerWorkProducts'; onChange({ ...sr, keyExperiences: sr.keyExperiences.map((experience, index) => index !== item.sourceIndex ? experience : { ...experience, jobData: { ...experience.jobData, [key]: { ...experience.jobData[key], [current.group.key]: experience.jobData[key][current.group.key].filter((row, ri) => ri !== (current.row.sourceRowIndex ?? current.index) || !row.manuallyAdded) } } }) }); setSelected(''); }}>직접 추가한 초안 삭제</button>}</form>}</details>}{role === 'marketer' && <AddWorkProduct sr={sr} item={item} groups={groups} role={role} onChange={onChange} />}</div>;
+}

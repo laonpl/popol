@@ -10,6 +10,9 @@
  * 라우팅한다. 등록되지 않은 직무는 common 렌즈로도 증거 중심 추출이 가능하다.
  */
 
+import { PM_JOB_DATA_SCHEMA } from './pmEvidencePrompts.js';
+import { MARKETER_JOB_DATA_SCHEMA } from './marketerEvidencePrompts.js';
+
 const section = (key, label, guide) => ({ key, label, guide });
 
 export const CAREER_FIELD_PROFILES = {
@@ -114,7 +117,7 @@ export const CAREER_FIELD_PROFILES = {
     proofSignals: ['사용자 근거', '목표와 범위 밖 항목', '대안과 trade-off', '성공/반증 기준', '출시 후 판단 변화'],
     metrics: ['활성화/잔존/전환', '핵심 과업 성공', '가치 도달 시간', '수익/비용', '정성 신호'],
     cautions: ['PRD를 출시·사용 효과의 증거로 쓰지 않기', '팀 실행을 PM 단독 성과로 쓰지 않기'],
-    schema: '{ "problemSignal": "", "hypothesis": "", "successCriteria": "", "decision": "", "alternatives": "", "stakeholders": "", "obstacle": "", "resolution": "", "validation": "", "impact": "", "effort": "" }',
+    schema: PM_JOB_DATA_SCHEMA,
     sections: [],
   },
   project: {
@@ -149,12 +152,12 @@ export const CAREER_FIELD_PROFILES = {
     label: '마케팅 / 그로스 / CRM / 브랜드',
     unit: '캠페인/실험',
     aliases: ['marketing', 'growth', 'crm', 'brand', '마케팅', '마케터'],
-    emphasis: '노출량보다 타깃 관찰, 메시지·채널 가설, 전환 행동, 귀인 한계와 다음 실험을 보여주세요.',
+    emphasis: '브랜드·콘텐츠·퍼포먼스·CRM의 차이를 보존하고 실제 소재, 카피, 채널 운영, 조건부 여정, 성과 해석과 다음 판단을 보여주세요.',
     artifacts: ['캠페인 브리프', '콘텐츠/소재', '미디어 플랜', '채널 리포트', '전환/CRM 분석', 'A/B 테스트', 'VOC'],
     proofSignals: ['목표 전환 행동', '타깃 근거', '소재/채널 대안', '실험 기준', '고객 경로와 귀인 한계'],
     metrics: ['도달/CTR/CVR', 'CPA/CAC/ROAS', '잔존/재구매', '증분 효과', '브랜드/정성 반응'],
     cautions: ['마지막 접점을 전체 성과 원인으로 단정하지 않기', '조회수와 비즈니스 성과 분리'],
-    schema: '{ "businessProblem": "", "target": "", "audienceInsight": "", "channels": [], "creative": "", "experimentOptions": [], "kpis": [], "attributionLimit": "", "nextExperiment": "" }',
+    schema: MARKETER_JOB_DATA_SCHEMA,
     sections: [],
   },
   content: {
