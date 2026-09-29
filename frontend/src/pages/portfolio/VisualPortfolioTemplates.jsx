@@ -4974,19 +4974,16 @@ export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4',
 export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail }) {
   const templateId = portfolio?.templateId;
   const props = { portfolio, ec, onOpenExpDetail };
-  if (templateId === 'visual-1') return <VisualTemplate1 {...props} />;
-  if (templateId === 'visual-2') return <VisualTemplate2 {...props} />;
-  if (templateId === 'visual-3') return <VisualTemplate3 {...props} />;
-  if (templateId === 'visual-4') return <VisualTemplate4 {...props} />;
-  if (templateId === 'visual-5') return <VisualTemplate5 {...props} />;
-  if (templateId === 'visual-6') return <VisualTemplate6 {...props} />;
-  if (templateId === 'visual-7') return <VisualTemplate7 {...props} />;
-  if (templateId === 'visual-8') return <VisualTemplate8 {...props} />;
-  if (templateId === 'visual-9') return <VisualTemplate9 {...props} />;
-  if (templateId === 'visual-10') return <VisualTemplate10 {...props} />;
-  if (templateId === 'visual-11') return <VisualTemplate11 {...props} />;
-  if (templateId === 'visual-12') return <VisualTemplate12 {...props} />;
-  return null;
+  const templates = {
+    'visual-1': VisualTemplate1, 'visual-2': VisualTemplate2,
+    'visual-3': VisualTemplate3, 'visual-4': VisualTemplate4,
+    'visual-5': VisualTemplate5, 'visual-6': VisualTemplate6,
+    'visual-7': VisualTemplate7, 'visual-8': VisualTemplate8,
+    'visual-9': VisualTemplate9, 'visual-10': VisualTemplate10,
+    'visual-11': VisualTemplate11, 'visual-12': VisualTemplate12,
+  };
+  const Template = templates[templateId];
+  return Template ? <div className={`portfolio-template portfolio-template--${templateId}`}><Template {...props} /></div> : null;
 }
 
 function projectImageSrc(project) {

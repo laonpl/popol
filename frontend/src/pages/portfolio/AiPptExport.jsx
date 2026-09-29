@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick, FileDown, CheckCircle2, Eye } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
@@ -226,7 +227,7 @@ export default function AiPptExport() {
     }
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
+  if (loading) return <BrandLoader label="포트폴리오를 불러오는 중" file="portfolio" />;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
   return (

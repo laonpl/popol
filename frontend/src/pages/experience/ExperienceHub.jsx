@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import FileCat from '../../components/FileCat';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, Star, ArrowUpDown,
@@ -22,7 +23,7 @@ import ResumeImportModal from '../../components/ResumeImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import PortfolioReadinessBoard from '../../components/PortfolioReadinessBoard';
+import ExperiencePortfolioGuide from '../../components/ExperiencePortfolioGuide';
 import { stripMd } from '../../utils/textUtils';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
@@ -710,7 +711,7 @@ export default function ExperienceHub() {
         key={exp.id}
         onClick={() => setSelectedId(isSelected ? null : exp.id)}
         onDoubleClick={() => { if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`); }}
-        className={`group relative flex flex-col gap-2.5 rounded-xl border bg-white p-4 cursor-pointer transition-all ${
+        className={`fp-experience-card group relative flex flex-col gap-2.5 rounded-xl border bg-white p-4 cursor-pointer transition-all ${
           isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-card-hover'
         }`}
       >
@@ -767,8 +768,8 @@ export default function ExperienceHub() {
     <div className="animate-fadeIn max-w-[1320px] mx-auto">
       {/* ═══ 페이지 헤더 ═══ */}
       <div className="mb-6">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-5">
+          <div className="min-w-0">
             <h1 className="text-[34px] font-extrabold text-gray-900 tracking-[-0.03em] leading-tight">경험 정리</h1>
             <p className="text-[16px] text-gray-500 mt-2 font-medium">
               {headerSummary.empty
@@ -779,7 +780,7 @@ export default function ExperienceHub() {
           {/* 경험을 만드는 방법은 두 가지다.
               예전엔 "자료로 만들기"(TemplateSelect) 화면이 튜토리얼에서만 열려서,
               튜토리얼로 그 화면을 배운 사용자가 실제로는 절대 다시 갈 수 없었다. */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:shrink-0">
             <button
               type="button"
               data-tour="experience-import"
@@ -843,7 +844,7 @@ export default function ExperienceHub() {
         )}
         {/* 비로그인 안내 — 화면은 보되 작성·저장은 로그인 후 */}
         {isGuest && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
+          <div className="fp-guest-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
             <p className="text-[14px] font-medium text-bluewood-700">
               둘러보는 중이에요. 경험을 정리하고 저장하려면 로그인이 필요합니다.
             </p>
@@ -856,16 +857,11 @@ export default function ExperienceHub() {
             </button>
           </div>
         )}
-        {!isGuest && experiences.length > 0 && (
-          <div className="mb-6">
-            <PortfolioReadinessBoard experiences={experiences} />
-          </div>
-        )}
         {/* 컨트롤 바 */}
         {/* 컨트롤 바 — 전문 라인형 탭 (메인 네이비 밑줄로 섹션 구분) */}
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-gray-200">
+        <div className="fp-experience-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* 뷰 탭 */}
-          <div data-tour="experience-view-toggle" className="flex items-center gap-1">
+          <div data-tour="experience-view-toggle" className="fp-experience-tabs flex flex-wrap items-center gap-1">
             {[
               { key: 'timeline', label: '타임라인' },
               { key: 'table', label: '목록' },
@@ -880,19 +876,16 @@ export default function ExperienceHub() {
                     setViewMode(t.key);
                     if (t.key === 'resume' && tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
                   }}
-                  className={`relative px-3.5 pt-1 pb-3 text-[14.5px] font-bold transition-colors ${
-                    active ? 'text-primary-700' : 'text-gray-400 hover:text-gray-600'
-                  }`}
+                  className={`fp-experience-tab ${active ? 'is-active' : ''}`}
                 >
                   {t.label}
-                  {active && <span className="absolute -bottom-px left-2 right-2 h-[2.5px] rounded-full bg-primary-600" />}
                 </button>
               );
             })}
           </div>
 
           {/* 우측 컨트롤 */}
-          <div className="flex items-center gap-2 pb-2">
+          <div className="flex items-center gap-2">
             {viewMode === 'table' && (
               <select
                 value={compFilter}
@@ -940,6 +933,8 @@ export default function ExperienceHub() {
         </div>
       </div>
 
+      <div className="fp-experience-layout">
+      <div className="fp-experience-main">
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -1259,10 +1254,10 @@ export default function ExperienceHub() {
                 ? list.filter(e => favorites.has(e.id))
                 : list.filter(e => readCategory(e) === activeFolder);
             return (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-[210px_1fr]">
+              <div className="fp-experience-list grid grid-cols-1 gap-6 md:grid-cols-[190px_minmax(0,1fr)]">
                 {/* 좌측 폴더 메뉴 */}
                 <aside className="self-start md:sticky md:top-4">
-                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-2">
+                  <div className="fp-experience-folders rounded-2xl border border-gray-200 bg-white shadow-sm p-2">
                     <p className="px-3 pt-2 pb-1.5 text-[12px] font-bold uppercase tracking-wider text-gray-300">폴더</p>
                     {folderItems.map(it => {
                       const on = activeFolder === it.key;
@@ -1289,7 +1284,7 @@ export default function ExperienceHub() {
                   {shown.length === 0 ? (
                     <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center text-[14px] text-gray-400 shadow-sm">이 폴더에 경험이 없어요.</div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-2">
                       {shown.map(exp => editingId === exp.id ? (
                         <div key={exp.id} className="sm:col-span-2 xl:col-span-3">{renderEditPanel(exp)}</div>
                       ) : renderExperienceCard(exp))}
@@ -1302,15 +1297,19 @@ export default function ExperienceHub() {
 
           {/* ═══ 대시보드 (커리어 GPS: 직무역량 집계 → 추천 직업군) ═══ */}
           {viewMode === 'dashboard' && (
-            <CareerDashboard experiences={displayExperiences} user={user} profile={profile} />
+            <div className="fp-experience-dashboard"><CareerDashboard experiences={displayExperiences} user={user} profile={profile} /></div>
           )}
 
           {/* ═══ 이력서 (경험을 골라 초안 뽑기) ═══ */}
           {viewMode === 'resume' && (
-            <ResumeView experiences={sortedExperiences} user={user} profile={profile} />
+            <div className="fp-experience-resume"><ResumeView experiences={sortedExperiences} user={user} profile={profile} /></div>
           )}
         </>
       )}
+
+      </div>
+      {!isGuest && !loading && <ExperiencePortfolioGuide experiences={experiences} onAdd={() => requireAuth(() => navigate('/app/experience/chat'))} />}
+      </div>
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -2353,7 +2352,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
   // 차트 데이터 (리포트 느낌)
   const compChart = stats.compTop.slice(0, 7).map(([name, count]) => ({ name, count }));
   const styleChart = stats.styleTop.slice(0, 6).map(([name, value]) => ({ name, value }));
-  const STYLE_COLORS = ['#002F6C', '#274d86', '#3a6db0', '#5f92c7', '#87add5', '#cdddee'];
+  const STYLE_COLORS = ['#111111', '#353535', '#5c5c5c', '#858585', '#b5b5b5', '#d7d7d7'];
   const chartTooltip = {
     cursor: { fill: 'rgba(0,47,108,0.04)' },
     contentStyle: { borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12, padding: '6px 10px', boxShadow: '0 6px 20px rgba(0,47,108,0.10)' },
@@ -2644,7 +2643,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
                     <XAxis type="number" hide />
                     <YAxis type="category" dataKey="name" width={116} tickLine={false} axisLine={false} tick={{ fontSize: 14, fill: '#445060', fontWeight: 700 }} />
                     <Tooltip {...chartTooltip} formatter={(v) => [`${v}개 경험`, '']} separator="" />
-                    <Bar dataKey="count" fill="#09dd6d" radius={[0, 6, 6, 0]} maxBarSize={18}>
+                    <Bar dataKey="count" fill="#111111" radius={[0, 6, 6, 0]} maxBarSize={18}>
                       <LabelList dataKey="count" position="right" fill="#94a3b8" fontSize={12} fontWeight={700} />
                     </Bar>
                   </BarChart>
@@ -2709,15 +2708,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
 function EmptyState({ onAdd }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
-      {/* 일러스트 영역 */}
-      <div className="relative mb-8">
-        <div className="w-24 h-24 bg-primary-50 rounded-3xl flex items-center justify-center shadow-sm">
-          <FolderOpen size={40} className="text-primary-400" />
-        </div>
-        <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center border-2 border-white shadow-sm">
-          <Star size={14} className="text-yellow-400 fill-yellow-400" />
-        </div>
-      </div>
+      <FileCat variant="sleepy" file="document" className="mb-7 h-36 w-44" />
 
       <h3 className="text-[24px] font-extrabold text-gray-900 mb-3 tracking-tight">첫 경험을 기록해보세요</h3>
       <p className="text-[16px] text-gray-400 mb-2 font-medium max-w-[360px]">

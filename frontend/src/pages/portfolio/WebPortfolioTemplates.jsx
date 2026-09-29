@@ -2448,7 +2448,9 @@ export default function WebPortfolioRenderer({
 
   return (
     <>
-      {template}
+      <div className={`portfolio-template portfolio-template--${templateId || 'web-1'}`}>
+        {template}
+      </div>
       {selectedProject && (
         <Suspense fallback={null}>
           <ProjectDetailModal

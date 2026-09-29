@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import toast from 'react-hot-toast';
@@ -118,13 +119,7 @@ export default function DeveloperPortfolio() {
     setDiagramDraft(fb ? { nodes: fb.nodes.map(n => ({ ...n })), edges: fb.edges.map(e => ({ ...e })) } : { nodes: [], edges: [] });
   }, [data]);
 
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <span className="inline-block w-9 h-9 rounded-full border-2 border-primary-200 border-t-primary-600 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <BrandLoader label="포트폴리오를 불러오는 중" />;
 
   if (!data) {
     return (

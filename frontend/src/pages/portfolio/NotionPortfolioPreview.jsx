@@ -464,6 +464,7 @@ export default function NotionPortfolioPreview() {
       {adminBar}
 
       {/* ── Template Layouts ── */}
+      <div className={`portfolio-template portfolio-template--${p.templateId || 'notion'}`}>
       {(!p.templateId || p.templateId === 'notion') ? (
       <div data-tour="portfolio-preview-surface" className="max-w-[1100px] mx-auto bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden" id="notion-portfolio">
 
@@ -945,6 +946,8 @@ export default function NotionPortfolioPreview() {
       ) : (
         <AshleyLayout p={p} setSelectedExp={openExperienceDetail} />
       )}
+
+      </div>
 
       {/* Link Export Modal */}
       {showExportModal && (

@@ -1,5 +1,6 @@
 ﻿import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import FileCat from '../components/FileCat';
 import {
   ArrowRight, Briefcase, FileText,
   ChevronLeft, ChevronRight,
@@ -480,14 +481,14 @@ export default function Landing() {
   }, [statsVisible]);
 
   return (
-    <div role="main" className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden">
+    <div role="main" className="landing-page min-h-screen w-full overflow-x-hidden">
 
       {/* ── FLOATING HEADER ── */}
       <div className="fixed top-4 sm:top-6 inset-x-0 z-50 px-3 sm:px-4 flex justify-center">
-        <div className="bg-[#f3f4f6]/95 backdrop-blur-md rounded-full px-2 py-1.5 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 shadow-sm border border-gray-200/50 w-full max-w-[min(100%,400px)] md:max-w-none md:w-auto">
+        <div className="fp-landing-nav bg-white/95 backdrop-blur-md rounded-full px-2 py-1.5 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 w-full max-w-[min(100%,400px)] md:max-w-none md:w-auto">
           <button onClick={() => navigate('/')} className="flex items-center gap-1.5 px-2 sm:px-3 shrink-0">
-            <img src="/logo.png" alt="FitPoly" className="h-5 w-auto" />
-            <span className="font-extrabold text-[16px] sm:text-[17px] text-gray-900 tracking-tight">FitPoly</span>
+            <img src="/mascot.svg" alt="" className="h-8 w-8" />
+            <span className="font-extrabold text-[18px] sm:text-[20px] text-gray-900 tracking-tight">FitPoly</span>
           </button>
           <nav className="hidden md:flex items-center gap-5 text-[15px] font-medium text-gray-600 px-2">
             <a href="#feature-experience" className="hover:text-black transition-colors">경험정리</a>
@@ -501,10 +502,10 @@ export default function Landing() {
       </div>
 
       {/* ── HERO ── */}
-      <section ref={heroRef} className="relative min-h-[85vh] sm:min-h-[90vh] md:min-h-[1000px] bg-[#fdfdfd] flex flex-col items-center justify-center overflow-hidden">
+      <section ref={heroRef} className="fp-hero relative flex items-center justify-center overflow-hidden">
 
         {/* Background Icons — hidden on mobile, shown on md+ */}
-        <div className="absolute inset-0 w-full h-full max-w-[1200px] mx-auto pointer-events-none">
+        <div className="fp-hero-icons absolute inset-0 w-full h-full max-w-[1200px] mx-auto pointer-events-none">
           {/* Notion */}
           <div className="hidden md:flex absolute top-[20%] left-[18%] w-16 h-16 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-slow" style={{ animationDelay: '0s' }}>
             <BrandIcon name="Notion" className="w-8 h-8" />
@@ -548,34 +549,34 @@ export default function Landing() {
         </div>
 
         {/* Center Text */}
-        <div className={`relative z-10 text-center flex flex-col items-center justify-center transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} px-4 sm:px-6 -mt-6 sm:-mt-8 md:-mt-16`}>
-          <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1 mb-7 sm:mb-8">
-            <span>여기저기 흩어진 경험들,</span>
-            <span>어떻게 관리하고 계시나요?</span>
-          </h1>
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <button
-              onClick={go}
-              className="w-full sm:w-auto bg-gray-900 text-white px-7 py-3.5 rounded-full text-[16px] font-bold hover:bg-black transition-colors shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2"
-            >
-              지금 무료로 시작하기
-              <ArrowRight size={16} />
-            </button>
-            <button
-              onClick={() => document.getElementById('feature-experience')?.scrollIntoView({ behavior: 'smooth' })}
-              className="w-full sm:w-auto text-gray-500 px-5 py-3 text-[15px] font-medium hover:text-gray-800 transition-colors flex items-center justify-center gap-1.5"
-            >
-              어떻게 작동하나요?
-              <ChevronDown size={15} />
-            </button>
+        <div className={`fp-hero-content relative z-10 transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="fp-hero-copy">
+            <p className="fp-eyebrow"><span className="fp-eyebrow-dot" /> YOUR EXPERIENCE, YOUR STORY</p>
+            <h1>작은 경험도<br /><span>큰 이야기로.</span></h1>
+            <p className="fp-hero-description">여기저기 흩어진 내 경험, 한곳에 모아보세요.<br /> FitPoly가 당신만의 포트폴리오로 만들어드릴게요.</p>
+            <div className="fp-hero-actions">
+              <button onClick={go} className="fp-button fp-button-dark">무료로 시작하기 <ArrowRight size={19} /></button>
+              <button onClick={() => document.getElementById('feature-experience')?.scrollIntoView({ behavior: 'smooth' })} className="fp-button fp-button-light">어떻게 작동하나요? <ChevronDown size={19} /></button>
+            </div>
+            <p className="fp-hero-footnote">경험 정리부터 포트폴리오 완성까지, 한 걸음씩.</p>
+          </div>
+          <div className="fp-hero-art" aria-label="종이 친구가 함께하는 FitPoly">
+            <div className="fp-hero-art-top"><span>FITPOLY FRIENDS</span><span>NO. 01 / 2026</span></div>
+            <div className="fp-hero-poster">
+              <span className="fp-poster-spark fp-poster-spark-one">✳</span>
+              <FileCat variant="curious" file="pdf" title="PDF를 물고 온 FitPoly 고양이" />
+              <span className="fp-poster-spark fp-poster-spark-two">✦</span>
+            </div>
+            <div className="fp-hero-art-bottom"><span>모든 경험에는 이야기가 있어요.</span><span>● ● ○</span></div>
           </div>
         </div>
       </section>
 
       {/* ── PROBLEM DEFINITION ── */}
-      <section className="bg-white py-16 sm:py-20 md:py-24 pb-8 sm:pb-12">
+      <section className="fp-problem-section bg-white py-16 sm:py-20 md:py-24 pb-8 sm:pb-12">
         <div className="max-w-[1140px] mx-auto px-4 sm:px-6 md:px-8">
-          <div className="mb-10 sm:mb-14 text-center">
+          <div className="fp-problem-heading mb-10 sm:mb-14 text-center">
+            <span className="fp-section-kicker">01 / THE PROBLEM</span>
             <h2 className="text-[26px] sm:text-[32px] md:text-[40px] font-extrabold text-gray-900 mb-4 tracking-tight leading-[1.3]">
               취업 준비, 스펙보다<br className="sm:hidden" />
               <span className="text-indigo-600"> 경험정리</span>가 먼저입니다
@@ -585,8 +586,9 @@ export default function Landing() {
 
           <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
             {/* Top Left Card: 매번 처음부터 다시 쓰는 자소서 (지원 횟수) */}
-            <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
+            <div className="fp-story-card bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
+                <span className="fp-card-number">01 / REWRITE</span>
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
                   정리를 미뤘더니,<br/>매번 백지에서 다시 써요
                 </h3>
@@ -594,7 +596,7 @@ export default function Landing() {
                   새 공고가 뜰 때마다 기억을 더듬어 자소서를 처음부터. 한 시즌에 다시 쓰는 양은 생각보다 많습니다.
                 </p>
               </div>
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100">
+              <div className="fp-data-card bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100">
                 <p className="text-[13px] font-bold text-gray-500 mb-3">구직 대학생 1인당 연간 지원 횟수</p>
                 <div className="flex flex-wrap gap-1.5 mb-5">
                   {Array.from({ length: 14 }, (_, i) => (
@@ -604,7 +606,7 @@ export default function Landing() {
                       style={{
                         width: '20px',
                         height: '24px',
-                        background: statsVisible && i < 14 ? '#1B264F' : '#E5E7EB',
+                        background: statsVisible && i < 14 ? '#111111' : '#E5E7EB',
                         transitionDelay: `${i * 70}ms`,
                         transform: statsVisible && i < 14 ? 'scale(1)' : 'scale(0.6)',
                         opacity: statsVisible && i < 14 ? 1 : 0.5,
@@ -622,8 +624,9 @@ export default function Landing() {
             </div>
 
             {/* Top Right Card: 서류 합격률 하락 */}
-            <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
+            <div className="fp-story-card bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
+                <span className="fp-card-number">02 / PASS RATE</span>
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
                   열심히 보내도,<br/>10곳 중 2곳만 통과해요
                 </h3>
@@ -631,7 +634,7 @@ export default function Landing() {
                   정리되지 않은 경험으로는 기업이 원하는 한 줄을 뽑기 어렵습니다. 서류 합격률은 해마다 더 낮아지고 있어요.
                 </p>
               </div>
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-8 sm:gap-12 px-6 sm:px-12 justify-center">
+              <div className="fp-data-card bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-8 sm:gap-12 px-6 sm:px-12 justify-center">
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                   <span
                     className="text-[15px] font-extrabold text-gray-400 mb-1 transition-all duration-500"
@@ -658,16 +661,18 @@ export default function Landing() {
             </div>
 
             {/* Bottom Card: 어디서부터 막막함 - Full Width */}
-            <div className="md:col-span-2 bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
+            <div className="fp-story-card md:col-span-2 bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
               <div className="flex-1">
+                <span className="fp-card-number">03 / WHERE TO START</span>
                 <h3 className="text-[20px] sm:text-[26px] font-extrabold text-gray-900 mb-4 leading-snug">
                   무엇부터 써야 할지<br/>몰라 막막해요
                 </h3>
                  <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[480px]">
                   취준생 10명 중 8명 이상이 '뭘 준비해야 할지 모르겠다'고 말합니다. 시작은 거창한 스펙이 아니라, <strong className="text-[#1B264F]">흩어진 내 경험을 한곳에 모으는 것</strong>부터예요.
                 </p>
+                <FileCat variant="thinking" file="document" className="fp-story-cat" title="문서를 물고 고민하는 FitPoly 고양이" />
               </div>
-              <div className="w-full md:w-[340px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
+              <div className="fp-data-card w-full md:w-[340px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
                 <p className="text-[15px] font-bold text-gray-500">취업 준비가 막막하다고 답한 취준생</p>
                 <div className="flex items-baseline gap-1.5 mt-1 mb-5">
                   <span className="text-[46px] sm:text-[52px] font-extrabold text-gray-900 tracking-tighter leading-none tabular-nums">
@@ -682,7 +687,7 @@ export default function Landing() {
                         className="w-full rounded-md transition-all duration-500"
                         style={{
                           height: '32px',
-                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
+                          background: statsVisible && i < 8 ? '#111111' : '#E5E7EB',
                           transitionDelay: `${i * 110 + 400}ms`,
                           transform: statsVisible && i < 8 ? 'scaleY(1)' : 'scaleY(0.4)',
                           transformOrigin: 'bottom',
@@ -701,7 +706,7 @@ export default function Landing() {
           </p>
 
           {/* Gray Box → 해결책 브릿지 */}
-          <div className="bg-gray-900 rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
+          <div className="fp-bridge-card bg-gray-900 rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full mb-4 sm:mb-6">
               <span className="w-2 h-2 rounded-full bg-green-400" />
               <span className="text-[13px] font-bold text-white/70">FitPoly의 해결책</span>
@@ -744,7 +749,7 @@ export default function Landing() {
       {/* ── FEATURE 1 — 경험 정리 ── */}
       <section id="feature-experience" className="py-16 sm:py-20 md:py-24 bg-white">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
-          <div className="mb-10 sm:mb-14 md:mb-16">
+          <div className="fp-section-intro mb-10 sm:mb-14 md:mb-16">
             <div className="flex items-center gap-2 mb-4 sm:mb-5">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg tracking-wide">
                 <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
@@ -759,10 +764,11 @@ export default function Landing() {
             <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
               어떤 파일이든 업로드하면 AI가 내용을 분석해 구조화된 경험으로 정리해줍니다. 카카오톡 대화도, PDF도 모두 OK.
             </p>
+            <FileCat variant="curious" file="image" className="fp-intro-cat" title="이미지 파일을 물고 온 FitPoly 고양이" />
           </div>
 
           {/* 파일 업로드 */}
-          <div ref={uploadMockRef} className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
+          <div ref={uploadMockRef} data-label="01 / FILE TO EXPERIENCE" className="fp-feature-panel bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
             <style>{`
               @keyframes exportBubble {
                 0%   { transform: translateX(0) scale(1); opacity: 1; }
@@ -1141,7 +1147,7 @@ export default function Landing() {
           </div>
 
           {/* 핵심 추출 */}
-          <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
+          <div data-label="02 / FIND THE POINT" className="fp-feature-panel bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
@@ -1197,7 +1203,7 @@ export default function Landing() {
           </div>
 
           {/* 완성된 결과물 — 이력서 */}
-          <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
+          <div data-label="03 / MAKE IT YOURS" className="fp-feature-panel bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
             <ResponsiveScaleWrapper minWidth={900}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
@@ -1320,7 +1326,7 @@ export default function Landing() {
       {/* ── FEATURE 2 — 기업 맞춤 포트폴리오 ── */}
       <section id="feature-portfolio" className="py-16 sm:py-20 md:py-24 bg-[#f8f9fc]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
-          <div className="mb-10 sm:mb-14 md:mb-16">
+          <div className="fp-section-intro mb-10 sm:mb-14 md:mb-16">
             <div className="flex items-center gap-2 mb-4 sm:mb-5">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-[12px] font-bold rounded-lg tracking-wide">
                 <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
@@ -1335,10 +1341,11 @@ export default function Landing() {
             <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
               기업이 원하는 역량을 파악하고, 내 경험 중 가장 잘 맞는 것들로 포트폴리오를 조합해 드립니다.
             </p>
+            <FileCat variant="happy" file="portfolio" className="fp-intro-cat" title="포트폴리오 파일을 물고 신난 FitPoly 고양이" />
           </div>
 
           {/* 채용공고 분석 */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
+          <div data-label="04 / READ THE JOB" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
             <ResponsiveScaleWrapper minWidth={900}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
@@ -1417,7 +1424,7 @@ export default function Landing() {
           </div>
 
           {/* 포트폴리오 자동 생성 */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
+          <div data-label="05 / BUILD YOUR STORY" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
@@ -1568,7 +1575,7 @@ export default function Landing() {
           </div>
 
           {/* 산출물 쇼케이스 — 웹사이트 · 노션형 문서 · PPT */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mt-6 sm:mt-8">
+          <div data-label="06 / SHARE ANYWHERE" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mt-6 sm:mt-8">
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
@@ -1611,7 +1618,7 @@ export default function Landing() {
             </h2>
           </div>
           <div className="flex-1">
-            <div className="border-t border-gray-200">
+            <div className="fp-faq-list">
               {[
                 {
                   q: '무료로 사용할 수 있나요?',
@@ -1626,7 +1633,7 @@ export default function Landing() {
                   a: '국내 주요 채용 사이트(잡코리아, 사람인, 원티드, LinkedIn) 공고 URL을 모두 지원해요.'
                 }
               ].map((faq, i) => (
-                <div key={i} className="border-b border-gray-200">
+                <div key={i} className="fp-faq-card">
                   <button
                     onClick={() => toggleFaq(i)}
                     className="w-full flex items-center justify-between py-5 sm:py-6 text-left focus:outline-none group"

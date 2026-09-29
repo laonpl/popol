@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import FileCat from '../../components/FileCat';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -118,6 +119,7 @@ export default function ExperienceCompletion() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
         <main className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:p-9">
+          <FileCat variant={confirmed ? 'happy' : 'thinking'} file="portfolio" className="fp-completion-cat" title={confirmed ? '포트폴리오 파일을 물고 기뻐하는 FitPoly 고양이' : '포트폴리오 파일을 물고 고민하는 FitPoly 고양이'} />
           <h1 className="text-[26px] font-extrabold leading-snug tracking-[-0.03em] text-gray-900 md:text-[30px]">
             “{experience.title || '나의 경험'}”이<br className="hidden sm:block" /> 포트폴리오 카드로 바뀌었습니다
           </h1>

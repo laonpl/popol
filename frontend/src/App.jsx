@@ -10,7 +10,7 @@ import {
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Loader2 } from 'lucide-react';
+import BrandLoader from './components/BrandLoader';
 
 // ── 초기 로드 필수 (로그인 전 접근 가능) ──────────────────────────
 import Landing from './pages/Landing';
@@ -60,11 +60,7 @@ const MotionFilm            = lazy(() => import('./pages/MotionFilm'));
 const ServiceOnePager       = lazy(() => import('./pages/ServiceOnePager')); // 한 장 서비스 소개 (/pic)
 
 function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 size={32} className="animate-spin text-primary-600" />
-    </div>
-  );
+  return <BrandLoader fullScreen detail="잠깐만 기다려주세요!" />;
 }
 
 function PrivateRoute({ children }) {

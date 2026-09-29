@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { ArrowLeft, Sparkles, Pencil, Target, ChevronDown, ChevronUp, TrendingUp, Lightbulb, Zap, Users, CheckCircle2, Star, AlertCircle, Loader2 } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
@@ -100,13 +101,7 @@ export default function AnalysisResult() {
     setLoading(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    );
-  }
+  if (loading) return <BrandLoader label="경험을 분석하는 중" />;
 
   if (!experience) {
     return <p className="text-gray-500 text-center py-20">경험 데이터를 찾을 수 없습니다.</p>;

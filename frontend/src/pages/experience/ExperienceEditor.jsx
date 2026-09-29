@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { ArrowLeft, Save, Sparkles, Loader2, ImagePlus, X, Image } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
@@ -249,13 +250,7 @@ export default function ExperienceEditor() {
     window.addEventListener('mouseup', onUp);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    );
-  }
+  if (loading) return <BrandLoader label="경험을 불러오는 중" />;
 
   return (
     <div className="animate-fadeIn max-w-3xl mx-auto">

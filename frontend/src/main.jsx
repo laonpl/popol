@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { Analytics } from '@vercel/analytics/react';
 import App from './App';
 import './index.css';
+import './brand.css';
 import { initErrorReporter } from './services/errorReporter';
 
 // 배포 후 구 청크 URL 로딩 실패 시 자동 새로고침 (1회 한정)
@@ -22,7 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
     <Toaster position="top-right" toastOptions={{
       duration: 3000,
-      style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px' },
+      style: { borderRadius: '18px', border: '2px solid #111', boxShadow: '4px 4px 0 #111', padding: '12px 16px', fontSize: '16px', fontFamily: 'Jua, Pretendard, sans-serif', color: '#111' },
       loading: { duration: Infinity },
     }} />
     <Analytics />

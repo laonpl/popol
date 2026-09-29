@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
+import FileCat from '../../components/FileCat';
 import {
   Plus, FileText, Trash2, Edit, Download, Search, Star, ExternalLink, ChevronDown, ArrowUpDown,
   Globe, Presentation, Link2, Loader2, X, Copy, Check, Wand2, Building2, LayoutGrid, FolderPlus, FolderX,
@@ -297,18 +299,18 @@ export default function PortfolioHub() {
 
   return (
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+        <div className="min-w-0">
           <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">포트폴리오</h1>
           <p className="text-[15px] text-bluewood-400 mt-1">
             <span className="text-primary-600 font-bold">{visiblePortfolios.length}</span>개의 포트폴리오가 있습니다
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
           <button
             type="button"
             onClick={() => requireAuth(() => navigate('/app/portfolio/new'))}
-            className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-3 sm:px-4 py-2.5 text-[14px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
           >
             <Plus size={16} />
             빠르게 만들기
@@ -316,7 +318,7 @@ export default function PortfolioHub() {
           <button
             type="button"
             onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
+            className="flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} />
             포트폴리오 플랜
@@ -326,7 +328,7 @@ export default function PortfolioHub() {
 
       {/* 비로그인 안내 — 화면은 보되 저장·생성은 로그인 후 */}
       {isGuest && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
+        <div className="fp-guest-card mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
           <p className="text-[14px] font-medium text-bluewood-700">
             둘러보는 중이에요. 포트폴리오를 만들고 저장하려면 로그인이 필요합니다.
           </p>
@@ -380,12 +382,10 @@ export default function PortfolioHub() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-        </div>
+        <BrandLoader label="포트폴리오를 불러오는 중" />
       ) : visiblePortfolios.length === 0 && visibleFolders.length === 0 ? (
         <div className="text-center py-20">
-          <FileText size={40} className="text-bluewood-200 mx-auto mb-3" />
+          <FileCat variant="sleepy" file="portfolio" className="mx-auto mb-4 h-32 w-40" />
           <h3 className="text-[18px] font-bold text-primary-600 mb-2">아직 포트폴리오가 없습니다</h3>
           <p className="text-bluewood-400 text-[14px] mb-6">경험을 먼저 정리한 후 포트폴리오를 작성해보세요</p>
           <button

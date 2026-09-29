@@ -135,7 +135,7 @@ export default function Layout() {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="flex flex-col h-screen bg-[#f5f5f5]">
+    <div className={`app-shell ${isWebPortfolioSurface ? 'app-shell--canvas' : ''} flex flex-col h-screen bg-[#f5f5f5]`}>
       <CreditDepletedModal
         open={creditModalOpen}
         onClose={() => setCreditModalOpen(false)}
@@ -157,7 +157,8 @@ export default function Layout() {
         <div className="relative px-4 sm:px-6 flex items-center h-16 gap-2">
           {/* 로고 */}
           <button onClick={() => navigate('/app')} aria-label="FitPoly 홈" className="flex flex-shrink-0 items-center gap-2">
-            <img src="/logo.png" alt="FitPoly" className="h-8 w-auto" />
+            <img src="/mascot.svg" alt="FitPoly" className="h-8 w-auto" />
+            <span className="text-xl text-primary-900">FitPoly</span>
           </button>
 
           {/* 메뉴 탭 — lg 이상에서만 절대 가운데 정렬.

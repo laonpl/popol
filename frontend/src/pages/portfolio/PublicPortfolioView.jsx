@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
   Loader2
@@ -188,13 +189,7 @@ export default function PublicPortfolioView() {
     }
   }, [portfolio?.id, shareToken]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5]">
-        <Loader2 size={32} className="animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  if (loading) return <BrandLoader fullScreen label="포트폴리오를 불러오는 중" file="portfolio" />;
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5]">
@@ -236,7 +231,7 @@ export default function PublicPortfolioView() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] py-8 px-4">
+    <div className={`portfolio-template portfolio-template--${p.templateId || 'notion'} min-h-screen bg-[#f5f5f5] py-8 px-4`}>
 
       {/* ── Notion Layout ── */}
       {(!p.templateId || p.templateId === 'notion') && (

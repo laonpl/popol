@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Github, Loader2, Search, Lightbulb, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
 import {
@@ -3133,13 +3134,7 @@ export default function ExperienceResult() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty, saving, cs]);
 
-  if (loading || !cs) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <span className="inline-block w-9 h-9 rounded-full border-2 border-primary-200 border-t-primary-600 animate-spin" />
-      </div>
-    );
-  }
+  if (loading || !cs) return <BrandLoader label="결과를 준비하는 중" />;
 
   const KE_ROWS = [
     { key: 'problem', label: '문제' },

@@ -2,7 +2,12 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/mascot.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FitPoly(핏폴리) - 경험정리 · AI 포트폴리오 플랫폼</title>
     <meta name="description" content="FitPoly(핏폴리)는 흩어진 경험과 자료를 정리하고, AI가 채용공고에 맞는 포트폴리오를 만들어주는 취업 준비 플랫폼입니다." />
@@ -59,25 +64,25 @@
        브라우저 기본값(켜짐)을 쓰고, 필요한 입력에서만 개별적으로 끈다. -->
   <body>
     <style>
-      @keyframes fp-boot-spin { to { transform: rotate(360deg); } }
+      @keyframes fp-boot-wiggle { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-9px) rotate(3deg); } }
       @keyframes fp-boot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
       #fp-boot {
         position: fixed; inset: 0; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 22px; background: #ffffff;
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        gap: 12px; background: #ffffff; color: #111111;
+        font-family: 'Jua', 'Pretendard', sans-serif;
       }
       #fp-boot .fp-boot-logo {
-        width: 52px; height: 52px; border-radius: 14px;
-        box-shadow: 0 8px 24px rgba(0, 47, 108, 0.18);
+        width: 118px; height: 126px; object-fit: contain;
+        animation: fp-boot-wiggle 1.35s ease-in-out infinite;
       }
       #fp-boot .fp-boot-spin {
-        width: 30px; height: 30px;
-        border: 3px solid #e9edf3; border-top-color: #002F6C; border-radius: 50%;
-        animation: fp-boot-spin 0.7s linear infinite;
+        width: 26px; height: 8px;
+        border-radius: 99px; background: #111111;
+        animation: fp-boot-pulse 1s ease-in-out infinite;
       }
       #fp-boot .fp-boot-label {
-        margin: 0; font-size: 14px; font-weight: 600; color: #5d7186;
+        margin: 0; font-size: 20px; color: #111111;
         letter-spacing: 0.01em; animation: fp-boot-pulse 1.4s ease-in-out infinite;
       }
     </style>
@@ -102,7 +107,7 @@
       </main>
       <!-- 로딩 스플래시: React 마운트 시 #root가 교체되며 자동 제거됨 -->
       <div id="fp-boot">
-        <img class="fp-boot-logo" src="/logo.png" alt="FitPoly" width="52" height="52" />
+        <img class="fp-boot-logo" src="/mascot.svg" alt="FitPoly" width="118" height="126" />
         <div class="fp-boot-spin"></div>
         <p class="fp-boot-label">FitPoly 불러오는 중…</p>
       </div>

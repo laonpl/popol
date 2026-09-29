@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import BrandLoader from '../../components/BrandLoader';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
@@ -1481,9 +1482,7 @@ export default function NotionPortfolioEditor() {
     toast.success(`"${exp.title}" 경험이 추가되었습니다 (${newExp.sections.length}개 섹션)`);
   };
 
-  if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
-  }
+  if (loading) return <BrandLoader label="편집 화면을 준비하는 중" />;
   if (!portfolio) {
     return <p className="text-gray-500 text-center py-20">포트폴리오를 찾을 수 없습니다.</p>;
   }
@@ -1611,7 +1610,7 @@ export default function NotionPortfolioEditor() {
 
       {/* ── Visual Mode: 대시보드 편집 (섹션 관리는 툴바 '섹션' 드롭다운으로 이동) ── */}
       {/* 기업분석 패널이 열리면 캔버스만 옆으로 밀어 나란히 본다 (툴바는 풀폭 유지) */}
-      <div className="transition-[margin] duration-300" style={{ marginRight: analysisOpen ? `calc(min(${JOB_DOCK_WIDTH}px, 100vw) - 2rem)` : 0 }}>
+      <div className={`portfolio-template portfolio-template--${portfolio?.templateId || 'notion'} transition-[margin] duration-300`} style={{ marginRight: analysisOpen ? `calc(min(${JOB_DOCK_WIDTH}px, 100vw) - 2rem)` : 0 }}>
         <VisualEditor
           portfolio={portfolio}
           update={update}
