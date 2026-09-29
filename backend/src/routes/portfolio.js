@@ -68,6 +68,7 @@ function buildPortfolioPayload(data, uid) {
     'customSlug', 'coverImageUrl', 'visual_sections', 'visual_sections_theme',
     'pendingAutofill',
     'portfolioPlan',
+    'outputType', 'pptLayoutId', 'pptPaletteId',
   ];
   extraFields.forEach(key => {
     if (data[key] !== undefined) docData[key] = data[key];

@@ -73,6 +73,7 @@ const usePortfolioStore = create((set, get) => ({
       'tableColumns', 'customSectionIcons', 'customSectionStyles', 'customSectionTitleSegments',
       'pendingAutofill',
       'portfolioPlan',
+      'outputType', 'pptLayoutId', 'pptPaletteId',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
     const { data: created } = await api.post('/portfolio', docData);

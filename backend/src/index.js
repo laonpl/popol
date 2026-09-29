@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin.js';
 import logsRoutes from './routes/logs.js';
 import analyticsRoutes from './routes/analytics.js';
 import shareLinkRoutes from './routes/shareLinks.js';
+import companyFolderRoutes from './routes/companyFolders.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
@@ -141,6 +142,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/share-links', shareLinkRoutes);
+app.use('/api/company-folders', companyFolderRoutes);
 
 // 릴스 캡처 등 로컬 전용 도구 — 운영에서는 마운트하지 않는다 (헤드리스 브라우저를 띄우는 무거운 작업)
 if (process.env.NODE_ENV !== 'production') {

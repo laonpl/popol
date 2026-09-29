@@ -1093,6 +1093,12 @@ export default function PortfolioTemplateSelect() {
         sections: [],
         templateId: template.isPpt ? 'notion' : template.id,
         templateType: template.isPpt ? 'notion' : (template.templateType || template.id),
+        // 포트폴리오 목록에서 PPT로 분류·다운로드하기 위한 표식
+        ...(template.isPpt && {
+          outputType: 'ppt',
+          pptLayoutId: template.pptLayoutId || null,
+          pptPaletteId: template.pptLayoutId ? pptPaletteId : null,
+        }),
         headline: '',
         education: [],
         awards: srcProfile?.awards || [],
@@ -1162,8 +1168,10 @@ export default function PortfolioTemplateSelect() {
         }));
       }
 
+      // 기업 폴더의 '새 포트폴리오'로 들어오면 그 기업으로 묶는다 (공고를 연결하면 공고 기업이 우선).
+      if (location.state?.targetCompany) data.targetCompany = location.state.targetCompany;
       if (finalAnalysis) {
-        data.targetCompany = finalAnalysis.company || '';
+        data.targetCompany = finalAnalysis.company || data.targetCompany || '';
         data.targetPosition = finalAnalysis.position || '';
         data.jobAnalysis = finalAnalysis;
       }

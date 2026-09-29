@@ -82,11 +82,28 @@ export default function AiPptExport() {
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'portfolios', id));
-        if (snap.exists()) setPortfolio({ id: snap.id, ...snap.data() });
+        if (snap.exists()) {
+          const data = snap.data();
+          setPortfolio({ id: snap.id, ...data });
+          // 이전에 만든 슬라이드가 저장돼 있으면 다시 생성하지 않고 그대로 보여준다.
+          if (!autostart && data.pptDeck?.slides?.length) {
+            if (data.pptLayoutId) setLayoutId(data.pptLayoutId);
+            if (data.pptPaletteId) setTemplateId(data.pptPaletteId);
+            setDeck(data.pptDeck);
+            setStage(STAGE.PREVIEW);
+          }
+        }
       } catch { toast.error('포트폴리오를 불러오지 못했습니다'); }
       setLoading(false);
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // 생성·수정한 슬라이드를 포트폴리오에 저장 → 포트폴리오 목록에서 바로 PPT 다운로드
+  const saveDeck = (nextDeck, layout = layoutId, palette = templateId) => {
+    api.patch(`/portfolio/${id}`, { pptDeck: nextDeck, pptLayoutId: layout, pptPaletteId: palette })
+      .catch(err => console.warn('[AiPptExport] 슬라이드 저장 실패:', err?.message));
+  };
 
   // autostart=true 이면 포트폴리오 로드 완료 후 바로 분석 시작
   useEffect(() => {
@@ -134,6 +151,7 @@ export default function AiPptExport() {
         });
         if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
         setDeck(data.deck);
+        saveDeck(data.deck);
         setStage(STAGE.PREVIEW);
       }
     } catch (e) {
@@ -153,7 +171,9 @@ export default function AiPptExport() {
         instruction: reviseInput.trim(),
       });
       if (!data?.slide) throw new Error('수정 실패');
-      setDeck(prev => ({ ...prev, slides: prev.slides.map((s, i) => i === selectedSlideIdx ? data.slide : s) }));
+      const nextDeck = { ...deck, slides: deck.slides.map((s, i) => i === selectedSlideIdx ? data.slide : s) };
+      setDeck(nextDeck);
+      saveDeck(nextDeck);
       setReviseInput('');
       toast.success('슬라이드 수정 완료');
     } catch (e) {
