@@ -20,7 +20,7 @@ const str = (v, max) => String(v ?? '').slice(0, max);
 function cleanFiles(files) {
   if (!Array.isArray(files)) return [];
   return files.slice(0, MAX_FILES)
-    .filter(f => f && typeof f.url === 'string' && /^https:\/\//.test(f.url))
+    .filter(f => f && typeof f.url === 'string' && /^https?:\/\//.test(f.url))
     .map(f => ({
       id: str(f.id, 64),
       category: FILE_CATEGORIES.includes(f.category) ? f.category : 'etc',

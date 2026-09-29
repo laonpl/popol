@@ -7,7 +7,7 @@ import {
   Phone, MapPin, Instagram, Star, Lightbulb, CheckCircle2,
   ExternalLink, Target, X, UserCircle2, Database, Trash2, GripVertical, Loader2,
   Upload, GraduationCap, Award, Globe, Sparkles, Camera, Copy,
-  Bold, PenLine, Type, Eraser
+  Bold, PenLine, Type, Eraser, Calendar
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -4968,8 +4968,806 @@ export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
   );
 };
 
+// ════════════════════════════════════════════════════════════════
+// 템플릿 13·15 공통: 노션 스타일 도구 (색·태그·섹션 머리·학력/수상/스킬/연락처)
+// ════════════════════════════════════════════════════════════════
+// 노션 태그 색 (gray·brown·orange·yellow·green·blue·purple·pink)
+const NOTION_TAG_COLORS = [
+  'bg-[#E3E2E0] text-[#32302C]', 'bg-[#EEE0DA] text-[#442A1E]', 'bg-[#FADEC9] text-[#49290E]', 'bg-[#FDECC8] text-[#402C1B]',
+  'bg-[#DBEDDB] text-[#1C3829]', 'bg-[#D3E5EF] text-[#183347]', 'bg-[#E8DEEE] text-[#412454]', 'bg-[#F5E0E9] text-[#4C2337]',
+];
+// 타임라인 막대용 진한 톤 (같은 순서)
+const NOTION_BAR_COLORS = ['#9B9A97', '#937264', '#D9730D', '#DFAB01', '#0F7B6C', '#0B6E99', '#6940A5', '#AD1A72'];
+const notionTag = (i) => NOTION_TAG_COLORS[i % NOTION_TAG_COLORS.length];
+const NOTION_FONT = { fontFamily: 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif' };
+const SKILL_CATEGORY_LABELS = { tools: '도구', languages: '언어', frameworks: '프레임워크', others: '기타' };
+// 섹션 머리 기본 아이콘 — 사용자가 이모지/아이콘으로 바꿀 수 있다.
+const NOTION_SECTION_ICONS = {
+  projects: Folder, experiences: Briefcase, skills: Code, education: GraduationCap, awards: Award, roadmap: Calendar,
+};
+
+// 기본 로고(/logo.png)는 '이미지 없음'으로 본다 — 노션 카드는 빈 커버를 색으로 채운다.
+const realProjectImage = (p) => { const src = projectImageSrc(p); return src === DEFAULT_PROJECT_LOGO ? '' : src; };
+const projectTags = (mapped) => (mapped?.techStack || []).map(t => (typeof t === 'string' ? t : t?.name)).filter(Boolean);
+
+// 페이지 아이콘 자리 — 사진이 없으면 이름 첫 글자 타일
+function NotionInitialTile({ name, className = '' }) {
+  return (
+    <div className={`flex items-center justify-center bg-[#37352F] font-bold text-white ${className}`}>
+      {(name || '?').slice(0, 1)}
+    </div>
+  );
+}
+
+function NotionSectionHead({ ec, portfolio, gp, sectionKey, title, recommendKey, size = 'text-[22px]' }) {
+  return (
+    <div className="flex items-center justify-between gap-3 mb-3">
+      <h2 className={`flex items-center gap-2 ${size} font-bold text-[#37352F] tracking-[-0.01em]`}>
+        <span className="text-[#91918E]">
+          <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey={sectionKey} fallback={NOTION_SECTION_ICONS[sectionKey]} className="w-5 h-5" />
+        </span>
+        <EH ec={ec} value={title} sectionKey={sectionKey} />
+      </h2>
+      <div className="flex items-center gap-1 shrink-0">
+        {ec?.jobAnalysis && <VisualSectionRecommend sectionType={recommendKey || sectionKey} jobAnalysis={ec.jobAnalysis} />}
+        {ec && gp && <span {...gp(sectionKey)}><GripVertical size={14} /></span>}
+        <SectionDeleteBtn ec={ec} sectionKey={sectionKey} />
+      </div>
+    </div>
+  );
+}
+
+function NotionEducationList({ ec, eduList }) {
+  return (
+    <div className="space-y-3">
+      {eduList.map((edu, idx) => (
+        <div key={idx} className="relative group flex gap-3">
+          {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#37352F]" />
+          <div className="min-w-0">
+            {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="text-[15px] font-semibold block" placeholder="학교명" /> : <VHtml as="p" className="text-[15px] font-semibold" value={edu.school || edu.name} />}
+            {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-[14px] text-[#787774] block" placeholder="전공/학위" /> : <VHtml as="p" className="text-[14px] text-[#787774]" value={edu.major || edu.degree} />}
+            <p className="text-[13px] text-[#91918E] mt-0.5">
+              {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간 (예: 2019.03 - 2025.02)" className="text-[13px] text-[#91918E]" /> : <VHtml value={edu.period} />}
+            </p>
+          </div>
+        </div>
+      ))}
+      {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-2 py-1 rounded text-[13px] text-[#91918E] hover:bg-[#F1F1EF]"><Plus size={13} /> 학력 추가</button>}
+    </div>
+  );
+}
+
+function NotionAwardList({ ec, awardList }) {
+  return (
+    <div className="space-y-2.5">
+      {awardList.map((award, idx) => (
+        <div key={idx} className="relative group flex items-baseline gap-3">
+          {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
+          <span className="w-[76px] shrink-0 text-[13px] text-[#91918E]">
+            {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-[13px] text-[#91918E]" /> : <VHtml value={award.date} />}
+          </span>
+          {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-[15px] font-medium" placeholder="수상명/자격증" /> : <VHtml className="text-[15px] font-medium" value={award.title} />}
+        </div>
+      ))}
+      {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-2 py-1 rounded text-[13px] text-[#91918E] hover:bg-[#F1F1EF]"><Plus size={13} /> 수상/자격 추가</button>}
+    </div>
+  );
+}
+
+function removeSkill(portfolio, ec, skill) {
+  const cat = skill.category || 'tools';
+  const arr = [...(portfolio.skills?.[cat] || [])];
+  const i = arr.findIndex(s => (typeof s === 'string' ? s : s?.name) === skill.name);
+  if (i > -1) arr.splice(i, 1);
+  ec.update('skills', { ...portfolio.skills, [cat]: arr });
+}
+
+// 스킬을 분류별 노션 태그 줄로
+function NotionSkillGroups({ portfolio, ec, skillList }) {
+  const groups = Object.keys(SKILL_CATEGORY_LABELS)
+    .map((cat, ci) => ({ cat, ci, items: skillList.filter(s => (s.category || 'tools') === cat) }))
+    .filter(g => g.items.length);
+  return (
+    <div>
+      <div className="divide-y divide-[#EDEDEC] rounded-md border border-[#E9E9E7]">
+        {groups.map(g => (
+          <div key={g.cat} className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2.5">
+            <span className="w-24 shrink-0 text-[13px] text-[#91918E]">{SKILL_CATEGORY_LABELS[g.cat]}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {g.items.map((skill, i) => (
+                <div key={`${skill.name}-${i}`} className="relative group">
+                  {ec && <RemoveBtn onClick={() => removeSkill(portfolio, ec, skill)} />}
+                  <SkillTooltipBadge skill={skill} ec={ec} levelMode="bar" badgeClassName={`rounded px-1.5 py-0.5 text-[13.5px] ${notionTag(g.ci + 4)}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {groups.length === 0 && <p className="px-3 py-3 text-[13.5px] text-[#B4B4B0]">아래에서 스킬을 추가하세요.</p>}
+      </div>
+      <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+    </div>
+  );
+}
+
+function NotionContactEditor({ ec, contact }) {
+  const field = (Icon, key, placeholder) => (
+    <div className="flex items-center gap-3">
+      <Icon className="w-4 h-4 text-[#91918E] shrink-0" />
+      <input value={contact[key] || ''} onChange={e => ec.updateNested('contact', key, e.target.value)} placeholder={placeholder}
+        className="flex-1 min-w-0 outline-none bg-transparent text-[14px] border-b border-dashed border-[#E9E9E7] focus:border-[#2383E2] py-1" />
+    </div>
+  );
+  return (
+    <div className="space-y-2.5 max-w-md">
+      {field(Mail, 'email', '이메일')}
+      {field(Phone, 'phone', '전화번호')}
+      {field(Globe, 'github', 'GitHub URL')}
+      {field(ExternalLink, 'website', '웹사이트/LinkedIn/블로그')}
+    </div>
+  );
+}
+
+// 보기 모드 연락처 — 값이 있는 것만
+const toUrl = (v) => (/^https?:/.test(v) ? v : `https://${v}`);
+function contactRows(contact, data) {
+  return [
+    { icon: Mail, label: '이메일', value: contact.email || data.email, href: (v) => `mailto:${v}` },
+    { icon: Phone, label: '전화', value: contact.phone || data.phone },
+    { icon: Globe, label: 'GitHub', value: contact.github, href: toUrl },
+    { icon: ExternalLink, label: '링크', value: contact.website || data.social?.blog, href: toUrl },
+  ].filter(r => r.value);
+}
+
+function NotionContactLinks({ rows, className = '' }) {
+  return (
+    <div className={`flex flex-wrap gap-x-5 gap-y-1.5 text-[14px] text-[#5F5E5B] ${className}`}>
+      {rows.map(r => {
+        const Icon = r.icon;
+        const body = <><Icon className="w-3.5 h-3.5 text-[#91918E]" />{r.value}</>;
+        return r.href
+          ? <a key={r.label} href={r.href(r.value)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 underline decoration-[#D3D1CB] underline-offset-2 hover:text-[#37352F]">{body}</a>
+          : <span key={r.label} className="inline-flex items-center gap-1.5">{body}</span>;
+      })}
+    </div>
+  );
+}
+
+function NotionHiddenSections({ ec }) {
+  if (!ec || !(ec.hiddenSections || []).length) return null;
+  return (
+    <div className="mt-8 rounded-md border border-dashed border-[#E9E9E7] p-4">
+      <p className="text-xs text-[#91918E] mb-3">숨긴 섹션 복원</p>
+      <div className="flex flex-wrap gap-2">
+        {ec.hiddenSections.map(key => (
+          <button key={key} type="button" onClick={() => ec.showSection(key)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[#F7F7F5] text-[#5F5E5B] hover:bg-[#EBEBEA] transition-colors">
+            <Plus size={11} /> {key}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// "2022.03 - 현재", "2021년 1월 ~ 2022년 2월", "2023.05" → 월 단위 { start, end(미포함) }
+function parsePeriodRange(period) {
+  const text = inlineHtmlToPlainText(String(period || ''));
+  const points = [];
+  const re = /(\d{4})\s*(?:[.\-/년]\s*(\d{1,2}))?/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const y = Number(m[1]);
+    if (y < 1950 || y > 2100) continue;
+    const mo = m[2] ? Math.min(Math.max(Number(m[2]), 1), 12) : 1;
+    points.push(y * 12 + mo - 1);
+  }
+  if (!points.length) return null;
+  const now = new Date();
+  const nowM = now.getFullYear() * 12 + now.getMonth();
+  const ongoing = /현재|재직|진행|present|now/i.test(text);
+  const start = points[0];
+  let end = points.length > 1 ? points[1] : (ongoing ? nowM : start);
+  if (end < start) end = start;
+  return { start, end: end + 1 };
+}
+
+function formatMonthsSpan(months) {
+  if (months <= 0) return '—';
+  const y = Math.floor(months / 12);
+  const mo = months % 12;
+  return [y ? `${y}년` : '', mo ? `${mo}개월` : ''].filter(Boolean).join(' ');
+}
+
+// ── 템플릿 13: 노션 워크스페이스형 (사이드바 페이지 트리 + 속성 표 + 갤러리/표 DB) ──
+export const VisualTemplate13 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [dbView, setDbView] = useState('gallery');
+  const [openCareer, setOpenCareer] = useState(() => new Set([0]));
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = portfolio.experiences || [];
+  const projList = ec ? expList : data.projects;
+  const eduList = ec ? (portfolio.education || []) : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = buildEditSkillList(portfolio);
+  const contact = portfolio.contact || {};
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards']);
+  const hidden = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden = (key) => hidden.includes(key);
+  const hasAbout = ec || richValueHasContent(portfolio.aboutBlocks) || data.about;
+  const plainName = inlineHtmlToPlainText(ec ? (portfolio.userName || '') : data.name) || '나';
+  const openProj = (proj, idx) => (ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj));
+  const scrollTo = (key) => document.getElementById(`t13-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const toggleCareer = (i) => setOpenCareer(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
+
+  const nav = [
+    { key: 'top', icon: UserCircle2, label: '홈' },
+    { key: 'projects', icon: Folder, label: '프로젝트', children: true },
+    { key: 'experiences', icon: Briefcase, label: '경력' },
+    { key: 'skills', icon: Code, label: '스킬' },
+    { key: 'education', icon: GraduationCap, label: '학력' },
+    { key: 'awards', icon: Award, label: '수상·자격' },
+    { key: 'contact', icon: Mail, label: '연락처' },
+  ].filter(n => !isHidden(n.key));
+
+  const properties = [
+    { icon: Briefcase, label: '포지션', edit: ec && <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="예: 프로덕트 디자이너" className="text-[14.5px]" />, view: portfolio.headline },
+    { icon: MapPin, label: '위치', edit: ec && <EditText value={portfolio.location} onChange={v => ec.update('location', v)} placeholder="예: 서울" className="text-[14.5px]" />, view: data.location },
+    ...contactRows(contact, data).map(r => ({ icon: r.icon, label: r.label, view: r.value, href: r.href?.(r.value) })),
+  ].filter(p => (ec ? p.edit || p.view : p.view));
+
+  return (
+    <div className="min-h-screen bg-white text-[#37352F] flex" style={NOTION_FONT}>
+      {/* 사이드바 — 노션 페이지 트리 */}
+      <aside className="hidden lg:flex w-60 shrink-0 flex-col bg-[#F7F7F5] border-r border-[#EDEDEC] sticky top-0 h-screen overflow-y-auto">
+        <div className="flex items-center gap-2 px-3 py-2.5 mx-1.5 mt-2 rounded-md">
+          <NotionInitialTile name={plainName} className="w-[22px] h-[22px] rounded text-[12px]" />
+          <span className="text-[14px] font-semibold truncate">{plainName}의 워크스페이스</span>
+        </div>
+        <p className="px-4 mt-4 mb-1 text-[12px] font-semibold text-[#91918E]">포트폴리오</p>
+        <nav className="px-1.5 pb-6 space-y-px">
+          {nav.map(n => {
+            const Icon = n.icon;
+            return (
+              <div key={n.key}>
+                <button type="button" onClick={() => scrollTo(n.key)} className="w-full flex items-center gap-2 px-2 py-1 rounded-md text-[14px] text-[#5F5E5B] hover:bg-[#EBEBEA] text-left">
+                  <Icon className="w-4 h-4 shrink-0 text-[#91918E]" />
+                  <span className="truncate">{n.label}</span>
+                </button>
+                {n.children && projList.map((proj, idx) => (
+                  <button key={idx} type="button" onClick={() => openProj(proj, idx)} className="w-full flex items-center gap-2 pl-8 pr-2 py-1 rounded-md text-[13.5px] text-[#787774] hover:bg-[#EBEBEA] text-left">
+                    <FileText className="w-3.5 h-3.5 shrink-0 text-[#A5A4A1]" />
+                    <span className="truncate">{inlineHtmlToPlainText(proj.company || proj.title || proj.name || '') || `프로젝트 ${idx + 1}`}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <main className="flex-1 min-w-0">
+        {/* 상단 경로 바 */}
+        <div className="sticky top-0 z-10 h-11 px-4 flex items-center gap-1.5 text-[14px] text-[#5F5E5B] bg-white/90 backdrop-blur">
+          <span className="truncate max-w-[180px]">{plainName}</span><span className="text-[#C7C6C4]">/</span><span>포트폴리오</span>
+        </div>
+
+        {/* 커버 */}
+        <div id="t13-top">
+          <ImageUploadSlot src={portfolio.coverImageUrl} onUpload={ec?.onUploadCoverImage} className="w-full h-[190px] md:h-[230px] overflow-hidden" imgClassName="w-full h-full object-cover">
+            <div className="w-full h-[190px] md:h-[230px] bg-[linear-gradient(120deg,#FBE4D8_0%,#F3DDF0_45%,#D8E8F6_100%)]" />
+          </ImageUploadSlot>
+        </div>
+
+        <div className="max-w-[900px] mx-auto px-6 md:px-16 pb-24">
+          {/* 페이지 아이콘 + 제목 */}
+          <div className="-mt-12 relative z-[1]">
+            <ImageUploadSlot src={portfolio.profileImageUrl} onUpload={ec?.onUploadProfileImage} className="w-[92px] h-[92px] rounded-lg overflow-hidden shadow-[0_0_0_4px_#fff]" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
+              <NotionInitialTile name={plainName} className="w-[92px] h-[92px] rounded-lg text-[40px] shadow-[0_0_0_4px_#fff]" />
+            </ImageUploadSlot>
+          </div>
+          <h1 className="mt-5 text-[34px] md:text-[40px] font-bold leading-tight tracking-[-0.02em]">
+            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-[34px] md:text-[40px] font-bold" /> : <VHtml value={data.name} />}
+          </h1>
+
+          {/* 속성 표 */}
+          <div className="mt-4 space-y-0.5">
+            {properties.map((p, i) => {
+              const Icon = p.icon;
+              return (
+                <div key={i} className="grid grid-cols-[132px,1fr] items-center gap-2 rounded px-1 py-1 hover:bg-[#F7F7F5]">
+                  <span className="flex items-center gap-2 text-[14px] text-[#91918E]"><Icon className="w-4 h-4" />{p.label}</span>
+                  <span className="min-w-0 truncate text-[14.5px]">
+                    {p.edit || (p.href
+                      ? <a href={p.href} target="_blank" rel="noopener noreferrer" className="underline decoration-[#D3D1CB] underline-offset-2 hover:decoration-[#37352F]">{p.view}</a>
+                      : <VHtml value={p.view} />)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="my-6 h-px bg-[#EDEDEC]" />
+
+          {/* 소개 콜아웃 */}
+          {hasAbout && (
+            <div className="rounded-md bg-[#F1F1EF] px-5 py-4 mb-10 text-[15px] leading-[1.75]">
+              {ec
+                ? <RichBody ec={ec} portfolio={portfolio} field="about" placeholder="나를 소개하는 글을 적어 주세요. / 로 블록을 추가할 수 있어요." />
+                : <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-[15px] leading-[1.75]" />}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-12">
+            {/* 프로젝트 DB — 갤러리/표 보기 */}
+            {!isHidden('projects') && (
+              <section {...dp('projects')} id="t13-projects" className="group/section scroll-mt-14">
+                <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" title="프로젝트" />
+                <div className="flex items-center gap-1 border-b border-[#EDEDEC] mb-3 text-[14px]">
+                  {[{ id: 'gallery', label: '갤러리', icon: LayoutGrid }, { id: 'table', label: '표', icon: List }].map(v => (
+                    <button key={v.id} type="button" onClick={() => setDbView(v.id)}
+                      className={`-mb-px inline-flex items-center gap-1.5 px-2 py-1.5 border-b-2 ${dbView === v.id ? 'border-[#37352F] font-semibold text-[#37352F]' : 'border-transparent text-[#91918E] hover:text-[#5F5E5B]'}`}>
+                      <v.icon className="w-3.5 h-3.5" /> {v.label}
+                    </button>
+                  ))}
+                  <span className="ml-auto text-[13px] text-[#B4B4B0]">{projList.length}개</span>
+                </div>
+
+                {dbView === 'gallery' ? (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {projList.map((proj, idx) => {
+                      const mapped = data.projects[idx] || {};
+                      const img = realProjectImage(proj);
+                      const tags = projectTags(mapped);
+                      return (
+                        <div key={idx} onClick={() => openProj(proj, idx)}
+                          className="group relative cursor-pointer overflow-hidden rounded-md border border-[#E9E9E7] bg-white shadow-[0_1px_2px_rgba(15,15,15,0.04)] transition-colors hover:bg-[#FAFAF9]">
+                          <ProjectCardActions ec={ec} idx={idx} />
+                          <div className={`h-[120px] overflow-hidden ${img ? '' : notionTag(idx + 5)} flex items-center justify-center`}>
+                            {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : <span className="text-[34px] font-bold opacity-40">{String(idx + 1).padStart(2, '0')}</span>}
+                          </div>
+                          <div className="px-3 pt-2.5 pb-3">
+                            <p className="text-[14.5px] font-semibold leading-snug line-clamp-2">
+                              {ec
+                                ? <EditText value={proj.company || proj.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" className="text-[14.5px] font-semibold" />
+                                : <VHtml value={proj.name} />}
+                            </p>
+                            <div className="mt-1.5 space-y-1 text-[13px] text-[#787774]">
+                              <p className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 shrink-0 text-[#A5A4A1]" />{ec
+                                ? <EditText value={proj.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="text-[13px] text-[#787774]" />
+                                : <VHtml value={proj.period || '—'} />}</p>
+                              {mapped.role && <p className="flex items-center gap-1.5 truncate"><UserCircle2 className="w-3.5 h-3.5 shrink-0 text-[#A5A4A1]" />{inlineHtmlToPlainText(mapped.role)}</p>}
+                            </div>
+                            {tags.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {tags.slice(0, 3).map((t, ti) => <span key={ti} className={`rounded px-1.5 py-0.5 text-[12px] ${notionTag(ti + idx)}`}>{t}</span>)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[620px] border-collapse text-[14px]">
+                      <thead>
+                        <tr className="text-left text-[13px] text-[#91918E]">
+                          {['이름', '기간', '역할', '기술'].map(h => <th key={h} className="border-y border-r last:border-r-0 border-[#E9E9E7] px-2 py-1.5 font-normal">{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projList.map((proj, idx) => {
+                          const mapped = data.projects[idx] || {};
+                          return (
+                            <tr key={idx} onClick={() => openProj(proj, idx)} className="cursor-pointer hover:bg-[#F7F7F5]">
+                              <td className="border-b border-r border-[#E9E9E7] px-2 py-2 font-medium">{inlineHtmlToPlainText(proj.company || proj.title || proj.name || '') || `프로젝트 ${idx + 1}`}</td>
+                              <td className="border-b border-r border-[#E9E9E7] px-2 py-2 text-[#787774] whitespace-nowrap">{inlineHtmlToPlainText(proj.period || '') || '—'}</td>
+                              <td className="border-b border-r border-[#E9E9E7] px-2 py-2 text-[#787774]">{inlineHtmlToPlainText(mapped.role || '') || '—'}</td>
+                              <td className="border-b border-[#E9E9E7] px-2 py-2">
+                                <div className="flex flex-wrap gap-1">{projectTags(mapped).slice(0, 3).map((t, ti) => <span key={ti} className={`rounded px-1.5 py-0.5 text-[12px] ${notionTag(ti + idx)}`}>{t}</span>)}</div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {ec && <ExpControls ec={ec} />}
+              </section>
+            )}
+
+            {/* 경력 — 토글 목록 */}
+            {!isHidden('experiences') && (
+              <section {...dp('experiences')} id="t13-experiences" className="group/section scroll-mt-14">
+                <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="experiences" title="경력" />
+                <div className="space-y-0.5">
+                  {expList.map((exp, idx) => {
+                    const open = openCareer.has(idx);
+                    const details = getExpDetails(exp).map(d => stripMd(inlineHtmlToPlainText(String(d)))).filter(Boolean);
+                    return (
+                      <div key={idx} className="relative group rounded hover:bg-[#FAFAF9]">
+                        {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                        <div className="flex items-start gap-1 px-1 py-1">
+                          <button type="button" onClick={() => toggleCareer(idx)} aria-label={open ? '접기' : '펼치기'} className="mt-[3px] w-5 h-5 shrink-0 flex items-center justify-center rounded text-[#91918E] hover:bg-[#EBEBEA]">
+                            <ChevronRight size={15} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <span className="text-[15px] font-semibold">
+                                {ec ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="회사/프로젝트명" className="text-[15px] font-semibold" /> : <VHtml value={exp.company || exp.title || ''} />}
+                              </span>
+                              <span className="text-[14px] text-[#787774]">
+                                {ec ? <EditText value={exp.role || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} placeholder="역할" className="text-[14px] text-[#787774]" /> : <VHtml value={exp.role || exp.subtitle || ''} />}
+                              </span>
+                              <span className="sm:ml-auto text-[13px] text-[#91918E]">
+                                {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="text-[13px] text-[#91918E]" /> : <VHtml value={exp.period || ''} />}
+                              </span>
+                            </div>
+                            {open && (
+                              details.length > 0 ? (
+                                <ul className="mt-1.5 mb-1 space-y-1">
+                                  {details.slice(0, 5).map((d, di) => (
+                                    <li key={di} className="flex gap-2 text-[14px] leading-relaxed text-[#5F5E5B]"><span className="text-[#91918E]">•</span><span className="line-clamp-3">{d}</span></li>
+                                  ))}
+                                </ul>
+                              ) : <p className="mt-1 text-[13px] text-[#B4B4B0]">세부 내용이 아직 없어요.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {ec && <ExpControls ec={ec} />}
+              </section>
+            )}
+
+            {!isHidden('skills') && (skillList.length > 0 || ec) && (
+              <section {...dp('skills')} id="t13-skills" className="group/section scroll-mt-14">
+                <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" title="스킬" />
+                <NotionSkillGroups portfolio={portfolio} ec={ec} skillList={skillList} />
+              </section>
+            )}
+
+            {!isHidden('education') && (eduList.length > 0 || ec) && (
+              <section {...dp('education')} id="t13-education" className="group/section scroll-mt-14">
+                <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="education" title="학력" />
+                <NotionEducationList ec={ec} eduList={eduList} />
+              </section>
+            )}
+
+            {!isHidden('awards') && (awardList.length > 0 || ec) && (
+              <section {...dp('awards')} id="t13-awards" className="group/section scroll-mt-14">
+                <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="awards" title="수상·자격" />
+                <NotionAwardList ec={ec} awardList={awardList} />
+              </section>
+            )}
+          </div>
+
+          <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+          {/* 연락처 */}
+          <section id="t13-contact" className="mt-14 scroll-mt-14">
+            <h2 className="flex items-center gap-2 text-[22px] font-bold mb-3"><Mail className="w-5 h-5 text-[#91918E]" /> 연락처</h2>
+            {ec ? <NotionContactEditor ec={ec} contact={contact} /> : (
+              <div className="rounded-md border border-[#E9E9E7] px-5 py-4">
+                <p className="text-[15px]">함께 이야기 나누고 싶다면 편하게 연락 주세요.</p>
+                <NotionContactLinks rows={contactRows(contact, data)} className="mt-2" />
+              </div>
+            )}
+          </section>
+
+          <NotionHiddenSections ec={ec} />
+        </div>
+      </main>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
+// ── 템플릿 15: 커리어 로드맵형 (노션 타임라인 보기 + 보드 + 스킬 표) ──
+function RoadmapTimeline({ rows, ec, onOpen }) {
+  const parsed = rows.map(r => ({ ...r, range: parsePeriodRange(r.period) }));
+  const placed = parsed.filter(r => r.range);
+  const now = new Date();
+  const nowM = now.getFullYear() * 12 + now.getMonth();
+
+  if (!placed.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-[#E3E2E0] bg-white px-5 py-8 text-center text-[14px] text-[#91918E]">
+        경험·학력에 기간(예: 2023.03 - 2024.02)을 입력하면 로드맵이 그려져요.
+      </div>
+    );
+  }
+
+  const lo = Math.floor(Math.min(...placed.map(r => r.range.start)) / 12) * 12;
+  const hi = Math.max(Math.ceil(Math.max(...placed.map(r => r.range.end)) / 12) * 12, lo + 12);
+  const pct = (m) => ((m - lo) / (hi - lo)) * 100;
+  const years = [];
+  for (let y = lo / 12; y < hi / 12; y++) years.push(y);
+  const showNow = nowM >= lo && nowM <= hi;
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-[#E9E9E7] bg-white">
+      <div className="min-w-[640px]">
+        {/* 연도 눈금 */}
+        <div className="flex border-b border-[#E9E9E7] text-[12.5px] text-[#91918E]">
+          <div className="w-44 shrink-0 border-r border-[#E9E9E7] px-3 py-2">이름</div>
+          <div className="relative flex-1 h-9">
+            {years.map(y => (
+              <span key={y} className="absolute top-0 h-full border-l border-[#EDEDEC] pl-1.5 pt-2" style={{ left: `${pct(y * 12)}%` }}>{y}</span>
+            ))}
+          </div>
+        </div>
+        {parsed.map((r, i) => (
+          <div key={r.key} className="relative group flex border-b last:border-b-0 border-[#F1F1EF] hover:bg-[#FAFAF9]">
+            <div className="w-44 shrink-0 border-r border-[#E9E9E7] px-3 py-2 min-w-0">
+              <p className="flex items-center gap-1.5 text-[13.5px] font-medium min-w-0">
+                {r.badge && <span className="shrink-0 rounded bg-[#E3E2E0] px-1 text-[11px] font-medium text-[#5F5E5B]">{r.badge}</span>}
+                <span className="truncate">{ec && r.onName ? <EditText value={r.nameRaw} onChange={r.onName} placeholder="이름" className="text-[13.5px] font-medium" /> : (r.name || '이름 없음')}</span>
+              </p>
+              <p className="text-[12px] text-[#91918E] truncate">
+                {ec && r.onPeriod ? <EditText value={r.period || ''} onChange={r.onPeriod} placeholder="기간 입력" className="text-[12px] text-[#91918E]" /> : (inlineHtmlToPlainText(r.period || '') || '기간 미입력')}
+              </p>
+            </div>
+            <div className="relative flex-1">
+              {years.map(y => <span key={y} className="absolute inset-y-0 border-l border-[#F4F4F3]" style={{ left: `${pct(y * 12)}%` }} />)}
+              {showNow && <span className="absolute inset-y-0 border-l border-dashed border-[#EB5757]/60" style={{ left: `${pct(nowM)}%` }} />}
+              {r.range && (
+                <button
+                  type="button"
+                  onClick={() => r.onOpen && onOpen(r)}
+                  title={`${r.name} · ${inlineHtmlToPlainText(r.period || '')}`}
+                  className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-md px-2 text-left text-[12.5px] font-medium text-white truncate shadow-sm ${r.onOpen ? 'hover:brightness-110 cursor-pointer' : 'cursor-default'}`}
+                  style={{ left: `${pct(r.range.start)}%`, width: `max(${pct(r.range.end) - pct(r.range.start)}%, 10px)`, background: NOTION_BAR_COLORS[(r.color ?? i) % NOTION_BAR_COLORS.length] }}
+                >
+                  {r.name}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {showNow && (
+          <div className="flex text-[11.5px] text-[#EB5757]">
+            <div className="w-44 shrink-0" />
+            <div className="relative flex-1 h-5"><span className="absolute -translate-x-1/2 top-0.5" style={{ left: `${pct(nowM)}%` }}>오늘</span></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export const VisualTemplate15 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = portfolio.experiences || [];
+  const projList = ec ? expList : data.projects;
+  const rawEdu = portfolio.education || [];
+  const eduList = ec ? rawEdu : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = buildEditSkillList(portfolio);
+  const contact = portfolio.contact || {};
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['roadmap', 'projects', 'skills', 'education', 'awards']);
+  const hidden = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden = (key) => hidden.includes(key);
+  const hasAbout = ec || richValueHasContent(portfolio.aboutBlocks) || data.about;
+  const plainName = inlineHtmlToPlainText(ec ? (portfolio.userName || '') : data.name) || '나';
+  const openProj = (proj, idx) => (ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj));
+
+  // 로드맵 행: 경험 + 학력
+  const roadmapRows = [
+    ...expList.map((exp, idx) => ({
+      key: `exp-${idx}`, idx, color: idx + 4,
+      name: inlineHtmlToPlainText(exp.company || exp.title || ''), nameRaw: exp.company || exp.title || '', period: exp.period,
+      onName: ec ? (v) => ec.updateArrayItem('experiences', idx, { company: v, title: v }) : null,
+      onPeriod: ec ? (v) => ec.updateArrayItem('experiences', idx, { period: v }) : null,
+      onOpen: true,
+    })),
+    ...rawEdu.map((edu, idx) => ({
+      key: `edu-${idx}`, color: 0, badge: '학력',
+      name: inlineHtmlToPlainText(edu.name || edu.school || ''), nameRaw: edu.name || edu.school || '', period: edu.period,
+      onName: ec ? (v) => ec.updateArrayItem('education', idx, { name: v }) : null,
+      onPeriod: ec ? (v) => ec.updateArrayItem('education', idx, { period: v }) : null,
+    })),
+  ];
+  const ranges = expList.map(e => parsePeriodRange(e.period)).filter(Boolean);
+  const spanMonths = ranges.length ? Math.max(...ranges.map(r => r.end)) - Math.min(...ranges.map(r => r.start)) : 0;
+  const stats = [
+    { label: '프로젝트·경험', value: `${expList.length}개` },
+    { label: '활동 기간', value: formatMonthsSpan(spanMonths) },
+    { label: '보유 스킬', value: `${skillList.length}개` },
+    { label: '수상·자격', value: `${(portfolio.awards || []).length}개` },
+  ];
+
+  // 보드: 프로젝트 / 경력·활동
+  const boardColumns = [
+    { id: 'Project', label: '프로젝트', tag: notionTag(5) },
+    { id: 'Experience', label: '경력·활동', tag: notionTag(4) },
+  ].map(col => ({
+    ...col,
+    items: projList.map((proj, idx) => ({ proj, idx, mapped: data.projects[idx] || {} }))
+      .filter(({ mapped }) => (mapped.tag === 'Project' ? 'Project' : 'Experience') === col.id),
+  }));
+
+  return (
+    <div className="min-h-screen bg-[#FBFBFA] text-[#37352F]" style={NOTION_FONT}>
+      <div className="max-w-[1000px] mx-auto px-5 md:px-8 pb-24">
+        {/* 커버 + 프로필 */}
+        <div className="pt-6">
+          <ImageUploadSlot src={portfolio.coverImageUrl} onUpload={ec?.onUploadCoverImage} className="w-full h-[170px] rounded-xl overflow-hidden" imgClassName="w-full h-full object-cover" rounded="rounded-xl">
+            <div className="w-full h-[170px] rounded-xl bg-[linear-gradient(115deg,#DCEBF7_0%,#E9E1F5_50%,#FBE7D6_100%)]" />
+          </ImageUploadSlot>
+        </div>
+        <header className="-mt-10 px-2 md:px-6 flex flex-col sm:flex-row sm:items-end gap-4">
+          <ImageUploadSlot src={portfolio.profileImageUrl} onUpload={ec?.onUploadProfileImage} className="w-[96px] h-[96px] shrink-0 rounded-2xl overflow-hidden ring-4 ring-[#FBFBFA] relative z-[1]" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
+            <NotionInitialTile name={plainName} className="w-[96px] h-[96px] rounded-2xl ring-4 ring-[#FBFBFA] text-[42px] relative z-[1]" />
+          </ImageUploadSlot>
+          <div className="min-w-0 pb-1">
+            <h1 className="text-[32px] md:text-[36px] font-bold leading-tight tracking-[-0.02em]">
+              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-[32px] md:text-[36px] font-bold" /> : <VHtml value={data.name} />}
+            </h1>
+            {(ec || portfolio.headline) && <p className="mt-1 text-[16px] text-[#787774]" style={{ wordBreak: 'keep-all' }}>
+              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개" className="text-[16px] text-[#787774]" /> : <VHtml value={portfolio.headline} />}
+            </p>}
+          </div>
+        </header>
+
+        {/* 요약 지표 */}
+        <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {stats.map(s => (
+            <div key={s.label} className="rounded-lg border border-[#E9E9E7] bg-white px-4 py-3.5">
+              <p className="text-[12.5px] text-[#91918E]">{s.label}</p>
+              <p className="mt-1 text-[22px] font-bold tracking-[-0.01em]">{s.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* 소개 */}
+        {hasAbout && (
+          <div className="mt-6 rounded-lg bg-white border border-[#E9E9E7] px-5 py-4 text-[15px] leading-[1.8]">
+            {ec
+              ? <RichBody ec={ec} portfolio={portfolio} field="about" placeholder="지금까지의 여정과 앞으로의 방향을 적어 주세요." />
+              : <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-[15px] leading-[1.8]" />}
+          </div>
+        )}
+
+        <div className="mt-12 flex flex-col gap-12">
+          {/* 로드맵 */}
+          {!isHidden('roadmap') && (
+            <section {...dp('roadmap')} className="group/section">
+              <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="roadmap" title="커리어 로드맵" recommendKey="experiences" />
+              <RoadmapTimeline rows={roadmapRows} ec={ec} onOpen={(r) => openProj(projList[r.idx], r.idx)} />
+              {ec && <ExpControls ec={ec} />}
+            </section>
+          )}
+
+          {/* 보드 */}
+          {!isHidden('projects') && (
+            <section {...dp('projects')} className="group/section">
+              <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" title="프로젝트 보드" />
+              <div className="grid md:grid-cols-2 gap-4">
+                {boardColumns.map(col => (
+                  <div key={col.id} className="rounded-lg bg-[#F4F4F2] p-2.5">
+                    <div className="flex items-center gap-2 px-1 pb-2">
+                      <span className={`rounded px-1.5 py-0.5 text-[13px] font-medium ${col.tag}`}>{col.label}</span>
+                      <span className="text-[13px] text-[#91918E]">{col.items.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {col.items.map(({ proj, idx, mapped }) => {
+                        const img = realProjectImage(proj);
+                        return (
+                          <div key={idx} onClick={() => openProj(proj, idx)} className="group relative cursor-pointer overflow-hidden rounded-md border border-[#E9E9E7] bg-white shadow-[0_1px_2px_rgba(15,15,15,0.05)] hover:bg-[#FAFAF9]">
+                            <ProjectCardActions ec={ec} idx={idx} />
+                            {img && <div className="h-28 overflow-hidden"><img src={img} alt="" className="w-full h-full object-cover" /></div>}
+                            <div className="px-3 py-2.5">
+                              <p className="text-[14.5px] font-semibold leading-snug">
+                                {ec
+                                  ? <EditText value={proj.company || proj.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="이름" className="text-[14.5px] font-semibold" />
+                                  : <VHtml value={proj.name} />}
+                              </p>
+                              <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-[#91918E]">
+                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">{inlineHtmlToPlainText(proj.period || '') || '기간 미입력'}{mapped.role ? ` · ${inlineHtmlToPlainText(mapped.role)}` : ''}</span>
+                              </p>
+                              {!ec && mapped.desc && <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#5F5E5B] line-clamp-3">{inlineHtmlToPlainText(mapped.desc)}</p>}
+                              {projectTags(mapped).length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {projectTags(mapped).slice(0, 4).map((t, ti) => <span key={ti} className={`rounded px-1.5 py-0.5 text-[12px] ${notionTag(ti + idx)}`}>{t}</span>)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {col.items.length === 0 && <p className="px-1 py-3 text-[13px] text-[#B4B4B0]">비어 있음</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 스킬 표 */}
+          {!isHidden('skills') && (skillList.length > 0 || ec) && (
+            <section {...dp('skills')} className="group/section">
+              <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" title="스킬 숙련도" />
+              <div className="overflow-hidden rounded-lg border border-[#E9E9E7] bg-white">
+                <table className="w-full border-collapse text-[14px]">
+                  <thead>
+                    <tr className="text-left text-[13px] text-[#91918E]">
+                      <th className="border-b border-r border-[#E9E9E7] px-3 py-1.5 font-normal">스킬</th>
+                      <th className="border-b border-r border-[#E9E9E7] px-3 py-1.5 font-normal w-[110px]">분류</th>
+                      <th className="border-b border-[#E9E9E7] px-3 py-1.5 font-normal w-[44%]">숙련도</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skillList.map((skill, i) => {
+                      const pctVal = parseInt(skill.percent) || 70;
+                      const ci = Object.keys(SKILL_CATEGORY_LABELS).indexOf(skill.category || 'tools');
+                      return (
+                        <tr key={`${skill.name}-${i}`} className="relative group hover:bg-[#FAFAF9]">
+                          <td className="border-b border-r border-[#F1F1EF] px-3 py-2 font-medium relative">
+                            {ec && <RemoveBtn onClick={() => removeSkill(portfolio, ec, skill)} />}
+                            {skill.name}
+                          </td>
+                          <td className="border-b border-r border-[#F1F1EF] px-3 py-2"><span className={`rounded px-1.5 py-0.5 text-[12.5px] ${notionTag(ci + 4)}`}>{SKILL_CATEGORY_LABELS[skill.category || 'tools']}</span></td>
+                          <td className="border-b border-[#F1F1EF] px-3 py-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EDEDEC]"><div className="h-full rounded-full bg-[#2383E2]" style={{ width: `${pctVal}%` }} /></div>
+                              <span className="w-10 text-right"><SkillLevelBadge skill={skill} ec={ec} /></span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {skillList.length === 0 && <tr><td colSpan={3} className="px-3 py-3 text-[13.5px] text-[#B4B4B0]">아래에서 스킬을 추가하세요.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+            </section>
+          )}
+
+          {!isHidden('education') && (eduList.length > 0 || ec) && (
+            <section {...dp('education')} className="group/section">
+              <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="education" title="학력" />
+              <div className="rounded-lg border border-[#E9E9E7] bg-white px-5 py-4"><NotionEducationList ec={ec} eduList={eduList} /></div>
+            </section>
+          )}
+
+          {!isHidden('awards') && (awardList.length > 0 || ec) && (
+            <section {...dp('awards')} className="group/section">
+              <NotionSectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="awards" title="수상·자격" />
+              <div className="rounded-lg border border-[#E9E9E7] bg-white px-5 py-4"><NotionAwardList ec={ec} awardList={awardList} /></div>
+            </section>
+          )}
+        </div>
+
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+        {/* 연락처 */}
+        <footer className="mt-14 rounded-lg border border-[#E9E9E7] bg-white px-5 py-5">
+          <p className="text-[15px] font-semibold mb-2">연락처</p>
+          {ec ? <NotionContactEditor ec={ec} contact={contact} /> : (
+            <NotionContactLinks
+              rows={[...contactRows(contact, data), ...(data.location ? [{ icon: MapPin, label: '위치', value: data.location }] : [])]}
+            />
+          )}
+        </footer>
+
+        <NotionHiddenSections ec={ec} />
+      </div>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
 // ── 템플릿 라우터 ──
-export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8','visual-9','visual-10','visual-11','visual-12'];
+export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8','visual-9','visual-10','visual-11','visual-12','visual-13','visual-15'];
 
 export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail }) {
   const templateId = portfolio?.templateId;
@@ -4986,6 +5784,8 @@ export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail
   if (templateId === 'visual-10') return <VisualTemplate10 {...props} />;
   if (templateId === 'visual-11') return <VisualTemplate11 {...props} />;
   if (templateId === 'visual-12') return <VisualTemplate12 {...props} />;
+  if (templateId === 'visual-13') return <VisualTemplate13 {...props} />;
+  if (templateId === 'visual-15') return <VisualTemplate15 {...props} />;
   return null;
 }
 

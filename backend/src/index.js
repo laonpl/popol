@@ -18,6 +18,7 @@ import logsRoutes from './routes/logs.js';
 import analyticsRoutes from './routes/analytics.js';
 import shareLinkRoutes from './routes/shareLinks.js';
 import companyFolderRoutes from './routes/companyFolders.js';
+import fileRoutes from './routes/files.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
@@ -118,7 +119,7 @@ app.use('/api', billingContextMiddleware);
 // 공개 링크 열람 수집은 비회원 다수가 같은 IP로 보낼 수 있어 전역 제한 대신
 // 전용 제한(publicIngestRateLimiter)을 쓴다.
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth') || req.path === '/analytics/view') {
+  if (req.path.startsWith('/auth') || req.path === '/analytics/view' || req.path.startsWith('/files/')) {
     return next();
   }
   return generalRateLimiter(req, res, next);
@@ -143,6 +144,7 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/share-links', shareLinkRoutes);
 app.use('/api/company-folders', companyFolderRoutes);
+app.use('/api/files', fileRoutes);
 
 // 릴스 캡처 등 로컬 전용 도구 — 운영에서는 마운트하지 않는다 (헤드리스 브라우저를 띄우는 무거운 작업)
 if (process.env.NODE_ENV !== 'production') {
