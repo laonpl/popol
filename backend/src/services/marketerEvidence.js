@@ -3,7 +3,7 @@ import { MARKETER_WORK_PRODUCT_FIELDS, MARKETER_WORK_PRODUCT_LIMITS } from '../p
 const text = v => typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
 const list = v => Array.isArray(v) ? v : [];
 const stages = new Set(['planned', 'executed', 'observed', 'changed', 'unknown']);
-const dimensions = new Set(['conversion', 'targeting', 'creative', 'experiment', 'attribution', 'learning']);
+const dimensions = new Set(['conversion', 'targeting', 'creative', 'activation', 'experiment', 'attribution', 'learning']);
 export function groundMarketerEvidence(analysis, content) {
   if (analysis?.jobCategory !== 'marketer') return analysis;
   const sources = collectPmSources(content);

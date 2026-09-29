@@ -6,6 +6,7 @@ import { caseArtifacts, roleSourceText } from '../../utils/roleArtifacts';
 import { Field, Source, WorkBlock } from './MarketerWorkProductBlocks';
 import RoleArtifactStudio from './RoleArtifactStudio';
 import WorkProductReview from './WorkProductReview';
+import { MarketingCampaignStudio } from './RoleSignatureStudio';
 import { MARKETING_CHAPTERS, marketingCaseSections } from '../../utils/marketerCaseStudy';
 import './MarketerPortfolioBoard.css';
 import './CampaignShowcase.css';
@@ -64,11 +65,12 @@ function Campaign({ item, sr, onChange, readOnly }) {
       <dl className="ma-scope">{channels.length > 0 && <div><dt>운영 접점</dt><dd>{channels.join(' · ')}</dd></div>}{periods.length > 0 && <div><dt>기록된 집행 기간</dt><dd>{periods.join(' / ')}</dd></div>}<div><dt>내가 직접 맡은 범위</dt><dd>{owner.length ? owner.join(' / ') : '담당 범위가 아직 기록되지 않았습니다.'}</dd></div></dl>
       {(primaryMetric || feedback) && <a className="ma-impact-preview" href={'#' + id + '-measurement'}><div><small>{primaryMetric ? METRIC_KINDS[primaryMetric.kind] : '기록된 고객 반응'}</small><b>{primaryMetric ? primaryMetric.name : feedback.claim}</b></div>{primaryMetric && <strong>{primaryMetric.actual}</strong>}<span>{primaryMetric ? [primaryMetric.period, primaryMetric.population].filter(Boolean).join(' · ') : ''}<small>측정 조건과 해석 보기 <ArrowUpRight size={12} /></small></span></a>}
     </header>
+    <MarketingCampaignStudio item={item} reviewId={id + '-review'} canEdit={!readOnly && !!onChange} />
     <div className="ma-case-layout"><aside className="ma-outline print:hidden"><div><span>이 경험 읽기</span><nav aria-label="마케팅 사례 목차">{sections.map((section, i) => <a key={section.key} href={'#' + id + '-' + section.key}><small>{String(i + 1).padStart(2, '0')}</small>{section.label}</a>)}{!readOnly && <a href={'#' + id + '-review'}><small>↗</small>추출 내용 검토</a>}</nav><p>수치와 문장에 연결된 원문을 함께 확인할 수 있습니다.</p></div></aside>
       <div className="ma-case-body">{sections.map((section, i) => <section className={'ma-chapter ma-' + section.key} id={id + '-' + section.key} key={section.key}><header className="ma-chapter-heading"><span>{String(i + 1).padStart(2, '0')}</span><div><small>{section.label}</small><h3>{section.title}</h3></div></header>
         {section.key === 'strategy' && <>{notes(section.records)}<Audience rows={w.audiences} /><WorkBlock group="positioning" rows={w.positioning} /></>}
         {section.key === 'creative' && <>{(files.length > 0 || (!readOnly && onChange)) && <div className="ma-originals"><RoleArtifactStudio sr={sr} item={item} role="marketer" onChange={onChange} readOnly={readOnly} /></div>}{notes(section.records)}<CopyLibrary rows={w.creatives} /></>}
-        {section.key === 'activation' && <><WorkBlock group="channels" rows={w.channels} /><WorkBlock group="contentSystem" rows={w.contentSystem} /><WorkBlock group="crm" rows={w.crm} /><WorkBlock group="operations" rows={w.operations} /></>}
+        {section.key === 'activation' && <>{notes(section.records)}<WorkBlock group="channels" rows={w.channels} /><WorkBlock group="contentSystem" rows={w.contentSystem} /><WorkBlock group="crm" rows={w.crm} /><WorkBlock group="operations" rows={w.operations} /></>}
         {section.key === 'measurement' && <><Results item={item} />{notes(section.records)}<WorkBlock group="measurement" rows={w.measurement} />{item.attributionLimit && <p className="ma-caution">성과 해석 범위 · {item.attributionLimit}</p>}</>}
         {section.key === 'learning' && <>{notes(section.records)}<WorkBlock group="experiments" rows={w.experiments} /><WorkBlock group="optimization" rows={w.optimization} />{item.nextExperiment && !section.records.some(row => row.claim === item.nextExperiment) && <div className="ma-next"><span>다음에 검증할 것</span><p>{item.nextExperiment}</p></div>}</>}
       </section>)}

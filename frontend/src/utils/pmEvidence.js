@@ -26,13 +26,19 @@ function currentBasis(row, sourceText) {
 export function buildPmEvidenceModel(sr = {}, { sourceText } = {}) {
   const cases = array(sr.keyExperiences).map((experience, sourceIndex) => ({ experience, sourceIndex })).filter(({ experience }) => experience && typeof experience === 'object').map(({ experience, sourceIndex }, index) => {
     const jd = experience?.jobData || {};
-    const legacyRows = jd.pmEvidenceVersion !== 1 && !array(jd.pmEvidence).length ? [
+    // Keep the role-specific story readable when a partial AI extraction contains
+    // only some of the six lenses. These are summaries, never verified evidence.
+    const extractedDimensions = new Set(array(jd.pmEvidence).filter(row => row && string(row.claim)).map(row => row.dimension));
+    const fallbackRows = [
       ['discovery', jd.problemSignal || experience.context || experience.situation],
       ['prioritization', [string(jd.decision), string(jd.alternatives)].filter(Boolean).join('\n')],
-      ['delivery', experience.action], ['validation', jd.validation],
+      ['delivery', experience.action],
+      ['validation', [string(jd.hypothesis), string(jd.successCriteria), string(jd.validation)].filter(Boolean).join('\n')],
       ['outcome', experience.result], ['learning', experience.learning],
-    ].filter(([, claim]) => string(claim)).map(([dimension, claim]) => ({ dimension, claim, quote: '', basis: 'unlocated', stage: 'unknown', derivedLegacy: true, missingEvidence: '기존 정리문 · 원문 대조 필요' })) : [];
-    const records = (legacyRows.length ? legacyRows : array(jd.pmEvidence)).map((row, sourceRecordIndex) => row && ({ ...row, sourceRecordIndex })).filter(row => row && PM_DIMENSIONS.some(d => d.key === row.dimension) && string(row.claim)).slice(0, 12).map((row, i) => ({
+    ].filter(([dimension, claim]) => string(claim) && !extractedDimensions.has(dimension))
+      .map(([dimension, claim]) => ({ dimension, claim, quote: '', basis: 'unlocated', stage: 'unknown', derivedLegacy: true, missingEvidence: '기존 경험 정리 · 원문 대조 필요' }));
+    const records = [...array(jd.pmEvidence).map((row, sourceRecordIndex) => row && ({ ...row, sourceRecordIndex })), ...fallbackRows]
+      .filter(row => row && PM_DIMENSIONS.some(d => d.key === row.dimension) && string(row.claim)).slice(0, 12).map((row, i) => ({
       ...row, id: `${index}-${i}`, claim: string(row.claim), quote: string(row.quote),
       basis: currentBasis(row, sourceText), stage: currentBasis(row, sourceText) !== 'unlocated' && PM_STAGE_LABELS[row.stage] ? row.stage : 'unknown',
       ownership: currentBasis(row, sourceText) !== 'unlocated' ? string(row.ownership) : '',

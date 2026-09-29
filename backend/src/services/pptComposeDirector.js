@@ -154,7 +154,7 @@ async function refineEmphasis(qa, portfolio) {
   if (!hasInput) return '';
   try {
     const text = await generateWithRetry(buildEmphasisPrompt(qa, portfolio), {
-      models: ['gemini-2.5-flash-lite'],
+      models: ['gemini-3.1-flash-lite'],
       retries: 1, delayMs: 600, rateLimitDelayMs: 2000, callTimeoutMs: 15000, githubFallback: false,
     });
     const line = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
@@ -282,7 +282,7 @@ export async function resolveComposition({ portfolio, choices = {}, requests = {
   // ② AI 보강 (요청이 있을 때만, 실패해도 ① 결과 유지)
   try {
     const text = await generateWithRetry(buildPrompt(base, requests, portfolio), {
-      models: ['gemini-2.5-flash-lite'],
+      models: ['gemini-3.1-flash-lite'],
       retries: 1, delayMs: 800, rateLimitDelayMs: 2000, callTimeoutMs: 20000, githubFallback: false,
     });
     const ai = parseJSON(text) || {};
@@ -346,7 +346,7 @@ export async function refineProjectBullets({ portfolio }) {
     .filter(Boolean).map(s => s.slice(0, 60)).slice(0, 3);
   try {
     const text = await generateWithRetry(buildBulletPrompt(exps), {
-      models: ['gemini-2.5-flash-lite'],
+      models: ['gemini-3.1-flash-lite'],
       retries: 1, delayMs: 800, rateLimitDelayMs: 2000, callTimeoutMs: 30000, githubFallback: false,
     });
     const ai = parseJSON(text) || {};

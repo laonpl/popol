@@ -6,7 +6,7 @@ import { clampMaterial } from '../utils/materialText.js';
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite'
+  'gemini-3.1-flash-lite'
 ];
 
 async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
@@ -726,12 +726,92 @@ async function extractWithGeminiVision(buffer, mimeType) {
   ]);
 }
 
+// 프론트 constants/competencies.js EXPERIENCE_CATEGORIES, stores/experienceStore.js JOB_CATEGORIES와 같은 값
+const RESUME_CATEGORIES = ['프로젝트', '인턴십', '대외활동', '동아리', '공모전', '학업·연구', '직무경험', '기타'];
+const RESUME_JOB_CATEGORIES = [
+  'common', 'dev', 'aiml', 'da', 'devops', 'security', 'qa', 'engineering', 'pm', 'project', 'designer',
+  'marketer', 'content', 'customer_success', 'education', 'finance', 'healthcare', 'hr', 'legal',
+  'operations', 'policy', 'research', 'sales', 'strategy',
+];
+const RESUME_MAX_EXPERIENCES = 15;
+const RESUME_SOURCE_LIMIT = 8000; // 경험 하나에 붙이는 원문 구간 상한
+
+/* 원문에서 문구 위치 찾기 — PDF 추출 텍스트는 제목 중간에 줄바꿈·공백이 끼므로 공백을 무시하고 비교한다. */
+function findAnchor(source, anchor) {
+  const target = String(anchor || '').replace(/\s+/g, '');
+  if (target.length < 2) return -1;
+  let compact = '';
+  const map = [];
+  for (let i = 0; i < source.length; i++) {
+    if (/\s/.test(source[i])) continue;
+    compact += source[i];
+    map.push(i);
+  }
+  const at = compact.indexOf(target);
+  return at < 0 ? -1 : map[at];
+}
+
+/* 포트폴리오는 프로젝트마다 몇 페이지씩 설명이 있다 — 각 경험의 시작 문구부터
+   다음 경험 시작 전까지를 그 경험의 원문으로 잘라 둬야 나중에 AI 완성 때 쓸 수 있다. */
+function attachSourceSections(experiences, anchors, sourceText) {
+  const source = String(sourceText || '');
+  if (!source) return;
+  const starts = anchors.map(anchor => findAnchor(source, anchor));
+  const sorted = starts.filter(pos => pos >= 0).sort((a, b) => a - b);
+  experiences.forEach((exp, i) => {
+    const start = starts[i];
+    if (start < 0) { exp.sourceText = ''; return; }
+    const next = sorted.find(pos => pos > start) ?? source.length;
+    exp.sourceText = source.slice(start, next).trim().slice(0, RESUME_SOURCE_LIMIT);
+  });
+}
+
+/**
+ * AI가 뽑은 이력서 경험 목록을 저장 가능한 형태로 정리.
+ * 기간은 경험 정리 타임라인(parsePeriod)이 읽는 "YYYY-MM ~ YYYY-MM" 형식으로 맞춘다.
+ * sourceText를 주면 각 경험에 해당하는 원문 구간(sourceText)을 붙인다.
+ */
+export function normalizeResumeExperiences(raw, sourceText = '') {
+  const text = v => (typeof v === 'string' ? v.trim() : '');
+  const month = v => (/^\d{4}-(0[1-9]|1[0-2])$/.test(text(v)) ? text(v) : '');
+  const list = Array.isArray(raw?.experiences) ? raw.experiences : [];
+  const seen = new Set();
+  const experiences = [];
+  const anchors = [];
+  for (const item of list) {
+    const title = text(item?.title);
+    const key = title.replace(/\s+/g, '').toLowerCase();
+    if (!title || seen.has(key)) continue;
+    seen.add(key);
+    const start = month(item.startDate);
+    const end = item.ongoing === true ? '현재' : month(item.endDate);
+    experiences.push({
+      title,
+      organization: text(item.organization),
+      period: start ? (end ? `${start} ~ ${end}` : start) : '',
+      category: RESUME_CATEGORIES.includes(text(item.category)) ? text(item.category) : '기타',
+      jobCategory: RESUME_JOB_CATEGORIES.includes(text(item.jobCategory)) ? text(item.jobCategory) : 'common',
+      role: text(item.role),
+      context: text(item.context),
+      action: text(item.action),
+      result: text(item.result),
+      learning: text(item.learning),
+      keywords: (Array.isArray(item.keywords) ? item.keywords : []).map(text).filter(Boolean).slice(0, 6),
+    });
+    anchors.push(text(item.startsWith));
+    if (experiences.length >= RESUME_MAX_EXPERIENCES) break;
+  }
+  attachSourceSections(experiences, anchors, sourceText);
+  return { experiences };
+}
+
 /**
  * AI를 사용하여 임포트된 내용을 경험/포트폴리오/자소서 형식으로 구조화
  */
 export async function structureImportedContent(importedData, targetType) {
   // 5,000자에서 자르면 문서 앞부분(표지·목차)만 보고 구조화된다 — 본문·성과까지 담기게 상향.
-  const rawText = clampMaterial(importedData.content || '', 40000);
+  // 포트폴리오는 프로젝트가 문서 전체에 흩어져 있어 가운데를 생략하면 중간 프로젝트가 통째로 빠진다.
+  const rawText = clampMaterial(importedData.content || '', targetType === 'resume' ? 120000 : 40000);
 
   const prompts = {
     experience: `당신은 실리콘밸리 탑티어 기업의 수석 채용 담당자이자, 취준생의 파편화된 경험을 '합격률 1%의 직무 맞춤형 포트폴리오'로 변환해 주는 최고의 커리어 컨설턴트입니다.
@@ -812,6 +892,46 @@ ${rawText}`,
 
 [원본 데이터]
 ${rawText}`,
+
+    // 이력서·포트폴리오 한 부에는 경험이 여러 개 들어 있다 — 경험 단위로 쪼개서 뽑는다.
+    resume: `당신은 이력서·포트폴리오 문서에서 개별 경험을 분리해 내는 커리어 데이터 분석가입니다.
+아래 문서에 적힌 프로젝트·인턴십·대외활동·동아리·공모전·연구·직무 경험을 하나씩 분리해 추출하세요.
+
+[규칙]
+1. 문서에 적힌 사실만 옮기세요. 없는 수치·역할·결과를 지어내지 말고, 문서에 없으면 빈 문자열("")로 두세요.
+2. 학력·자격증·어학 점수·보유 기술 목록처럼 '한 일'이 아닌 항목은 경험으로 뽑지 마세요.
+3. 같은 경험이 여러 곳에 나오면 하나로 합치세요. 단, 서로 다른 프로젝트·활동은 절대 합치지 말고 각각 따로 뽑으세요. 최대 ${RESUME_MAX_EXPERIENCES}개.
+   - 포트폴리오라면 보통 프로젝트 하나가 여러 페이지에 걸쳐 설명됩니다. 프로젝트 단위로 나누고, 자기소개·목차·기술 스택·연락처 페이지는 경험이 아닙니다.
+4. 날짜는 "YYYY-MM" 형식. 월을 모르면 연도만 알 때 "YYYY-01"로 두고, 날짜가 전혀 없으면 "". 진행 중이면 ongoing을 true로.
+5. category는 반드시 다음 중 하나: ${RESUME_CATEGORIES.join(', ')}
+6. jobCategory는 이 경험이 가장 잘 보여주는 직군 하나: ${RESUME_JOB_CATEGORIES.join(', ')} (모르면 common)
+7. 문장은 개조식(~함, ~구축, ~달성)으로. 포트폴리오처럼 설명이 자세하면 action·result에 핵심 내용을 빠짐없이 담으세요(각 3~5문장까지).
+8. startsWith에는 이 경험 설명이 문서에서 시작되는 제목 줄을 원문 그대로 한 글자도 바꾸지 말고 옮기세요(10~40자). 문서 안에서 이 경험을 찾는 데 씁니다.
+
+[출력 JSON 스키마 - 반드시 이 형식으로만 응답]
+{
+  "experiences": [
+    {
+      "title": "경험 이름 (조직/프로젝트명 포함)",
+      "organization": "소속·기관명",
+      "startDate": "YYYY-MM",
+      "endDate": "YYYY-MM",
+      "ongoing": false,
+      "category": "프로젝트",
+      "jobCategory": "dev",
+      "role": "맡은 역할",
+      "context": "배경·문제 상황",
+      "action": "직접 한 일",
+      "result": "결과·성과 (수치는 원문 그대로)",
+      "learning": "배운 점 (문서에 있을 때만)",
+      "keywords": ["역량/기술 키워드"],
+      "startsWith": "문서 원문의 이 경험 제목 줄"
+    }
+  ]
+}
+
+[원본 데이터]
+${rawText}`,
   };
 
   const prompt = prompts[targetType];
@@ -821,9 +941,12 @@ ${rawText}`,
 
   try {
     const text = await geminiGenerate(prompt);
-    return parseGeminiJson(text, 'AI 구조화 응답 파싱 실패');
+    const parsed = parseGeminiJson(text, 'AI 구조화 응답 파싱 실패');
+    return targetType === 'resume' ? normalizeResumeExperiences(parsed, importedData.content) : parsed;
   } catch (err) {
     console.error('Gemini 구조화 실패:', err.message?.substring(0, 100));
+    // 문장을 기계적으로 쪼개 경험 목록을 지어내면 검토할 가치가 없다 — 빈 목록으로 실패를 알린다.
+    if (targetType === 'resume') return { experiences: [] };
     console.warn('Gemini 실패, 템플릿 폴백 사용');
     return structureFallback(importedData, targetType);
   }

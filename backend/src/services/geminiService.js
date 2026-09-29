@@ -41,7 +41,7 @@ import {
 
 // ── Pro 우선 옵션: Pro 내에서 지수 백오프로 끝까지 재시도 ──
 const PRO_FIRST_OPTIONS = {
-  models: ['gemini-2.5-pro', 'gemini-2.5-flash-lite'],
+  models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
   retries: 4,
   delayMs: 2500,
   rateLimitDelayMs: 6000,
@@ -50,7 +50,7 @@ const PRO_FIRST_OPTIONS = {
 
 // ── Lite 폴백 (Pro 완전 실패 시 최후 수단) ──
 const LITE_FALLBACK_OPTIONS = {
-  models: ['gemini-2.5-flash-lite'],
+  models: ['gemini-3.1-flash-lite'],
   retries: 4,
   delayMs: 2000,
   rateLimitDelayMs: 6000,
@@ -59,14 +59,14 @@ const LITE_FALLBACK_OPTIONS = {
 // ── Lite 전용 (메타데이터 등 비핵심·저비용 작업) ──
 // aa.md 가이드 권장: 단순 작업은 flash-lite로 직접 처리해 비용 절감
 const LITE_ONLY_OPTIONS = {
-  models: ['gemini-2.5-flash-lite'],
+  models: ['gemini-3.1-flash-lite'],
   retries: 3,
   delayMs: 1500,
   rateLimitDelayMs: 5000,
 };
 
 const FAST_LITE_OPTIONS = {
-  models: ['gemini-2.5-flash-lite'],
+  models: ['gemini-3.1-flash-lite'],
   retries: 1,
   delayMs: 1000,
   rateLimitDelayMs: 2000,
@@ -952,7 +952,7 @@ ${materialText}
   // 모델당 1회 · 20초로 잡아 최악 42초 — 대기열 대기까지 더해도 60초 안에 폴백까지 끝난다.
   const text = await withTimeout(
     generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
       retries: 1,
       delayMs: 1200,
       rateLimitDelayMs: 4000,
@@ -1225,7 +1225,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
     const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode, part);
     const text = await withTimeout(
       generateWithRetry(prompt, {
-        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
         retries: 2,
         delayMs: 1200,
         rateLimitDelayMs: 4000,
@@ -1342,7 +1342,7 @@ ${jobText || '(없음)'}
 
   const text = await withTimeout(
     generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
       retries: 2,
       delayMs: 1200,
       rateLimitDelayMs: 4000,

@@ -11,10 +11,10 @@ export function preserveRolePresentation(analysis, previous = {}) {
   if (!['pm', 'marketer'].includes(analysis.jobCategory || previous.jobCategory)) return analysis;
   const old = list(previous.keyExperiences).filter(Boolean);
   const archive = [...list(previous.artifactBindingArchive)];
-  const manualEnabled = (analysis.jobCategory || previous.jobCategory) === 'marketer';
-  const manualArchive = manualEnabled ? [...list(previous.manualWorkProductArchive)] : [];
+  const role = analysis.jobCategory || previous.jobCategory;
+  const manualArchive = [...list(previous.manualWorkProductArchive)];
   const matched = new Set();
-  const workKey = 'marketerWorkProducts';
+  const workKey = role === 'pm' ? 'pmWorkProducts' : 'marketerWorkProducts';
   const keyExperiences = list(analysis.keyExperiences).map(item => {
     if (!item) return item;
     const matches = old.filter(row => item.id ? row.id === item.id : item.title && row.title === item.title);
@@ -22,17 +22,17 @@ export function preserveRolePresentation(analysis, previous = {}) {
     const match = titleMatches.length === 1 ? titleMatches[0] : null;
     if (!match) return item;
     matched.add(match);
-    const manualGroups = manualEnabled ? Object.entries(match.jobData?.[workKey] || {}).map(([key, rows]) => [key, list(rows).filter(row => row?.manuallyAdded)]).filter(([, rows]) => rows.length) : [];
+    const manualGroups = Object.entries(match.jobData?.[workKey] || {}).map(([key, rows]) => [key, list(rows).filter(row => row?.manuallyAdded)]).filter(([, rows]) => rows.length);
     const work = { ...(item.jobData?.[workKey] || {}) };
     for (const [key, rows] of manualGroups) work[key] = [...rows, ...list(work[key]).filter(row => !rows.some(manual => manual.manualId && manual.manualId === row?.manualId))];
     return { ...item, ...(match.artifactBindings ? { artifactBindings: match.artifactBindings } : {}), ...(manualGroups.length ? { jobData: { ...item.jobData, [workKey]: work } } : {}) };
   });
   for (const item of old) {
-    if (manualEnabled && !matched.has(item)) {
+    if (!matched.has(item)) {
       const workProducts = Object.fromEntries(Object.entries(item.jobData?.[workKey] || {}).map(([key, rows]) => [key, list(rows).filter(row => row?.manuallyAdded)]).filter(([, rows]) => rows.length));
       if (Object.keys(workProducts).length) manualArchive.push({ caseId: item.id || '', title: item.title || '', workProducts });
     }
     if (list(item.artifactBindings).length && !keyExperiences.some(row => row?.artifactBindings === item.artifactBindings)) archive.push({ caseId: item.id || '', title: item.title || '', bindings: item.artifactBindings });
   }
-  return { ...analysis, keyExperiences, additionalMaterials: list(previous.additionalMaterials), artifactBindingArchive: archive, ...(manualEnabled && manualArchive.length ? { manualWorkProductArchive: manualArchive } : {}) };
+  return { ...analysis, keyExperiences, additionalMaterials: list(previous.additionalMaterials), artifactBindingArchive: archive, ...(manualArchive.length ? { manualWorkProductArchive: manualArchive } : {}) };
 }

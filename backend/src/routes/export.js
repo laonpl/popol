@@ -6,7 +6,7 @@ import { exportForNotion, exportForGitHub, exportForPDF, exportForResume, export
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout, extractDesignDna } from '../services/templateParser.js';
 import { mapDeck } from '../services/geminiMapper.js';
-import { renderDeckInPlace, isContentPhoto } from '../services/pptxRendererInPlace.js';
+import { renderDeckInPlace } from '../services/pptxRendererInPlace.js';
 import { renderPortfolioPdf } from '../services/portfolioPdfService.js';
 import { renderResumePdf, renderResumePdfFromText } from '../services/resumePdfService.js';
 import { composePortfolioPptx } from '../services/pptComposeService.js';
@@ -87,17 +87,6 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
     // applied here; credits must follow actual API token usage.
     const billing = await flushPendingCharges(billingStore);
 
-    // 미리보기와 실제 PPTX 출력이 일치하도록:
-    // - placeholder pics(<p:ph>)는 renderer가 이미 제거 → 미리보기도 제외
-    // - 디자인 이미지(non-placeholder)는 PPTX에 보존되므로 미리보기에도 전달
-    // 콘텐츠 사진 판별(renderer 와 동일 규칙)용 미디어 재사용 횟수
-    const picUsage = new Map();
-    for (const s of layout.slides) {
-      for (const p of (s.pics || [])) {
-        if (p.mediaPath) picUsage.set(p.mediaPath, (picUsage.get(p.mediaPath) || 0) + 1);
-      }
-    }
-    const slideArea = layout.slideSize.widthPt * layout.slideSize.heightPt;
     res.json({
       pptxBase64: buf.toString('base64'),
       deck,
@@ -106,12 +95,7 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
         index: s.index,
         bg: s.bg,
         decor: s.decor,
-        // 콘텐츠 사진은 renderer가 제거하므로 미리보기에서도 동일 규칙으로 제외
-        pics: (s.pics || []).filter(p => !isContentPhoto({
-          areaRatio: (p.w * p.h) / slideArea,
-          bytes: p.mediaBytes || 0,
-          usage: p.mediaPath ? (picUsage.get(p.mediaPath) || 1) : 1,
-        })),
+        pics: (s.pics || []).filter(p => !p.isPlaceholder),
       })),
       billing,
     });

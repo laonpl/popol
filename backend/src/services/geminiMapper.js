@@ -5,10 +5,15 @@
 // AI가 박스를 오분류해 디자인이 깨지는 문제가 있었음.
 // 결정론적 fill은 더 빠르고 디자인을 안정적으로 보존함.
 
-import { estimateMaxChars } from './autofit.js';
+import { estimateMaxChars, measureBox } from './autofit.js';
 import { generateWithRetry } from '../config/geminiClient.js';
 
 const _estimateMaxChars = estimateMaxChars;
+
+// 슬롯 수용력 판정 기준 (한 줄에 들어가는 글자 수, 가독 하한 폰트에서 측정)
+const READABLE_MIN_PT = 9;    // 렌더러가 줄여도 이 아래로는 읽히지 않는다
+const MIN_CPL_FOR_TEXT = 8;   // 이보다 좁으면 글자가 세로로 쌓인다 → 장식 띠로 간주, 비움
+const MIN_CPL_FOR_BODY = 10;  // 본문 문단을 담으려면 최소 이 정도 폭은 필요
 
 function parseJSON(text, pattern = /\{[\s\S]*\}/) {
   if (!text) return null;
@@ -62,13 +67,20 @@ function normalizeProject(exp) {
   if (!exp || typeof exp !== 'object') return null;
   const sr = exp.structuredResult || {};
   const overview = sr.projectOverview || {};
-  const carl = exp.content || sr.content || {};
+  const carl = exp.content || sr.content || exp.frameworkContent || {};
+  const cardDetails = [
+    ...(Array.isArray(exp.bullets) ? exp.bullets : []),
+    ...(Array.isArray(exp.details) ? exp.details : []),
+    exp.detail,
+  ].map(item => typeof item === 'string' ? item : item?.text || item?.content || '')
+    .map(item => String(item || '').trim()).filter(Boolean).join('\n');
 
   const techStack = Array.from(new Set([
     ...(Array.isArray(exp.skills) ? exp.skills : []),
     ...(Array.isArray(overview.techStack) ? overview.techStack : []),
     ...(Array.isArray(exp.projectTechStack) ? exp.projectTechStack : []),
-  ].filter(Boolean)));
+  ].map(item => typeof item === 'string' ? item : item?.name || item?.label || '')
+    .map(item => String(item || '').trim()).filter(Boolean)));
 
   const keyExperiences = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
     .map(ke => ({
@@ -99,8 +111,8 @@ function normalizeProject(exp) {
   // 사용자가 경험 구조화 폼에서 직접 입력한 필드들은 exp.* 에 저장된다.
   const intro      = sr.intro      || exp.intro      || byKey('intro')      || findSectionByLabel(subSections, '프로젝트 소개', 'intro') || exp.description || overview.summary || '';
   const overviewT  = sr.overview   || exp.overview   || byKey('overview')   || findSectionByLabel(subSections, '프로젝트 개요', 'overview') || overview.background || '';
-  const task       = sr.task       || exp.task       || byKey('task')       || findSectionByLabel(subSections, '진행한 일', 'task') || '';
-  const process    = sr.process    || exp.process    || byKey('process')    || findSectionByLabel(subSections, '과정', 'process') || carl.action || '';
+  const task       = sr.task       || exp.task       || byKey('task')       || findSectionByLabel(subSections, '진행한 일', 'task') || cardDetails || '';
+  const process    = sr.process    || exp.process    || byKey('process')    || findSectionByLabel(subSections, '과정', 'process') || carl.action || cardDetails || '';
   const output     = sr.output     || exp.output     || byKey('output')     || findSectionByLabel(subSections, '결과물', 'output') || sr.deliverable || sr.deliverables || carl.result || '';
   const growth     = sr.growth     || exp.growth     || byKey('growth')     || findSectionByLabel(subSections, '성장한 점', '성과', 'growth') || carl.learning || '';
   const competency = sr.competency || exp.competency || sr.myCompetency || byKey('competency') || findSectionByLabel(subSections, '나의 역량', '역량', 'competency') || '';
@@ -111,9 +123,11 @@ function normalizeProject(exp) {
   const action     = carl.action   || exp.action     || process || findSectionByLabel(subSections, '핵심행동', 'action') || '';
 
   return {
-    title: exp.title || '',
+    // 경험 정리에서 프로젝트명은 company 필드에 저장된다(projectOverview.projectName 도 동일 값).
+    // exp.title 만 보던 탓에 프로젝트 슬라이드 제목이 전부 빈칸으로 나갔다.
+    title: exp.title || exp.company || overview.projectName || exp.name || '',
     role: overview.role || exp.role || '',
-    period: overview.period || exp.date || exp.period || '',
+    period: overview.duration || overview.period || exp.date || exp.period || '',
     description: exp.description || overview.summary || intro,
     techStack,
     intro,
@@ -349,7 +363,9 @@ function detectSpatialGroups(boxes, slideW = 720, slideH = 540) {
 // 라벨↔값이 뒤섞인 근본 원인. 근접성(상하 인접 + 가로 겹침 / 좌우 인접 + 세로 겹침)으로
 // 박스를 "카드 유닛"으로 묶고, 내용 1건을 유닛 1개에 통째로 배정한다.
 function buildUnits(slots, slideW = 720, slideH = 540) {
-  const rects = slots.filter(s => s.semanticRole !== 'title' && s.semanticRole !== 'index');
+  // 장식 띠(글이 안 들어가는 좁은 박스)는 유닛에서 뺀다. 슬라이드 전체 높이를 가로지르는
+  // 띠 하나가 모든 박스와 "인접"으로 판정되어 카드 클러스터가 통째로 하나로 뭉치던 원인.
+  const rects = slots.filter(s => s.semanticRole !== 'title' && s.semanticRole !== 'index' && !s.decorative);
   if (!rects.length) return [];
   const parent = rects.map((_, i) => i);
   const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
@@ -386,7 +402,10 @@ function buildUnits(slots, slideW = 720, slideH = 540) {
       let kind;
       if (m.semanticRole === 'metric' || ((m.basePt || 0) >= maxPt * 0.95 && cap <= 20 && members.length > 1)) kind = 'value';
       else if (fit <= 30 && (m.basePt || 0) <= maxPt * 0.8) kind = 'label';
-      else if (fit >= 50) kind = 'body';
+      // 본문 자리는 면적이 아니라 폭·줄수로 판정한다(bodyCapable). 한 줄짜리 띠 제목 칸에
+      // 문단이 들어가 박스 밖으로 흘러나오던 문제를 여기서 막는다.
+      else if (fit >= 50 && m.bodyCapable) kind = 'body';
+      else if (m.singleLine) kind = 'label';
       else kind = 'heading';
       return { slot: m, kind };
     });
@@ -581,13 +600,20 @@ function sectionTitleFor(step, ctx) {
 // 유닛 내부 배치는 "본문 먼저, 가장 잘 맞는 슬롯에" 원칙:
 //   본문(최대 수용 슬롯) → 수치(값 슬롯) → 라벨(남은 작은 슬롯) → 헤딩.
 // 라벨은 본문이 자리잡은 뒤에만 들어가므로 "라벨만 찍히고 내용 실종" 이 구조적으로 불가능.
-function fillByUnits(step, ctx, slots, units, items) {
+function fillByUnits(step, ctx, slots, units, items, slideWidthForBars = 720) {
   const textByShape = new Map(); // shapeId -> { text, emphasis }
   const set = (slot, text, emphasis = 'none') => {
     if (!slot) return false;
-    const cap = slot.maxChars || 120;
-    const t = cleanFill(text);
-    if (!t || (cap <= 6 && t.length > cap * 2)) return false;
+    // 장식 띠에는 어떤 글도 넣지 않는다 — 넣으면 한 글자씩 세로로 쌓여 읽을 수 없다.
+    if (slot.decorative) return false;
+    let t = cleanFill(text);
+    if (!t) return false;
+    // 한 줄짜리 칸(제목 바 등)에는 줄바꿈 없는 한 줄만. 넘치면 박스 밖으로 흘러나온다.
+    if (slot.singleLine) {
+      t = t.replace(/\s*\n+\s*/g, ' · ');
+      t = clipShort(t, Math.max(8, slot.lineCapacity || slot.maxChars || 40));
+      if (!t) return false;
+    }
     textByShape.set(slot.shapeId, { text: t, emphasis });
     return true;
   };
@@ -595,9 +621,21 @@ function fillByUnits(step, ctx, slots, units, items) {
 
   // 제목/순번 박스
   const title = sectionTitleFor(step, ctx);
+  const coverTitles = step.sectionType === 'cover'
+    ? [ctx.title || [ctx.userName, '포트폴리오'].filter(Boolean).join(' '),
+      [ctx.targetCompany, ctx.targetPosition].filter(Boolean).join(' ') || ctx.headline || '포트폴리오']
+    : null;
+  let titleIndex = 0;
   for (const s of slots) {
-    if (s.semanticRole === 'title') set(s, clipShort(title, Math.max(s.fitCap || 0, s.maxChars || 40)));
-    else if (s.semanticRole === 'index') set(s, s.originalText || '');
+    if (s.semanticRole === 'title') {
+      // 좁은 세로 타이틀 띠는 한 줄에 몇 글자 안 들어간다 — 면적 기준 글자수로 자르면
+      // 제목이 띠를 가득 메우며 흘러넘친다. 좁은 칸은 3줄 분량으로 제한한다.
+      const cap = s.bodyCapable
+        ? Math.max(s.fitCap || 0, s.maxChars || 40)
+        : Math.max(8, (s.lineCapacity || 8) * 3);
+      const titleText = coverTitles ? coverTitles[Math.min(titleIndex++, coverTitles.length - 1)] : title;
+      set(s, clipShort(titleText, cap));
+    } else if (s.semanticRole === 'index') set(s, s.originalText || '');
   }
 
   const fillable = units.filter(u => u.members.length);
@@ -608,19 +646,27 @@ function fillByUnits(step, ctx, slots, units, items) {
     const taken = new Set();
     const free = () => u.members.filter(m => !taken.has(m.shapeId) && !textByShape.has(m.shapeId));
     let labelEmbedded = false;
+    let bodySlot = null;
     // 1) 본문 — 수용량 최대 슬롯 (metric 이 쓸 값 슬롯은 아껴둔다)
     if (it.body) {
+      // 본문은 폭·줄수가 충분한 칸에만. 없으면 이 유닛은 본문을 받지 않는다
+      // (한 줄짜리 라벨 칸에 문단을 넣으면 글자가 박스를 뚫고 나간다).
       const cand = free()
-        .filter(s => !(it.metric && s === u.valueSlot))
+        .filter(s => s.bodyCapable && !(it.metric && s === u.valueSlot))
         .sort((a, b) => fitCapOf(b) - fitCapOf(a))[0];
       if (cand && fitCapOf(cand) * 2 >= Math.min(it.body.length, 40)) {
         // 라벨을 받아줄 작은 슬롯이 없는 단독 본문 슬롯 → 라벨을 본문 첫 줄로 결합
+        // (줄바꿈이 실제로 들어갈 수 있는 3줄 이상 칸에서만)
         const others = u.members.filter(m => m !== cand);
-        const embed = it.label && fitCapOf(cand) >= 60
-          && !others.some(m => !textByShape.has(m.shapeId) && fitCapOf(m) * 1.6 >= it.label.length);
+        const embed = it.label && fitCapOf(cand) >= 60 && (cand.maxLines || 1) >= 3
+          // 같은 카드에 라벨을 받을 빈 칸(라벨 바 포함)이 있으면 본문에 겹쳐 쓰지 않는다 —
+          // 바에도 라벨, 본문 첫 줄에도 라벨이 찍혀 같은 말이 두 번 나오던 문제.
+          && !others.some(m => !textByShape.has(m.shapeId) && !m.decorative
+            && (m.singleLine || fitCapOf(m) * 1.6 >= it.label.length));
         if (set(cand, embed ? `${it.label}\n${it.body}` : it.body)) {
           taken.add(cand.shapeId);
           labelEmbedded = embed;
+          bodySlot = cand;
         }
       }
     }
@@ -631,9 +677,18 @@ function fillByUnits(step, ctx, slots, units, items) {
         : free().sort((a, b) => fitCapOf(a) - fitCapOf(b)).find(s => fitCapOf(s) >= Math.min(it.metric.length, 6));
       if (cand && set(cand, it.metric, 'metric')) taken.add(cand.shapeId);
     }
-    // 3) 라벨 — 남은 가장 작은 슬롯
+    // 3) 라벨 — 본문 칸과 같은 열에서 바로 위에 있는 칸 우선(템플릿의 '라벨 바 + 본문' 구조).
+    // 단순히 "가장 작은 칸"을 고르면 다른 열의 바에 라벨이 찍혀 라벨과 내용이 엇갈린다.
     if (it.label && !labelEmbedded) {
-      const cand = free().sort((a, b) => fitCapOf(a) - fitCapOf(b)).find(s => fitCapOf(s) * 1.6 >= it.label.length);
+      const nearBody = (s) => {
+        if (!bodySlot) return 0;
+        const sameCol = Math.abs(s.x - bodySlot.x) <= Math.max(24, bodySlot.width * 0.2) ? 0 : 1;
+        const above = s.y <= bodySlot.y ? 0 : 1;
+        return sameCol * 2 + above;
+      };
+      const cand = free()
+        .filter(s => fitCapOf(s) * 1.6 >= it.label.length)
+        .sort((a, b) => nearBody(a) - nearBody(b) || fitCapOf(a) - fitCapOf(b))[0];
       if (cand && set(cand, it.label)) taken.add(cand.shapeId);
     }
     // 4) 헤딩 — 남은 슬롯 1개 (라벨과 다를 때만)
@@ -655,11 +710,17 @@ function fillByUnits(step, ctx, slots, units, items) {
       assigned.set(u, itemQueue.splice(mi, 1)[0]);
     }
   }
+  const canHoldBody = (u) => u.members.some(m => m.bodyCapable);
   for (const u of fillable) {
     if (assigned.has(u) || !itemQueue.length) continue;
-    // 작은 박스에 장문을 욱여넣지 않도록, 이 유닛이 감당 가능한 아이템을 고른다
+    // 작은 박스에 장문을 욱여넣지 않도록, 이 유닛이 감당 가능한 아이템을 고른다.
+    // 본문을 가진 아이템은 본문을 담을 수 있는 유닛에만 준다 — 못 담는 유닛에 배정되면
+    // 라벨만 찍히고 본문이 통째로 버려진다(빈 슬라이드의 주원인).
     const cap = unitBestCap(u);
-    const idx = itemQueue.findIndex(it => !it.body || cap >= 60 || it.body.length <= cap * 2);
+    const bodyOk = canHoldBody(u);
+    const idx = itemQueue.findIndex(it => !it.body
+      ? true
+      : (bodyOk && (cap >= 60 || it.body.length <= cap * 2)));
     if (idx < 0) continue;
     assigned.set(u, itemQueue.splice(idx, 1)[0]);
   }
@@ -669,13 +730,25 @@ function fillByUnits(step, ctx, slots, units, items) {
   if (itemQueue.length) {
     const freeBodySlots = fillable
       .flatMap(u => u.members)
-      .filter(s => !textByShape.has(s.shapeId) && fitCapOf(s) >= 40)
+      .filter(s => !textByShape.has(s.shapeId) && s.bodyCapable && fitCapOf(s) >= 40)
       .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    // 본문 칸 위에 빈 라벨 바가 있으면 라벨은 거기에 — 본문 첫 줄에 또 넣으면 같은 말이 두 번 보인다.
+    const labelBarFor = (s) => fillable
+      .flatMap(u => u.members)
+      .filter(m => !textByShape.has(m.shapeId) && !m.decorative && m.singleLine
+        && Math.abs(m.x - s.x) <= Math.max(24, s.width * 0.2)
+        && m.y <= s.y && s.y - (m.y + m.height) <= 40)
+      .sort((a, b) => b.y - a.y)[0] || null;
     for (const s of freeBodySlots) {
       if (!itemQueue.length) break;
       const it = itemQueue.shift();
       const head = [it.label, it.metric].filter(Boolean).join(' · ');
-      const text = head && fitCapOf(s) >= 60 ? `${head}\n${it.body || it.heading}` : (it.body || it.heading || head);
+      const bar = head ? labelBarFor(s) : null;
+      if (bar && set(bar, head)) {
+        set(s, it.body || it.heading, it.metric ? 'metric' : 'none');
+        continue;
+      }
+      const text = head && fitCapOf(s) >= 60 && (s.maxLines || 1) >= 3 ? `${head}\n${it.body || it.heading}` : (it.body || it.heading || head);
       set(s, text, it.metric ? 'metric' : 'none');
     }
   }
@@ -685,7 +758,7 @@ function fillByUnits(step, ctx, slots, units, items) {
   if (itemQueue.length) {
     const bigSlot = fillable
       .flatMap(u => u.members)
-      .filter(s => fitCapOf(s) >= 120)
+      .filter(s => s.bodyCapable && fitCapOf(s) >= 120)
       .sort((a, b) => fitCapOf(b) - fitCapOf(a))[0];
     if (bigSlot) {
       const joined = itemQueue
@@ -699,6 +772,30 @@ function fillByUnits(step, ctx, slots, units, items) {
       if (existing) textByShape.set(bigSlot.shapeId, { ...existing, text: `${existing.text}\n\n${joined}` });
       else set(bigSlot, joined);
       itemQueue.length = 0;
+    }
+  }
+
+  // 남은 한 줄짜리 칸(템플릿의 라벨 바 등)을 짧은 사실로 채운다.
+  // 비워두면 렌더러가 그 도형을 지워 템플릿 디자인에 구멍이 생긴다.
+  const shortFacts = [
+    cleanFill(ctx.sectionLabel),
+    cleanFill([ctx.period, ctx.role].filter(Boolean).join(' · ')),
+    Array.isArray(ctx.techStack) && ctx.techStack.length ? ctx.techStack.slice(0, 5).join(', ') : '',
+    ...items.map(it => cleanFill(it.label)),
+    ...items.map(it => cleanFill(it.heading)),
+  ].filter(Boolean);
+  const alreadyUsed = new Set([...textByShape.values()].map(v => v.text));
+  const factQueue = shortFacts.filter(f => !alreadyUsed.has(f));
+  if (factQueue.length) {
+    // 슬라이드 폭의 1/4 이상인 '라벨 바'만 대상. 좁은 한 줄 칸(로고 자리·아이콘 캡션)에
+    // 사실을 끼워 넣으면 템플릿 의도와 무관한 글이 박힌다.
+    const emptyLabelSlots = fillable
+      .flatMap(u => u.members)
+      .filter(s => !textByShape.has(s.shapeId) && !s.decorative && s.singleLine && s.width >= slideWidthForBars * 0.25)
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    for (const s of emptyLabelSlots) {
+      if (!factQueue.length) break;
+      if (set(s, factQueue.shift())) continue;
     }
   }
   return textByShape;
@@ -942,11 +1039,25 @@ function buildSlots(layout, step) {
     // (72pt 표지 박스도 21pt 로 줄이면 400자 본문 슬롯이다 — 원본 기준 cap19 로는 항상 라벨 취급되는 버그)
     const fitPt = Math.max(9, Math.min(box.fontPt || 14, 14 * scale));
     const fitCap = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt: fitPt });
+    // 폭/높이를 따로 본다. 면적 기반 글자수만 보면 "폭 42pt × 높이 540pt" 세로 장식 띠가
+    // 82자 본문 슬롯으로 잡혀 본문 문단이 들어가고, 실제로는 한 줄에 2~3글자씩 쌓여 깨진다.
+    // 세로쓰기(vert) 박스는 글이 높이 방향으로 흐르므로 폭/높이를 바꿔서 잰다.
+    const isVert = /^vert/.test(box.vert || '');
+    const mW = isVert ? box.h : box.w;
+    const mH = isVert ? box.w : box.h;
+    const atFit   = measureBox({ boxWidthPt: mW, boxHeightPt: mH, basePt: fitPt });
+    // 가독 하한(READABLE_MIN_PT)까지 줄였을 때의 한 줄 글자 수 = "이 박스가 글을 담을 수 있는가"의 기준.
+    const atFloor = measureBox({ boxWidthPt: mW, boxHeightPt: mH, basePt: READABLE_MIN_PT });
+    const charsPerLine = atFloor.charsPerLine;
+    const decorative = charsPerLine < MIN_CPL_FOR_TEXT;
+    const bodyCapable = !decorative && charsPerLine >= MIN_CPL_FOR_BODY && atFloor.lines >= 2;
     const originalText = (box.originalText || '').slice(0, 120);
     let { hint, semanticRole } = inferSlotIntent(box, { maxFont, maxChars, originalText });
+    // 글자를 담을 수 없는 띠·아이콘 자리는 어떤 내용도 받지 않는다(빈 채로 둬야 디자인이 산다).
+    if (decorative) { hint = 'decor'; semanticRole = 'decor'; }
     // 목차: 행 라벨 박스(원문이 EMPATHIZE 같은 큰 라벨이라 metric 등으로 오분류)를
     // heading 으로 통일해 아웃라인 항목이 행 순서대로 들어가게 한다.
-    if (step.sectionType === 'toc' && semanticRole !== 'title' && semanticRole !== 'index' && maxChars > 6) {
+    if (step.sectionType === 'toc' && !decorative && semanticRole !== 'title' && semanticRole !== 'index' && maxChars > 6) {
       semanticRole = 'heading';
       hint = 'heading';
     }
@@ -963,6 +1074,12 @@ function buildSlots(layout, step) {
       basePt: fontPt,
       maxChars,
       fitCap,
+      charsPerLine,
+      maxLines: atFit.lines,
+      lineCapacity: atFloor.charsPerLine,
+      decorative,
+      bodyCapable,
+      singleLine: atFit.lines <= 1,
       originalText,
       groupId: groupMap.get(box.shapeId) ?? 0,
     };
@@ -972,7 +1089,7 @@ function buildSlots(layout, step) {
   // Result(성과/지표)가 슬라이드에서 가장 눈에 띄는 위치에 배치되도록 보장.
   const PAR_TYPES = new Set(['project_par', 'project_merged', 'project_result', 'project_output']);
   if (PAR_TYPES.has(step.sectionType)) {
-    const nonTitle = slots.filter(s => s.semanticRole !== 'title' && s.semanticRole !== 'index');
+    const nonTitle = slots.filter(s => s.semanticRole !== 'title' && s.semanticRole !== 'index' && !s.decorative);
     if (nonTitle.length > 0) {
       const largest = nonTitle.reduce((a, b) => b.basePt > a.basePt ? b : a);
       if (largest.semanticRole !== 'metric') {
@@ -1519,7 +1636,7 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   if (sectionItems.length) {
     const units = buildUnits(slots, slideW, slideH);
     if (units.length) {
-      const filled = fillByUnits(step, ctx, slots, units, sectionItems);
+      const filled = fillByUnits(step, ctx, slots, units, sectionItems, slideW);
       return {
         slots: slots.map(s => {
           const f = filled.get(s.shapeId);
@@ -1668,6 +1785,7 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   };
   const pickForSlot = (slot, index) => {
     const role = slot.semanticRole || slot.hint || 'body';
+    if (role === 'decor') return '';
     const cap = slot.maxChars || 120;
     if (role === 'title')  return clipShort(ctx.title || ctx.userName || ctx.sectionLabel || merged[index] || '', cap);
     if (role === 'metric') return cleanFill(firstMetric?.metric || firstMetric?.afterMetric || '');
@@ -1687,10 +1805,15 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   const out = [];
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
-    const cap = slot.maxChars || 120;
     const candidate = pickForSlot(slot, i);
-    // cap ≤ 6 인 아이콘·장식용 박스에 긴 텍스트 → 세로 글자 깨짐 방지
-    const text = (candidate && candidate.length > cap * 2 && cap <= 6) ? '' : candidate;
+    // 장식 띠는 비우고, 한 줄짜리 칸은 한 줄로 줄인다.
+    // (이전 가드 `cap <= 6` 은 estimateMaxChars 의 하한이 12라 한 번도 발동하지 않는 죽은 코드였고,
+    //  그래서 폭 6pt 띠에까지 본문이 들어가 세로로 쌓였다.)
+    let text = candidate;
+    if (slot.decorative) text = '';
+    else if (text && slot.singleLine) {
+      text = clipShort(text.replace(/\s*\n+\s*/g, ' · '), Math.max(8, slot.lineCapacity || 40));
+    }
     const isMetric = step.sectionType === 'project_metric' && /^[+\-]?\d|%|ms|s$|배|개$/.test(text);
     out.push({ shapeId: slot.shapeId, text, emphasis: isMetric ? 'metric' : 'none' });
   }
@@ -1771,7 +1894,7 @@ async function refineDeckCopy(deck, { billingStore = null, designDna = null } = 
   let parsed = null;
   try {
     const raw = await generateWithRetry(buildRefinePrompt(jobs, toneGuideFromDna(designDna)), {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
       retries: 1,
       callTimeoutMs: 90000,
       config: { temperature: 0.3, responseMimeType: 'application/json' },
@@ -1856,7 +1979,7 @@ async function summarizeOverflow(deck, billingStore = null) {
   let parsed = null;
   try {
     const raw = await generateWithRetry(buildSummarizePrompt(jobs), {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
       retries: 1,
       callTimeoutMs: 60000,
       config: { temperature: 0.2, responseMimeType: 'application/json' },

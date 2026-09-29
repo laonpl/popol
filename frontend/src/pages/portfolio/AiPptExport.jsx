@@ -46,7 +46,8 @@ export default function AiPptExport() {
   const [pdfExporting, setPdfExporting] = useState(false);
   const [pdfDone, setPdfDone] = useState(false);
   // 직접 템플릿 업로드하기 — 업로드 PPT 디자인 기반 자체 조립(PPT 추출) 모달
-  const [showPptExtractModal, setShowPptExtractModal] = useState(false);
+  // 템플릿 선택 화면의 PPT 탭에서 '템플릿 업로드'를 고르고 들어오면(?upload=1) 바로 연다.
+  const [showPptExtractModal, setShowPptExtractModal] = useState(searchParams.get('upload') === '1');
 
   // 세로형 PDF: 합격자 스타일 A4 문서로 즉시 생성·다운로드 (업로드·AI 불필요)
   const handlePdfExport = async () => {
@@ -195,8 +196,10 @@ export default function AiPptExport() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_포트폴리오.pptx`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
       toast.success('PPT 다운로드를 시작합니다');
     } catch (e) {
       toast.error('다운로드 실패: ' + e.message);
@@ -279,8 +282,17 @@ export default function AiPptExport() {
   );
 }
 
+export const LAYOUT_SAMPLE_SLIDES = {
+  'standard': { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' },
+  'narrative': { layout: 'narrative-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STORY PORTFOLIO' },
+  'star': { layout: 'star-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STAT / STAR' },
+  'kpi-dashboard': { layout: 'kpi-cover', title: '홍길동', subtitle: 'AI · 풀스택 개발자', sectionLabel: 'PERFORMANCE DASHBOARD' },
+  'timeline': { layout: 'timeline-cover', title: '홍길동', subtitle: '성장 곡선을 숫자로 증명합니다', sectionLabel: 'TIMELINE' },
+  'case-study': { layout: 'cs-cover', title: '사용자 경험을 기술로 설계하는\n프론트엔드 개발자, 홍길동', subtitle: '단순 구현을 넘어 최적의 의사결정으로 문제를 해결합니다.', sectionLabel: 'TECHNICAL CASE STUDY', bullets: ['홍길동', '프론트엔드'] },
+};
+
 // ── 레이아웃 카드 미리보기 — 실제 슬라이드(960×540)를 컨테이너 폭에 맞춰 축소 렌더 ──
-function LayoutPreviewThumb({ template, sampleSlide, index = 0 }) {
+export function LayoutPreviewThumb({ template, sampleSlide, index = 0 }) {
   const ref = useRef(null);
   const [scale, setScale] = useState(0.33);
   useEffect(() => {
@@ -341,14 +353,6 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
   const previewColors = previewTemplate.colors;
   const previewPalette = COLOR_PALETTES.find(p => p.id === previewId);
 
-  const LAYOUT_SAMPLE_SLIDES = {
-    'standard': { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' },
-    'narrative': { layout: 'narrative-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STORY PORTFOLIO' },
-    'star': { layout: 'star-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STAT / STAR' },
-    'kpi-dashboard': { layout: 'kpi-cover', title: '홍길동', subtitle: 'AI · 풀스택 개발자', sectionLabel: 'PERFORMANCE DASHBOARD' },
-    'timeline': { layout: 'timeline-cover', title: '홍길동', subtitle: '성장 곡선을 숫자로 증명합니다', sectionLabel: 'TIMELINE' },
-    'case-study': { layout: 'cs-cover', title: '사용자 경험을 기술로 설계하는\n프론트엔드 개발자, 홍길동', subtitle: '단순 구현을 넘어 최적의 의사결정으로 문제를 해결합니다.', sectionLabel: 'TECHNICAL CASE STUDY', bullets: ['홍길동', '프론트엔드'] },
-  };
   const SAMPLE_SLIDE = LAYOUT_SAMPLE_SLIDES[layoutId] || LAYOUT_SAMPLE_SLIDES['standard'];
   const PREVIEW_W = 540;
 

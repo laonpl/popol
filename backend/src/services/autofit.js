@@ -94,9 +94,11 @@ function wrapText(text, charsPerLine) {
   return out;
 }
 
-// AI 프롬프트에 넘겨줄 박스별 maxChars 추정. 베이스 폰트로 박스를 가득 채울 때 들어가는 문자 수.
-// 자른 텍스트는 shrinkToFit + normAutofit 으로 폰트가 자동 축소되므로 버퍼 거의 없이 실제 용량을 그대로 노출.
-export function estimateMaxChars({ boxWidthPt, boxHeightPt, basePt, text = null }) {
+// 박스의 기하학적 수용력. charsPerLine 과 lines 를 따로 돌려주는 것이 핵심 —
+// 면적만 보는 글자수(estimateMaxChars)는 "폭 42pt × 높이 540pt" 같은 세로 장식 띠를
+// 82자 본문 슬롯으로 오판한다(한 줄에 3글자씩 29줄). 그 결과 본문 문단이 띠에 들어가
+// 한 글자씩 세로로 쌓이는 깨짐이 발생했다. 폭/높이 제약은 별개로 판단해야 한다.
+export function measureBox({ boxWidthPt, boxHeightPt, basePt, text = null }) {
   const innerW = Math.max(8, boxWidthPt - 8);
   const innerH = Math.max(8, boxHeightPt - 8);
   // 텍스트가 있으면 실제 구성으로, 없으면 한글 위주 포트폴리오 기준(0.62)으로 폭 추정.
@@ -105,7 +107,13 @@ export function estimateMaxChars({ boxWidthPt, boxHeightPt, basePt, text = null 
   const charPx = Math.max(4, basePt * ratio);
   const charsPerLine = Math.max(1, Math.floor(innerW / charPx));
   const lines = Math.max(1, Math.floor(innerH / (basePt * LINE_HEIGHT)));
-  return Math.max(12, Math.floor(charsPerLine * lines * 0.95)); // 5% 버퍼만 (기존 15% → 자린 내용 복구)
+  return { charsPerLine, lines, capacity: Math.max(1, Math.floor(charsPerLine * lines * 0.95)) };
+}
+
+// AI 프롬프트에 넘겨줄 박스별 maxChars 추정. 베이스 폰트로 박스를 가득 채울 때 들어가는 문자 수.
+// 자른 텍스트는 shrinkToFit + normAutofit 으로 폰트가 자동 축소되므로 버퍼 거의 없이 실제 용량을 그대로 노출.
+export function estimateMaxChars({ boxWidthPt, boxHeightPt, basePt, text = null }) {
+  return Math.max(12, measureBox({ boxWidthPt, boxHeightPt, basePt, text }).capacity);
 }
 
 export const EMU_PER_PT = 12700;

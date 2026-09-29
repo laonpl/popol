@@ -6054,7 +6054,7 @@ function drawVariedAcceptedPptx(s, slide, t, v, i, W, H, label) {
     if (t.layoutId === 'narrative') {
       s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
       s.addShape('roundRect', { x: 0.55, y: 0.45, w: 0.8, h: 6.3, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.35 });
-      addPptText(s, 'STORY ARC', { x: 0.72, y: 0.95, w: 0.25, h: 1.6, rotate: 270, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.dark), charSpacing: 2 });
+      addPptText(s, 'STORY ARC', { x: 0.72, y: 0.95, w: 0.25, h: 1.6, vert: 'vert270', fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.dark), charSpacing: 2 });
       addPptText(s, title, { x: 1.65, y: 0.72, w: 4.1, h: 1.5, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
       return drawProposal(s, framedSlide, t, i, W, H);
     }
@@ -6689,7 +6689,7 @@ function drawNarrativePptx(s, slide, t, v, i, W, H) {
   }
   if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STORY PORTFOLIO');
   s.addShape('rect', { x: 1.9, y: 0.5, w: 0.01, h: H - 1.0, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
-  s.addText('STORY PORTFOLIO', { x: 0.55, y: 0.55, w: 0.35, h: 2.4, rotate: 270, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), charSpacing: 2 });
+  s.addText('STORY PORTFOLIO', { x: 0.55, y: 0.55, w: 0.35, h: 2.4, vert: 'vert270', fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), charSpacing: 2 });
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.6, y: H - 1.35, w: 0.8, h: 0.5, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.accent) });
   addPptText(s, slide.sectionLabel || 'Narrative', { x: 2.45, y: isCover ? 1.25 : 0.72, w: 3.4, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.accent), charSpacing: 3 });
   addPptText(s, slide.title || '', { x: 2.45, y: isCover ? 1.65 : 1.1, w: 9.5, h: isCover ? 2.0 : 1.1, fontFace: t.fonts.heading, fontSize: isCover ? 39 : 26, bold: true, color: hex(v.ink), fit: 'shrink' });
@@ -6718,7 +6718,7 @@ function drawStarRailPptx(s, t, v, phase, label, H = 7.5) {
   const accentInk = hex(readableTextOn(v.accent));
   const active = starActiveLetter(phase);
   s.addShape('rect', { x: 0, y: 0, w: 1.1, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-  s.addText(cleanPortfolioText(label || 'STAR FILE').toUpperCase().slice(0, 26), { x: 0.34, y: 0.3, w: 0.4, h: 2.0, rotate: 270, fontFace: t.fonts.body, fontSize: 7, bold: true, color: 'FFFFFF', transparency: 45, charSpacing: 2 });
+  s.addText(cleanPortfolioText(label || 'STAR FILE').toUpperCase().slice(0, 26), { x: 0.34, y: 0.3, w: 0.4, h: 2.0, vert: 'vert270', fontFace: t.fonts.body, fontSize: 7, bold: true, color: 'FFFFFF', transparency: 45, charSpacing: 2 });
   ['S', 'T', 'A', 'R'].forEach((letter, idx) => {
     const y = 2.4 + idx * 0.74;
     const isActive = letter === active;
@@ -7831,7 +7831,9 @@ function drawTimelineReferencePptx(s, slide, t, v, i, W, H) {
       addPptText(s, (line.period || ['CANDIDATE', 'ROLE', 'EDUCATION'][idx]).toUpperCase(), { x, y: 5.88, w: 1.6, h: 0.15, fontFace: t.fonts.body, fontSize: 6.7, bold: true, color: muted, charSpacing: 1.5 });
       addPptText(s, line.heading || line.body || '', { x, y: 6.22, w: 1.85, h: 0.22, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: ink, fit: 'shrink' });
     });
-    s.addShape('freeform', { x: W - 3.3, y: 3.3, w: 3.3, h: 4.2, fill: { color: 'F6F9FD' }, line: { color: 'F6F9FD' }, pptxShape: 'rtTriangle' });
+    // 'freeform' 은 OOXML 프리셋 도형 이름이 아니다 — prst="freeform" 이 그대로 기록되어
+    // PowerPoint 가 파일 전체를 "손상된 프레젠테이션"으로 열지 못했다(타임라인 템플릿 전체 불능).
+    s.addShape('rtTriangle', { x: W - 3.3, y: 3.3, w: 3.3, h: 4.2, fill: { color: 'F6F9FD' }, line: { color: 'F6F9FD' } });
     return;
   }
 
@@ -9561,17 +9563,27 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
   }
 }
 
+// PPTX 에 기록한 글꼴은 파일을 여는 PC 에 설치돼 있어야 그대로 보인다.
+// Pretendard·Playfair Display 는 웹폰트라 일반 PC 에 없고, PowerPoint 가 임의 글꼴로
+// 대체하면서 (a) 제목이 명조체로 나오고 (b) 글자 폭이 달라져 자동 크기 계산이 어긋나
+// 줄이 넘치거나 잘렸다 — "디자인이 다 깨진다"의 가장 큰 원인.
+// 윈도우·오피스에 기본 탑재된 글꼴만 기록한다.
+const PPT_SYSTEM_FONT = '맑은 고딕';
+// 이미 시스템 기본 글꼴을 쓰는 템플릿은 그대로 존중한다.
+const PPT_INSTALLED_FONT_RE = /^(맑은 고딕|malgun gothic|굴림|돋움|바탕|궁서|arial|helvetica|segoe ui|calibri|georgia|times new roman|verdana|tahoma|consolas|courier new)$/i;
+
+function pptSafeFontFace(face) {
+  const name = String(face || '').trim();
+  return PPT_INSTALLED_FONT_RE.test(name) ? name : PPT_SYSTEM_FONT;
+}
+
 function withPptSafeFonts(template) {
-  // 미리보기와 동일한 폰트를 사용해 배치·글자크기가 일치하도록 보존.
-  // Pretendard가 설치되지 않은 PC에서는 맑은 고딕으로 자동 폴백.
-  const heading = template.fonts?.heading || 'Pretendard';
-  const body = template.fonts?.body || 'Pretendard';
   return {
     ...template,
     fonts: {
       ...template.fonts,
-      heading,
-      body,
+      heading: pptSafeFontFace(template.fonts?.heading),
+      body: pptSafeFontFace(template.fonts?.body),
     },
   };
 }
@@ -9857,7 +9869,12 @@ function addPptText(s, value, options = {}) {
   }
   let text = preserveLines ? safePptTextKeepLines(value) : safePptText(value);
   if (!text) return;
-  const opts = { ...boundedTextOptions, fontFace: boundedTextOptions.fontFace || 'Pretendard' };
+  // 어느 경로로 들어온 글꼴이든 PPTX 에는 설치 보장된 글꼴만 기록한다.
+  const opts = { ...boundedTextOptions, fontFace: pptSafeFontFace(boundedTextOptions.fontFace) };
+  // pptxgenjs 의 세로 정렬 기본값은 가운데(anchor="ctr")다. 큰 본문 패널에 짧은 글이 들어가면
+  // 위아래로 큰 공백이 남아 "내용이 안 담긴" 장표처럼 보인다. 라벨·칩 같은 낮은 칸은 그대로 두고,
+  // 본문 패널(높이 1in 이상)만 위 정렬로 바꿔 글이 라벨 바로 아래에서 시작하게 한다.
+  if (opts.valign === undefined && Number(boundedTextOptions.h) >= 1.0) opts.valign = 'top';
   // PowerPoint 텍스트박스 기본 내부 여백(좌우 0.1in)은 fitFontSizePt 계산에 없어
   // 계산상 들어가는 줄이 실제로는 넘쳐 마지막 줄이 잘린다 — 여백을 0으로 박아 계산과 일치시킨다.
   if (opts.margin === undefined) opts.margin = 0;

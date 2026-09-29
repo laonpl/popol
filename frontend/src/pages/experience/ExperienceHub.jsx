@@ -4,7 +4,7 @@ import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, Star, ArrowUpDown,
   RotateCcw, Save, Mail, ExternalLink, RefreshCw, Briefcase,
-  MapPin, CalendarDays, Sparkles, AlertCircle,
+  MapPin, CalendarDays, Sparkles, AlertCircle, FileText,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
@@ -18,6 +18,7 @@ import useAuthStore from '../../stores/authStore';
 import useAuthGate from '../../hooks/useAuthGate';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
+import ResumeImportModal from '../../components/ResumeImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -221,6 +222,7 @@ export default function ExperienceHub() {
   const { experiences, fetchExperiences, loading, loadError, deleteExperience, createExperience, updateExperience } = useExperienceStore();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
+  const [showResumeImport, setShowResumeImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -797,6 +799,13 @@ export default function ExperienceHub() {
             </button>
             <button
               type="button"
+              onClick={() => requireAuth(() => setShowResumeImport(true))}
+              className="flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14.5px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
+            >
+              <FileText size={16} /> 이력서·포트폴리오로 가져오기
+            </button>
+            <button
+              type="button"
               data-tour="experience-new"
               onClick={() => requireAuth(() => {
                 // 튜토리얼 진행 중엔 기존 흐름(직접 작성 화면) 유지
@@ -1314,6 +1323,7 @@ export default function ExperienceHub() {
         onConfirm={confirmDeleteExperience}
       />
 
+      {showResumeImport && <ResumeImportModal onClose={() => setShowResumeImport(false)} />}
       {showImport && (
         <ImportModal targetType="experience" onClose={() => setShowImport(false)} onImport={handleImport} />
       )}

@@ -4,6 +4,7 @@ import { groundMarketerEvidence } from './marketerEvidence.js';
 import { MARKETER_WORK_PRODUCT_FIELDS } from '../prompts/marketerWorkProducts.js';
 import { MARKETER_WORK_PRODUCTS } from '../../../frontend/src/utils/marketerWorkProducts.js';
 import { buildMarketerEvidenceModel, buildMarketerEvidenceExportSections } from '../../../frontend/src/utils/marketerEvidence.js';
+import { marketingCaseSections } from '../../../frontend/src/utils/marketerCaseStudy.js';
 import { roleArtifacts, caseArtifacts, patchArtifactBinding, safeArtifactUrl, roleSourceText } from '../../../frontend/src/utils/roleArtifacts.js';
 import { roleAnalysisContent, preserveRolePresentation } from '../utils/roleMaterials.js';
 import { CAREER_FIELD_PROFILES } from '../prompts/careerFieldProfiles.js';
@@ -49,6 +50,21 @@ test('legacy narratives and metrics survive but do not masquerade as verified im
   assert.match(buildMarketerEvidenceExportSections(sr)[0].content, /기존 수치\(원문 대조 전\): 20개/);
   assert.ok(item.records.some(row => row.claim === '콘텐츠를 직접 제작했다'));
 });
+
+test('campaign execution has its own chapter and is not presented as an experiment', () => {
+  const source = '검색 광고와 이메일 캠페인을 직접 집행하고 발송 조건을 조정했다.';
+  const sr = groundMarketerEvidence(wrap({ marketerEvidence: [{ dimension: 'activation', claim: '검색 광고와 이메일을 운영했다.', quote: source, stage: 'executed' }] }), source);
+  const item = buildMarketerEvidenceModel(sr, { sourceText: source }).cases[0];
+  assert.equal(item.records.find(row => row.dimension === 'activation').stage, 'executed');
+  assert.equal(item.records.some(row => row.dimension === 'experiment'), false);
+  assert.ok(marketingCaseSections(item).find(section => section.key === 'activation').records.some(row => row.dimension === 'activation'));
+  assert.match(buildMarketerEvidenceExportSections(sr)[0].content, /캠페인 집행과 운영/);
+
+  const legacy = wrap({}); legacy.keyExperiences[0].action = '콘텐츠를 직접 발행했다.';
+  const legacyItem = buildMarketerEvidenceModel(legacy).cases[0];
+  assert.equal(legacyItem.records.find(row => row.dimension === 'activation').basis, 'derived');
+  assert.equal(legacyItem.records.some(row => row.dimension === 'experiment'), false);
+});
 test('stale sources invalidate marketing metric values and observations', () => {
   const sr = grounded({ marketerWorkProducts: { optimization: [{ signal: '전환 변화', observation: '3%', quote: report, stage: 'observed', ownership: '내 분석' }] }, marketerMetrics: [{ name: '전환율', actual: '3%', quote: report }] });
   const item = buildMarketerEvidenceModel(sr, { sourceText: '삭제됨' }).cases[0];
@@ -76,6 +92,16 @@ test('reanalysis preserves case-linked captions by identity, never an arbitrary 
   assert.equal(preserveRolePresentation({ jobCategory: 'pm', keyExperiences: [{ id: 'a', title: '수정' }] }, previous).keyExperiences[0].artifactBindings[0].caption, '내 설명');
   const changed = preserveRolePresentation({ jobCategory: 'pm', keyExperiences: [{ id: 'b', title: '다른 경험' }] }, previous);
   assert.equal(changed.keyExperiences[0].artifactBindings, undefined); assert.equal(changed.artifactBindingArchive[0].bindings[0].caption, '내 설명');
+});
+
+test('reanalysis preserves manually added PM decisions and archives unmatched drafts', () => {
+  const manual = { option: '가입 안내 개선', criterion: '가입 이탈', manuallyAdded: true, manualId: 'pm-manual-1', basis: 'unlocated' };
+  const previous = { jobCategory: 'pm', keyExperiences: [{ id: 'a', title: '가입 개선', jobData: { pmWorkProducts: { alternatives: [manual] } } }] };
+  const same = preserveRolePresentation({ jobCategory: 'pm', keyExperiences: [{ id: 'a', title: '가입 개선', jobData: { pmWorkProducts: { alternatives: [{ option: '검색 개선' }] } } }] }, previous);
+  assert.deepEqual(same.keyExperiences[0].jobData.pmWorkProducts.alternatives.map(row => row.option), ['가입 안내 개선', '검색 개선']);
+  const changed = preserveRolePresentation({ jobCategory: 'pm', keyExperiences: [{ id: 'b', title: '다른 경험', jobData: {} }] }, previous);
+  assert.equal(changed.manualWorkProductArchive[0].workProducts.alternatives[0].manualId, 'pm-manual-1');
+  assert.equal(changed.keyExperiences[0].jobData.pmWorkProducts, undefined);
 });
 
 test('campaign export follows the reading order and preserves every narrative and work product', () => {

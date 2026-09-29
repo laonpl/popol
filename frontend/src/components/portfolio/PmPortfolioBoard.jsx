@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, ChevronDown, GitBranch, FileCheck2 } from 'lu
 import { PM_COMPANY_REFERENCES, PM_PORTFOLIO_REFERENCES } from '../../utils/pmPortfolioViews';
 import { PM_DIMENSIONS, PM_STAGE_LABELS } from '../../utils/pmEvidence';
 import { Block, Outcome } from './PmWorkProductBlocks';
+import { PmDecisionStudio } from './RoleSignatureStudio';
 import './PmPortfolioBoard.css';
 import './ProductDecisionPortfolio.css';
 
@@ -55,10 +56,13 @@ function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly
   const missing = CHAPTERS.filter(chapter => !chapters.some(entry => entry.key === chapter.key));
   const problem = w.problems?.[0]?.problem || item.records.find(row => row.dimension === 'discovery')?.claim;
   const decision = w.alternatives?.find(row => row.disposition === '채택');
+  const decisionRecord = item.records.find(row => row.dimension === 'prioritization');
   const owners = [...new Set([...item.records.map(row => row.ownership), ...(w.requirements || []).map(row => row.owner)].filter(Boolean))];
   const result = item.metrics.find(metric => metric.basis !== 'unlocated' && metric.actual);
+  const outcomeRecord = item.records.find(row => row.dimension === 'outcome');
   return <div className="pd-dossier">
-    <header className="pd-product-brief"><div><span>PRODUCT CASE STUDY</span><h3>{item.title}</h3>{problem && <p>{problem}</p>}</div><dl>{decision && <div><dt>선택한 방향 · {PM_STAGE_LABELS[decision.stage]}</dt><dd>{decision.option}</dd></div>}<div><dt>내 책임 범위</dt><dd>{owners.length ? owners.join(' / ') : '담당 범위를 확인할 원문이 필요합니다.'}</dd></div>{result && <div><dt>기록된 결과 · {result.name}</dt><dd>{result.baseline ? result.baseline + ' → ' : ''}{result.actual}<small>{[result.period, result.population].filter(Boolean).join(' · ') || '기간·대상 확인 필요'}</small></dd></div>}</dl></header>
+    <header className="pd-product-brief"><div><span>PRODUCT CASE STUDY</span><h3>{item.title}</h3>{problem && <p>{problem}</p>}</div><dl>{(decision || decisionRecord) && <div><dt>선택한 방향 · {decision ? PM_STAGE_LABELS[decision.stage] : '기존 정리 · 원문 확인 필요'}</dt><dd>{decision?.option || decisionRecord.claim}</dd></div>}<div><dt>내 책임 범위</dt><dd>{owners.length ? owners.join(' / ') : '담당 범위를 확인할 원문이 필요합니다.'}</dd></div>{result ? <div><dt>기록된 결과 · {result.name}</dt><dd>{result.baseline ? result.baseline + ' → ' : ''}{result.actual}<small>{[result.period, result.population].filter(Boolean).join(' · ') || '기간·대상 확인 필요'}</small></dd></div> : outcomeRecord && <div><dt>결과 정리 · {PM_STAGE_LABELS[outcomeRecord.stage]}</dt><dd>{outcomeRecord.claim}<small>{outcomeRecord.basis === 'unlocated' ? '원문 확인 필요' : '연결된 자료에서 확인'}</small></dd></div>}</dl></header>
+    <PmDecisionStudio item={item} Source={Source} sourcesId={id + '-editor'} canEdit={!readOnly} />
     <nav className="pd-document-index print:hidden" aria-label="제품 설계 문서 목차">{chapters.map((chapter, i) => <a key={chapter.key} href={'#' + id + '-' + chapter.key}>{String(i + 1).padStart(2, '0')} {chapter.label}</a>)}<a href={'#' + id + '-sources'}>근거 자료</a></nav>
     {chapters.map((chapter, i) => <section key={chapter.key} id={id + '-' + chapter.key} className={'pd-chapter pd-chapter-' + chapter.key}>
       <header className="pd-chapter-heading"><span>{String(i + 1).padStart(2, '0')}</span><div><small>{chapter.label}</small><h3>{chapter.title}</h3></div><FileCheck2 size={19} /></header>
@@ -67,7 +71,7 @@ function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly
       {chapter.groups.map(group => <Block key={group} group={group} rows={w[group] || []} Source={Source} />)}
       {chapter.key === 'validation' && <Outcome item={item} Source={Source} />}
     </section>)}
-    <section id={id + '-sources'} className="pd-source-appendix">{renderArtifacts?.(item)}</section>
+    <section id={id + '-sources'} className="pd-source-appendix">{renderArtifacts?.(item, id + '-editor')}</section>
     {!readOnly && missing.length > 0 && <aside className="pd-missing-design pd-completion-guide print:hidden"><div><h4>포트폴리오에서 더 설명할 부분</h4><p>현재 기록에 없는 단계입니다. 실제 자료가 있는 항목만 보완하세요. 출시 전 프로젝트에 매출이나 출시 성과를 요구하지 않습니다.</p><ul>{missing.map(chapter => <li key={chapter.key}><b>{chapter.label}</b><span>{chapter.missing}</span></li>)}</ul><p>경험정리 페이지의 보관함에 자료를 추가하고 저장한 뒤 ‘산출물 다시 추출’을 실행하면 본문에 반영됩니다.</p></div></aside>}
   </div>;
 }

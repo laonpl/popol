@@ -807,7 +807,7 @@ Return this JSON shape:
 Limit recommendations to ${limit}.`;
 
     const raw = await generateWithRetry(prompt, {
-      models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
+      models: ['gemini-2.5-flash'],
       retries: 2,
       delayMs: 2500,
       preferPro: true,

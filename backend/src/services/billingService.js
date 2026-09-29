@@ -27,7 +27,7 @@ export const PAYMENT_METHODS = [
 const MODEL_PRICING_USD_PER_MILLION = {
   'gemini-2.5-pro': { input: 1.25, output: 10, longInput: 2.5, longOutput: 15 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
-  'gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
+  'gemini-3.1-flash-lite': { input: 0.1, output: 0.4 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
 };
 

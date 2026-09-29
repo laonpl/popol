@@ -2,7 +2,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import VisualPortfolioRenderer from './VisualPortfolioTemplates';
 import WebPortfolioRenderer, { WEB_SAMPLE_PORTFOLIO } from './WebPortfolioTemplates';
-import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
@@ -12,17 +12,37 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { trackActivation } from '../../services/activationMetrics';
 import useExperienceStore from '../../stores/experienceStore';
+import { SLIDE_LAYOUTS, COLOR_PALETTES, getComposedTemplate } from './aiPptTemplates';
+import { LAYOUT_SAMPLE_SLIDES, LayoutPreviewThumb } from './AiPptExport';
 
 const TEMPLATE_CATEGORIES = [
-  { id: 'all', label: '전체' },
-  { id: 'common', label: '전 직군 공통' },
-  { id: 'developer', label: '개발자' },
-  { id: 'pm', label: '기획/PM' },
-  { id: 'designer', label: '디자이너' },
-  { id: 'marketer', label: '마케터' },
-  { id: 'startup', label: '스타트업' },
-  { id: 'researcher', label: '리서처' },
-  { id: 'backend', label: '백엔드' },
+  { id: 'web', label: '홈페이지' },
+  { id: 'notion', label: '노션' },
+  { id: 'ppt', label: 'PPT' },
+];
+
+// PPT 탭: 기존 AI PPT 레이아웃 + 직접 템플릿 업로드.
+// 포트폴리오는 노션(템플릿 1) 데이터로 만들고, 생성 직후 PPT 화면으로 바로 보낸다.
+const PPT_TEMPLATES = [
+  ...SLIDE_LAYOUTS.filter(l => l.available).map(layout => ({
+    id: `ppt-${layout.id}`,
+    pptLayoutId: layout.id,
+    name: `${layout.name} PPT`,
+    description: layout.description,
+    tags: ['PPT', layout.tag],
+    category: 'ppt',
+    isPpt: true,
+    previewBg: 'bg-gray-50',
+  })),
+  {
+    id: 'ppt-upload',
+    name: '내 PPT 템플릿 업로드',
+    description: '가지고 있는 PPTX 파일을 올리면 그 디자인(배경·색·폰트·장식)을 살려 포트폴리오 내용으로 슬라이드를 구성합니다.',
+    tags: ['PPT', '직접 업로드', '내 디자인'],
+    category: 'ppt',
+    isPpt: true,
+    previewBg: 'bg-surface-50',
+  },
 ];
 
 const FEATURED_WEB_TEMPLATES = [
@@ -31,7 +51,7 @@ const FEATURED_WEB_TEMPLATES = [
     name: '웹사이트 A (빅 타이포 랜딩)',
     description: '풀스크린 히어로와 초대형 타이포, 흐르는 스킬 티커로 구성된 어워즈형 원페이지 웹사이트입니다.',
     tags: ['웹사이트', '원페이지', '커스텀 컬러', '임팩트'],
-    category: 'common',
+    category: 'web',
     isWeb: true,
     previewBg: 'bg-[#f4f1ea]',
   },
@@ -40,7 +60,7 @@ const FEATURED_WEB_TEMPLATES = [
     name: '웹사이트 B (에디토리얼 파인더)',
     description: '초대형 검색형 타이포와 넓은 여백, 선명한 구획선으로 프로젝트를 시원하게 보여주는 에디토리얼 사이트입니다.',
     tags: ['웹사이트', '에디토리얼', '프로젝트 중심', '커스텀 컬러'],
-    category: 'common',
+    category: 'web',
     isWeb: true,
     previewBg: 'bg-[#f5f5f2]',
   },
@@ -49,7 +69,7 @@ const FEATURED_WEB_TEMPLATES = [
     name: '웹사이트 C (블루 티켓)',
     description: '여행 티켓 콘셉트의 그래픽 포트폴리오. 콜라주 워드마크와 티켓 카드, 스탬프 장식으로 개성을 드러냅니다.',
     tags: ['웹사이트', '그래픽', '티켓 콘셉트', '커스텀 컬러'],
-    category: 'designer',
+    category: 'web',
     isWeb: true,
     previewBg: 'bg-white',
   },
@@ -58,7 +78,7 @@ const FEATURED_WEB_TEMPLATES = [
     name: '웹사이트 D (임팩트 카드)',
     description: '미션 문구와 가로 프로젝트 카드, 최근 경험과 임팩트 지표를 풍부하게 구성한 브랜드형 포트폴리오 사이트입니다.',
     tags: ['웹사이트', '카드 갤러리', '브랜드형', '커스텀 컬러'],
-    category: 'common',
+    category: 'web',
     isWeb: true,
     previewBg: 'bg-white',
   },
@@ -71,7 +91,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 1',
     description: '프로필, 학력, 경험, 수상, 기술을 한 눈에 정리하는 3단 레이아웃 포트폴리오. Notion 내보내기 지원.',
     tags: ['이력서', '포트폴리오', 'Notion 내보내기', 'All-in-One'],
-    category: 'common',
+    category: 'notion',
     sections: [],
     isNotion: true,
     previewBg: 'bg-white',
@@ -81,7 +101,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 2',
     description: '대학생/취준생을 위한 학술 중심 포트폴리오. 학력, 연구, 활동 이력을 타임라인으로 깔끔하게 정리.',
     tags: ['학생', '취준생', '이력서', '타임라인'],
-    category: 'common',
+    category: 'notion',
     sections: [],
     isNotion: true,
     previewBg: 'bg-slate-800',
@@ -91,7 +111,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 3 (기본 노션형)',
     description: '커버 이미지와 아바타가 인상적인 기본 노션 스타일. 경험·프로젝트를 카드로 깔끔하게 표현.',
     tags: ['심플', '화이트', '카드형'],
-    category: 'common',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -100,7 +120,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 4 (베이지 톤)',
     description: '따뜻한 베이지 색감의 고급스러운 포트폴리오. 세리프 폰트와 흑백 레이아웃으로 차분한 인상.',
     tags: ['베이지', '고급', '세리프'],
-    category: 'designer',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-[#f3f2eb]',
   },
@@ -109,7 +129,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 5 (DB 구조화)',
     description: '노션 데이터베이스처럼 구조화된 레이아웃. 핑크·퍼플 그라디언트 포인트로 생동감 있는 디자인.',
     tags: ['구조화', '컬러풀', '정보형'],
-    category: 'pm',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -118,7 +138,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 6 (문제해결형)',
     description: '실무 역량과 문제 해결 과정을 강조하는 취업형 포트폴리오. 타임라인 기반 경험 서술.',
     tags: ['취업', '실무형', '3단 레이아웃'],
-    category: 'pm',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-[#fcfcfc]',
   },
@@ -127,7 +147,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 7 (프로필 링크형)',
     description: 'Link-in-bio 스타일의 모바일 친화적 포트폴리오. 프로필과 프로젝트 카드를 세로로 배치.',
     tags: ['모바일', '링크형', '프로필'],
-    category: 'common',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-[#F7F6F3]',
   },
@@ -136,7 +156,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 8 (비주얼 갤러리)',
     description: '프로젝트 이미지를 갤러리 형태로 크게 보여주는 비주얼 중심 포트폴리오.',
     tags: ['갤러리', '비주얼', '디자이너'],
-    category: 'designer',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -145,7 +165,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 9 (다크 모드)',
     description: '우주/성운 느낌의 다크 배경에 파란 포인트 컬러. 세련된 분위기의 다크 포트폴리오.',
     tags: ['다크', '세련됨', '개발자'],
-    category: 'developer',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-[#1F1F1F]',
   },
@@ -154,7 +174,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 10 (개발자 다크)',
     description: '체크박스 스킬 레벨과 갤러리 뷰 프로젝트 목록. 개발자에게 최적화된 다크 테마.',
     tags: ['개발자', '다크', '스킬형'],
-    category: 'developer',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-[#191919]',
   },
@@ -163,10 +183,11 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 11 (합격자형 프리미엄)',
     description: '실제 합격 포트폴리오처럼 정돈된 단일 컬럼 레이아웃. 한 줄 소개·핵심 경력을 앞세우고, 인디고 포인트와 넉넉한 여백으로 신뢰감 있는 인상을 줍니다.',
     tags: ['합격자형', '경력 중심', '프리미엄', '추천'],
-    category: 'common',
+    category: 'notion',
     isNotion: true,
     previewBg: 'bg-white',
   },
+  ...PPT_TEMPLATES,
 ];
 
 // ── 미리보기 컴포넌트들 ──
@@ -1008,7 +1029,8 @@ export default function PortfolioTemplateSelect() {
   const [step, setStep] = useState(portfolioPlan ? 'template' : 'joblink');
   const [jobAnalysis, setJobAnalysis] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(portfolioPlan ? 'notion' : 'web');
+  const [pptPaletteId, setPptPaletteId] = useState('beige-minimal');
   // 3단계에서 고른 '이 공고에 넣을 경험' — 여기 담긴 것만 포트폴리오 본문에 들어간다.
   const [selectedExpIds, setSelectedExpIds] = useState([]);
   const [recommendations, setRecommendations] = useState(null);
@@ -1016,10 +1038,11 @@ export default function PortfolioTemplateSelect() {
 
   // 템플릿 선택 완료 → 3단계(빈 섹션 채우기 · 경험 고르기)로.
   // 공고를 연결했으면 추천 경험을 먼저 받아두고 넘어간다. (3단계에 들어가자마자 목록이 보이도록)
-  const handleTemplateNext = async () => {
+  // forceBoost: 상단 스텝 '3'을 눌러 들어온 경우 — 바로 생성하지 않고 3단계 화면을 보여준다.
+  const handleTemplateNext = async ({ forceBoost = false } = {}) => {
     if (!selected) { toast.error('템플릿을 선택해주세요'); return; }
     // 공고를 연결했으면 경험을 고르게 해야 하므로, 프로필이 다 차 있어도 3단계로 보낸다.
-    if (!hasEmptyProfileFields(profile) && !jobAnalysis) { handleCreate(jobAnalysis); return; }
+    if (!forceBoost && !hasEmptyProfileFields(profile) && !jobAnalysis) { handleCreate(jobAnalysis); return; }
 
     if (jobAnalysis) {
       setRecLoading(true);
@@ -1056,12 +1079,20 @@ export default function PortfolioTemplateSelect() {
 
     setCreating(true);
     try {
+      // PPT는 노션(템플릿 1) 데이터로 저장한다 — 나중에 목록·미리보기·에디터에서 그대로 열린다.
+      // PPT 생성은 에디터 자동 채우기를 거치지 않으므로, 서버가 experienceIds로 경험을 읽는다.
+      let experienceIds = portfolioPlan?.selectedExperienceIds || selectedExpIds;
+      if (template.isPpt && experienceIds.length === 0) {
+        const store = useExperienceStore.getState();
+        if (!store.experiences?.length) await store.fetchExperiences(user.uid);
+        experienceIds = (useExperienceStore.getState().experiences || []).map(e => e.id).filter(Boolean);
+      }
       const data = {
         title: template.name,
         userName: srcProfile?.nameKo || user.displayName || '',
         sections: [],
-        templateId: template.id,
-        templateType: template.templateType || template.id,
+        templateId: template.isPpt ? 'notion' : template.id,
+        templateType: template.isPpt ? 'notion' : (template.templateType || template.id),
         headline: '',
         education: [],
         awards: srcProfile?.awards || [],
@@ -1113,7 +1144,7 @@ export default function PortfolioTemplateSelect() {
         birthDate: srcProfile?.birthDate || '',
         // 에디터 최초 진입 시 경험을 1회 자동 채운다.
         // 플랜에서 고른 경험을 우선하고, 일반 생성 흐름에서는 3단계의 수동·추천 선택을 사용한다.
-        experienceIds: portfolioPlan?.selectedExperienceIds || selectedExpIds,
+        experienceIds,
         pendingAutofill: portfolioPlan
           ? (portfolioPlan.selectedExperienceIds?.length || 0) > 0
           : step === 'boost' ? selectedExpIds.length > 0 : true,
@@ -1152,8 +1183,14 @@ export default function PortfolioTemplateSelect() {
         });
       }
 
-      // 웹사이트형 템플릿은 전용 에디터로
-      navigate(template.isWeb ? `/app/portfolio/web-edit/${id}` : `/app/portfolio/edit-notion/${id}`);
+      // 웹사이트형 템플릿은 전용 에디터로, PPT는 PPT 만들기 화면으로
+      if (template.isPpt) {
+        navigate(template.pptLayoutId
+          ? `/app/portfolio/ai-ppt/${id}?layout=${template.pptLayoutId}&template=${pptPaletteId}&autostart=true`
+          : `/app/portfolio/ai-ppt/${id}?upload=1`);
+      } else {
+        navigate(template.isWeb ? `/app/portfolio/web-edit/${id}` : `/app/portfolio/edit-notion/${id}`);
+      }
       toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
@@ -1175,21 +1212,26 @@ export default function PortfolioTemplateSelect() {
       )}
 
       {/* 스텝 인디케이터 */}
+      {/* 각 단계를 눌러 해당 단계로 이동. 3단계는 템플릿을 고른 뒤에만 들어갈 수 있다. */}
       <div className="flex items-center gap-2 mb-8">
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'joblink' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
-          기업 공고 연결 (선택)
-        </div>
-        <ArrowRight size={13} className="text-bluewood-200" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'template' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
-          템플릿 선택
-        </div>
-        <ArrowRight size={13} className="text-bluewood-200" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'boost' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === 'boost' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>3</span>
-          빈 섹션 채우기 (선택)
-        </div>
+        {[
+          { id: 'joblink', num: 1, label: '기업 공고 연결 (선택)', go: () => setStep('joblink') },
+          { id: 'template', num: 2, label: '템플릿 선택', go: () => setStep('template') },
+          { id: 'boost', num: 3, label: '빈 섹션 채우기 (선택)', go: () => handleTemplateNext({ forceBoost: true }) },
+        ].map((s, i) => (
+          <div key={s.id} className="flex items-center gap-2">
+            {i > 0 && <ArrowRight size={13} className="text-bluewood-200" />}
+            <button
+              type="button"
+              onClick={() => { if (step !== s.id) s.go(); }}
+              disabled={creating || recLoading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all disabled:cursor-not-allowed ${step === s.id ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200 hover:border-primary-300 hover:text-primary-600'}`}
+            >
+              <span className={`w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold ${step === s.id ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>{s.num}</span>
+              {s.label}
+            </button>
+          </div>
+        ))}
       </div>
 
       {step === 'template' && (
@@ -1205,11 +1247,9 @@ export default function PortfolioTemplateSelect() {
           </div>
 
           {/* 카테고리 탭 */}
-          <div className="flex items-center gap-1.5 mb-6 flex-wrap">
+          <div className="flex items-center justify-center gap-1.5 mb-6 flex-wrap">
             {TEMPLATE_CATEGORIES.map(cat => {
-              const count = cat.id === 'all'
-                ? PORTFOLIO_TEMPLATES.length
-                : PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length;
+              const count = PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length;
               return (
                 <button
                   key={cat.id}
@@ -1227,9 +1267,45 @@ export default function PortfolioTemplateSelect() {
             })}
           </div>
 
+          {/* PPT 색상 팔레트 — 카드 썸네일에 바로 반영되고, PPT 화면으로 그대로 넘어간다 */}
+          {activeCategory === 'ppt' && (() => {
+            const swatchLayoutId = PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.pptLayoutId || SLIDE_LAYOUTS[0].id;
+            const current = COLOR_PALETTES.find(p => p.id === pptPaletteId);
+            return (
+              <div className="mb-6 flex flex-col items-center gap-2">
+                <p className="text-[12.5px] font-semibold text-bluewood-500">색상 팔레트</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {COLOR_PALETTES.map(p => {
+                    const c = getComposedTemplate(swatchLayoutId, p.id).colors;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        title={`${p.name} — ${p.description}`}
+                        onClick={() => setPptPaletteId(p.id)}
+                        className={`flex items-center gap-0.5 p-1.5 rounded-xl border-2 transition-all ${
+                          pptPaletteId === p.id ? 'border-primary-500 shadow-sm scale-105' : 'border-transparent opacity-60 hover:opacity-100 hover:border-surface-300'
+                        }`}
+                      >
+                        {[c.headBg, c.accentOnBg || c.accent, c.neutral, c.bg].map((color, i) => (
+                          <span key={i} style={{ background: color, width: 13, height: 13, borderRadius: 3, border: '1px solid rgba(0,0,0,0.1)' }} />
+                        ))}
+                      </button>
+                    );
+                  })}
+                </div>
+                {current && (
+                  <p className="text-[12.5px] text-bluewood-400">
+                    <span className="font-semibold text-bluewood-700">{current.name}</span> · {current.description}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Template Cards */}
           <div className="grid lg:grid-cols-3 gap-5 mb-8">
-            {PORTFOLIO_TEMPLATES.filter(t => activeCategory === 'all' || t.category === activeCategory).map(template => {
+            {PORTFOLIO_TEMPLATES.filter(t => t.category === activeCategory).map(template => {
               const isSelected = selected === template.id;
               return (
                 <div
@@ -1251,6 +1327,23 @@ export default function PortfolioTemplateSelect() {
                         <Check size={13} className="text-white" />
                       </div>
                     )}
+                    {template.isPpt ? (
+                      <div className="h-full flex items-center justify-center p-4 pointer-events-none select-none">
+                        {template.pptLayoutId ? (
+                          <div className="w-full rounded-md overflow-hidden shadow-sm border border-surface-200">
+                            <LayoutPreviewThumb
+                              template={getComposedTemplate(template.pptLayoutId, pptPaletteId)}
+                              sampleSlide={LAYOUT_SAMPLE_SLIDES[template.pptLayoutId] || LAYOUT_SAMPLE_SLIDES.standard}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full rounded-lg border-2 border-dashed border-surface-300 flex flex-col items-center justify-center gap-2 text-bluewood-400">
+                            <Upload size={26} />
+                            <span className="text-[13px] font-semibold">PPTX 파일 업로드</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
                     <div
                       style={{
                         transform: 'scale(0.42)',
@@ -1265,19 +1358,20 @@ export default function PortfolioTemplateSelect() {
                       {template.id?.startsWith('visual-') && <VisualFullPreview templateId={template.id} />}
                       {template.id?.startsWith('web-') && <WebFullPreview templateId={template.id} />}
                     </div>
+                    )}
                   </div>
 
                   {/* Info */}
                   <div className={`px-5 py-4 border-t ${isSelected ? 'border-primary-200 bg-primary-50/30' : 'border-surface-100 bg-white'}`}>
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <h3 className={`font-bold text-[15px] leading-snug ${isSelected ? 'text-primary-700' : 'text-bluewood-800'}`}>{template.name}</h3>
-                      <button
+                      {template.id !== 'ppt-upload' && <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setPreviewTemplate(template.id); }}
                         className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-bluewood-400 border border-surface-200 rounded-md hover:border-primary-300 hover:text-primary-600 transition-colors"
                       >
                         <Eye size={11} /> 미리보기
-                      </button>
+                      </button>}
                     </div>
                     <p className="text-[13px] text-bluewood-400 mb-3 leading-relaxed line-clamp-2">{template.description}</p>
                     <div className="flex flex-wrap gap-1.5">
@@ -1397,6 +1491,15 @@ export default function PortfolioTemplateSelect() {
                 {previewTemplate === 'timeline' && <TimelineFullPreview />}
                 {previewTemplate?.startsWith('visual-') && <VisualFullPreview templateId={previewTemplate} />}
                 {previewTemplate?.startsWith('web-') && <WebFullPreview templateId={previewTemplate} />}
+                {(() => {
+                  const layoutId = PORTFOLIO_TEMPLATES.find(t => t.id === previewTemplate)?.pptLayoutId;
+                  return layoutId && (
+                    <LayoutPreviewThumb
+                      template={getComposedTemplate(layoutId, pptPaletteId)}
+                      sampleSlide={LAYOUT_SAMPLE_SLIDES[layoutId] || LAYOUT_SAMPLE_SLIDES.standard}
+                    />
+                  );
+                })()}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-surface-200 bg-surface-50/60 flex items-center justify-between gap-3">

@@ -183,6 +183,10 @@ function extractShape(spNode, idx, themeColors, zIndex) {
 
   // 텍스트 정보
   const txBody = firstChild(spNode, P_NS, 'txBody');
+  // 세로쓰기 여부 — 세로 타이틀 띠(폭 42pt × 높이 462pt)는 가로 기준으로 재면
+  // "한 줄에 3글자" 박스로 오판된다. vert 면 폭/높이를 바꿔서 재야 한다.
+  const bodyPr = txBody ? firstChild(txBody, A_NS, 'bodyPr') : null;
+  const vertAttr = bodyPr ? attr(bodyPr, 'vert') : null;
   let fontPt = 18;
   let szExplicit = false; // 슬라이드 XML 에 sz 가 명시됐는가 (없으면 레이아웃/마스터 상속)
   let fontFace = null;
@@ -249,6 +253,7 @@ function extractShape(spNode, idx, themeColors, zIndex) {
     shapeId: `sp${cNvPrId || idx}`,
     role,
     x, y, w, h, rotation,
+    vert: vertAttr || null,
     shapeKind,
     fill, lineColor, lineWidthPt,
     fontPt, szExplicit, fontFace, bold, color,
@@ -281,7 +286,7 @@ async function readRelsList(zip, partPath) {
   const rels = doc.getElementsByTagName('Relationship');
   for (let i = 0; i < rels.length; i++) {
     const r = rels.item(i);
-    out.push({ type: r.getAttribute('Type') || '', target: r.getAttribute('Target') || '' });
+    out.push({ id: r.getAttribute('Id') || '', type: r.getAttribute('Type') || '', target: r.getAttribute('Target') || '' });
   }
   return out;
 }
@@ -301,6 +306,8 @@ function collectPhEntries(doc) {
     const off = xfrm ? firstChild(xfrm, A_NS, 'off') : null;
     const ext = xfrm ? firstChild(xfrm, A_NS, 'ext') : null;
     const txBody = firstChild(sp, P_NS, 'txBody');
+    const phBodyPr = txBody ? firstChild(txBody, A_NS, 'bodyPr') : null;
+    const phVert = phBodyPr ? attr(phBodyPr, 'vert') : null;
     let sz = null;
     if (txBody) {
       const lstStyle = firstChild(txBody, A_NS, 'lstStyle');
@@ -321,6 +328,7 @@ function collectPhEntries(doc) {
       w: ext ? emuToPt(attr(ext, 'cx') || 0) : null,
       h: ext ? emuToPt(attr(ext, 'cy') || 0) : null,
       sz,
+      vert: phVert || null,
     });
   }
   return entries;
@@ -394,6 +402,7 @@ function resolvePlaceholder(inheritance, phType, phIdx) {
     x: geomHit?.x ?? null, y: geomHit?.y ?? null,
     w: geomHit?.w ?? null, h: geomHit?.h ?? null,
     sz,
+    vert: layoutHit?.vert || masterHit?.vert || null,
   };
 }
 
@@ -413,7 +422,10 @@ function extractPic(picNode, idx, zIndex) {
   const embedRid = blip ? (attr(blip, 'r:embed') || attr(blip, 'embed')) : null;
 
   const cNvPrId = readCNvPrId(picNode);
-  return { kind: 'pic', picId: `pic${cNvPrId || idx}`, x, y, w, h, embedRid, zIndex };
+  const nvPicPr = firstChild(picNode, P_NS, 'nvPicPr');
+  const nvPr = nvPicPr ? firstChild(nvPicPr, P_NS, 'nvPr') : null;
+  const isPlaceholder = !!(nvPr && firstChild(nvPr, P_NS, 'ph'));
+  return { kind: 'pic', picId: `pic${cNvPrId || idx}`, x, y, w, h, embedRid, zIndex, isPlaceholder };
 }
 
 // 슬라이드 배경 색상 추출 (cSld > bg)
@@ -468,6 +480,49 @@ function* walkSpAndPic(node) {
   }
 }
 
+// 표·차트·SmartArt(graphicFrame) 수집.
+// 렌더러는 템플릿 샘플 데이터가 그대로 나가는 것을 막으려 이들을 통째로 지운다.
+// 그런데 그 자리는 템플릿에서 가장 넓은 '내용 영역'인 경우가 많아, 지우기만 하면
+// 슬라이드 한가운데가 텅 빈다. 콘텐츠 슬롯으로 노출해 사용자 내용을 받게 한다.
+function* walkGraphicFrames(node) {
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes.item(i);
+    if (!child || child.nodeType !== 1) continue;
+    const ln = child.localName;
+    if (ln === 'graphicFrame') yield child;
+    else if (ln === 'grpSp') yield* walkGraphicFrames(child);
+  }
+}
+
+function extractGraphicFrame(gfNode, slideIndex, zIndex) {
+  const xfrm = firstChild(gfNode, P_NS, 'xfrm');
+  const off = xfrm ? firstChild(xfrm, A_NS, 'off') : null;
+  const ext = xfrm ? firstChild(xfrm, A_NS, 'ext') : null;
+  const nvPr = firstChild(gfNode, P_NS, 'nvGraphicFramePr');
+  const cNvPr = nvPr ? firstChild(nvPr, P_NS, 'cNvPr') : null;
+  const id = attr(cNvPr, 'id');
+  if (!id) return null;
+  return {
+    shapeId: `slide${slideIndex}_gf${id}`,
+    role: 'body',
+    x: emuToPt(attr(off, 'x') || 0),
+    y: emuToPt(attr(off, 'y') || 0),
+    w: emuToPt(attr(ext, 'cx') || 0),
+    h: emuToPt(attr(ext, 'cy') || 0),
+    rotation: 0,
+    vert: null,
+    shapeKind: 'rect',
+    fill: null, lineColor: null, lineWidthPt: 0,
+    fontPt: 14, szExplicit: false, fontFace: null, bold: false, color: null,
+    phType: null, phIdx: null,
+    originalText: '',
+    hasText: false,
+    hasTxBody: true,
+    fromGraphicFrame: true,
+    zIndex,
+  };
+}
+
 async function extractSlide(zip, slideFile, slideIndex, themeColors, slideSize, phCache) {
   const xml = await zip.file(slideFile).async('string');
   const doc = parseXml(xml);
@@ -511,6 +566,7 @@ async function extractSlide(zip, slideFile, slideIndex, themeColors, slideSize, 
             meta.fontPt = inherited.sz;
             meta.szExplicit = true;
           }
+          if (!meta.vert && inherited.vert) meta.vert = inherited.vert;
         }
       }
 
@@ -812,13 +868,14 @@ export async function parsePptxLayout(buffer) {
   const theme = extractTheme(themeXml);
   const slideSize = extractSlideSize(presXml);
 
-  const slideFiles = Object.keys(zip.files)
-    .filter(p => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .sort((a, b) => {
-      const na = parseInt(a.match(/slide(\d+)/)[1], 10);
-      const nb = parseInt(b.match(/slide(\d+)/)[1], 10);
-      return na - nb;
-    });
+  const presDoc = parseXml(presXml);
+  const presRels = await readRelsList(zip, 'ppt/presentation.xml');
+  const slideByRid = new Map(presRels
+    .filter(r => /\/slide$/.test(r.type))
+    .map(r => [r.id, resolveTargetPath('ppt/presentation.xml', r.target)]));
+  const slideFiles = findChildren(presDoc, P_NS, 'sldId')
+    .map(s => slideByRid.get(s.getAttributeNS(R_NS, 'id') || s.getAttribute('r:id')))
+    .filter(p => p && zip.file(p));
 
   if (slideFiles.length === 0) throw new Error('PPTX에 슬라이드가 없습니다');
 

@@ -3,7 +3,8 @@ import { artifactExport } from './roleArtifacts.js';
 import { marketingCaseSections } from './marketerCaseStudy.js';
 export const MARKETER_DIMENSIONS = [
   { key: 'conversion', label: '사업 · 브랜드 목표' }, { key: 'targeting', label: '고객 선택 근거' },
-  { key: 'creative', label: '표현과 채널 선택' }, { key: 'experiment', label: '실행과 검증' },
+  { key: 'creative', label: '표현과 채널 선택' }, { key: 'activation', label: '캠페인 집행과 운영' },
+  { key: 'experiment', label: '테스트와 검증' },
   { key: 'attribution', label: '성과 해석' }, { key: 'learning', label: '판단의 변화' },
 ];
 export const MARKETER_STAGE_LABELS = { planned: '계획', executed: '실행', observed: '관찰 결과', changed: '판단 변경', unknown: '단계 확인 필요' };
@@ -32,7 +33,7 @@ export function buildMarketerEvidenceModel(sr = {}, { sourceText } = {}) {
       ['conversion', jd.businessProblem || experience.context || funnel.problem || funnel.goal],
       ['targeting', jd.audienceInsight || jd.target || funnel.target],
       ['creative', jd.creative || funnel.strategy],
-      ['experiment', experience.action || funnel.execution],
+      ['activation', experience.action || funnel.execution],
       ['attribution', experience.result || funnel.result],
       ['learning', experience.learning || funnel.insight || jd.nextExperiment],
     ].filter(([dimension, claim]) => str(claim) && !extracted.some(row => row.dimension === dimension)).map(([dimension, claim]) => ({ dimension, claim: str(claim), basis: 'derived', quote: '', stage: 'unknown', derivedLegacy: true }));

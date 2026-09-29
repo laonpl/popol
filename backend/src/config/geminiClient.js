@@ -46,16 +46,11 @@ function getGeminiClientConfig() {
     throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
   }
 
+  // AI Studio(무료) API 키 → generativelanguage.googleapis.com 사용 (Vertex는 API 키 거부)
   return {
-    cacheKey: `vertex-express:${apiKey}:v1`,
-    logLabel: project
-      ? `Vertex AI Express API 키 모드 (project=${project}, location=${location})`
-      : 'Vertex AI Express API 키 모드',
-    options: {
-      vertexai: true,
-      apiKey,
-      httpOptions: { apiVersion: 'v1' },
-    },
+    cacheKey: `ai-studio:${apiKey}`,
+    logLabel: 'Gemini API (AI Studio) API 키 모드',
+    options: { apiKey },
   };
 }
 
@@ -111,20 +106,19 @@ export async function callGitHubModelsFallback(prompt, billingStore = getBilling
 }
 
 const MODEL_FALLBACKS = [
-  'gemini-2.5-pro',
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite'
+  'gemini-3.1-flash-lite'
 ];
 
 // 경험 분석 전용: Pro 우선 + 최후의 안전망 Lite
 // preferPro:true 모드에서는 Pro 내에서 지수백오프 재시도 → Pro가 끝까지 안 되면 Lite 폴백
 export const EXPERIENCE_MODEL_FALLBACKS = [
-  'gemini-2.5-pro',
-  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
 ];
 
 // Pro 전용 (안전망 없음) - 반드시 Pro로만 시도
-export const PRO_ONLY_FALLBACKS = ['gemini-2.5-pro'];
+export const PRO_ONLY_FALLBACKS = ['gemini-2.5-flash'];
 
 // ── 글로벌 API 요청 큐 ──────────────────────────────────────────────────────
 // Gemini 2.5 Flash-Lite: 30 RPM = 2000ms/req, 여유 25% → 2500ms.
@@ -211,9 +205,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── Pro 모델 503/429 에러 추적: 쿼터 초과 시 일시 건너뛰기 ──
 const modelHealthTracker = {
-  'gemini-2.5-pro': { consecutiveErrors: 0, blockedUntil: 0 },
   'gemini-2.5-flash': { consecutiveErrors: 0, blockedUntil: 0 },
-  'gemini-2.5-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
+  'gemini-3.1-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
 };
 
 function isModelTemporarilyBlocked(modelName) {

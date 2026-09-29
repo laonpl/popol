@@ -64,6 +64,18 @@ test('legacy narratives use the new decision layout without gaining evidence sta
   assert.match(buildPmEvidenceExportSections(legacy)[0].content, /근거 확인 필요/);
 });
 
+test('partial PM extraction fills only missing decision stages from existing experience text', () => {
+  const data = { keyExperiences: [{ title: '가입 개선', context: '가입 이탈을 발견했다.', action: '가입 정책을 설계했다.', result: '사용자 피드백을 확인했다.', learning: '초기 가정을 수정했다.', jobData: {
+    pmEvidenceVersion: 1, decision: '검색보다 가입을 먼저 개선했다.', hypothesis: '안내를 줄이면 완료가 늘어난다.',
+    pmEvidence: [{ dimension: 'discovery', claim: '가입 이탈이 문제였다.', quote, basis: 'source_excerpt', stage: 'observed' }],
+  } }] };
+  const item = buildPmEvidenceModel(data, { sourceText: quote }).cases[0];
+  assert.equal(item.records.filter(row => row.dimension === 'discovery').length, 1);
+  assert.ok(['prioritization', 'delivery', 'validation', 'outcome', 'learning'].every(dimension => item.records.some(row => row.dimension === dimension)));
+  assert.ok(item.records.filter(row => row.derivedLegacy).every(row => row.basis === 'unlocated' && row.stage === 'unknown'));
+  assert.match(buildPmEvidenceExportSections(data)[0].content, /검색보다 가입을 먼저 개선했다/);
+});
+
 test('typed artifacts reach the model and export without requiring old narrative records', () => {
   const data = { keyExperiences: [{ title: '정책 설계', jobData: { pmWorkProductsVersion: 1, pmWorkProducts: { requirements: [{ requirement: '임시 저장', rule: '로그인 상태에서만 허용', acceptance: '새로고침 후 복구', quote, sourceName: '정책.pdf', basis: 'source_excerpt', stage: 'executed' }] } } }] };
   const model = buildPmEvidenceModel(data, { sourceText: quote });

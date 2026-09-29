@@ -6,6 +6,7 @@
 // 적으면 사용한 슬라이드만 남긴다(unused slide 는 결과물에서 제거).
 
 import JSZip from 'jszip';
+import path from 'node:path';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { shrinkToFit } from './autofit.js';
 
@@ -68,7 +69,7 @@ function stripNotesSlideRels(relsXml) {
   return serializeXml(doc);
 }
 
-const WATERMARK_RE = /템플릿\s*\d|template\s*\d|Project\s*\d|project\s*\d|샘플|sample|예시|lorem\s+ipsum|클릭하여|텍스트를?\s*입력|제목을?\s*입력|부제목을?\s*입력|click to (add|edit)/i;
+const PLACEHOLDER_PROMPT_RE = /lorem\s+ipsum|클릭하여|텍스트를?\s*입력|제목을?\s*입력|부제목을?\s*입력|click to (add|edit)/i;
 
 function readTxBodyText(txBody) {
   let out = '';
@@ -190,34 +191,18 @@ export function isContentPhoto({ areaRatio, bytes, usage }) {
   return (bytes || 0) >= 20 * 1024 && areaRatio >= 0.02;
 }
 
-// picCtx: { ridInfo: Map<rId, { bytes, usage }> } — renderDeckInPlace 가 슬라이드별로 구성
-function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0, picCtx = null) {
+function removeAllPicsFromSpTree(spTree) {
   const toRemove = [];
   const isPlaceholderPic = (pic) => {
     const nvPicPr = firstChild(pic, P_NS, 'nvPicPr');
     const nvPr    = nvPicPr ? firstChild(nvPicPr, P_NS, 'nvPr') : null;
     return nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
   };
-  const isPhotoPic = (pic) => {
-    if (!picCtx || !(slideW > 0) || !(slideH > 0)) return false;
-    const blipFill = firstChild(pic, P_NS, 'blipFill');
-    const blip = blipFill ? firstChild(blipFill, A_NS, 'blip') : null;
-    const rid = blip ? (blip.getAttributeNS(R_NS, 'embed') || blip.getAttribute('r:embed')) : null;
-    const info = rid ? picCtx.ridInfo.get(rid) : null;
-    if (!info) return false;
-    const geom = topLevelXfrm(pic);
-    if (!geom) return false;
-    return isContentPhoto({
-      areaRatio: (geom.w * geom.h) / (slideW * slideH),
-      bytes: info.bytes,
-      usage: info.usage,
-    });
-  };
   const collectFromGroup = (group) => {
     for (let i = 0; i < group.childNodes.length; i++) {
       const c = group.childNodes.item(i);
       if (!c || c.nodeType !== 1) continue;
-      if (c.localName === 'pic' && (isPlaceholderPic(c) || isPhotoPic(c))) toRemove.push(c);
+      if (c.localName === 'pic' && isPlaceholderPic(c)) toRemove.push(c);
       else if (c.localName === 'grpSp') collectFromGroup(c);
     }
   };
@@ -225,13 +210,65 @@ function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0, picCtx = null) 
   for (const pic of toRemove) {
     if (pic.parentNode) pic.parentNode.removeChild(pic);
   }
-  if (toRemove.length) console.log(`[Renderer] 콘텐츠 사진/placeholder 이미지 ${toRemove.length}개 제거`);
+  if (toRemove.length) console.log(`[Renderer] 빈 이미지 placeholder ${toRemove.length}개 제거`);
   return toRemove.length;
 }
 
 // 템플릿에 포함된 표(table), 차트(chart), SmartArt 등 graphicFrame 을 제거.
 // 이 요소들은 사용자 데이터로 채울 수 없는 템플릿 플레이스홀더이므로 출력물에서 제거.
 // grpSp 내부도 재귀 탐색.
+// graphicFrame(표·차트) 자리에 사용자 내용이 배정됐으면, 프레임을 지우는 대신
+// 같은 위치·크기의 텍스트 도형으로 바꿔 넣는다. 지우기만 하면 템플릿에서 가장 넓은
+// 내용 영역이 통째로 빈 공간이 되어 "내용이 안 담긴" 슬라이드가 된다.
+function replaceGraphicFramesWithText(spTree, doc, map, templateSlideIndex, fontScale) {
+  let replaced = 0;
+  const frames = [];
+  const collect = (group) => {
+    for (let i = 0; i < group.childNodes.length; i++) {
+      const c = group.childNodes.item(i);
+      if (!c || c.nodeType !== 1) continue;
+      if (c.localName === 'graphicFrame') frames.push(c);
+      else if (c.localName === 'grpSp') collect(c);
+    }
+  };
+  collect(spTree);
+
+  for (const gf of frames) {
+    const nvPr = firstChild(gf, P_NS, 'nvGraphicFramePr');
+    const cNvPr = nvPr ? firstChild(nvPr, P_NS, 'cNvPr') : null;
+    const id = attr(cNvPr, 'id');
+    if (!id) continue;
+    const box = map.get(`slide${templateSlideIndex}_gf${id}`);
+    const text = String(box?.text || '').trim();
+    if (!text) continue;
+
+    const xfrm = firstChild(gf, P_NS, 'xfrm');
+    const off = xfrm ? firstChild(xfrm, A_NS, 'off') : null;
+    const ext = xfrm ? firstChild(xfrm, A_NS, 'ext') : null;
+    const x = attr(off, 'x') || '0';
+    const y = attr(off, 'y') || '0';
+    const cx = attr(ext, 'cx') || '0';
+    const cy = attr(ext, 'cy') || '0';
+
+    const spXml =
+      `<p:sp xmlns:p="${P_NS}" xmlns:a="${A_NS}">` +
+      `<p:nvSpPr><p:cNvPr id="${9000 + Number(id)}" name="Content ${id}"/>` +
+      `<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>` +
+      `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+      `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
+      `<p:txBody><a:bodyPr wrap="square" anchor="t"/><a:lstStyle/>` +
+      `<a:p><a:r><a:rPr lang="ko-KR" dirty="0"/><a:t> </a:t></a:r></a:p></p:txBody></p:sp>`;
+    const spNode = parseXml(spXml).documentElement;
+    const imported = doc.importNode ? doc.importNode(spNode, true) : spNode;
+    gf.parentNode.insertBefore(imported, gf);
+    gf.parentNode.removeChild(gf);
+    replaceTextInShape(imported, text, box, null, fontScale);
+    replaced++;
+  }
+  if (replaced) console.log(`[Renderer] 표/차트 자리 ${replaced}개를 내용 텍스트로 교체`);
+  return replaced;
+}
+
 function removeAllGraphicFramesFromSpTree(spTree) {
   const toRemove = [];
   const collect = (group) => {
@@ -424,7 +461,7 @@ function applySpatialAdaptation(spTree, subsetBoxes, axis, slideW, slideH, allBo
   return true;
 }
 
-function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt = { w: 720, h: 540 }, picCtx = null) {
+function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt = { w: 720, h: 540 }) {
   const map = new Map();
   for (const b of (boxes || [])) {
     if (b.text == null) continue;
@@ -469,18 +506,20 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt 
   // Pass 2.2: 빈 텍스트 도형 제거.
   // · 빈 placeholder 는 편집 화면에서 레이아웃 안내문구("프레젠테이션 부제목" 등)가
   //   보여 깨진 출력처럼 인식된다 → 도형째 제거.
-  // · 채움/외곽선 없는 빈 일반 텍스트박스는 보이지 않는 잔재 → 함께 제거.
-  //   (색이 칠해진 빈 박스는 디자인 카드이므로 유지)
+  // · 일반 도형은 빈 텍스트를 갖더라도 템플릿의 장식/프레임일 수 있으므로 유지.
   removeEmptyTextShapes(spTree);
 
   // Pass 2.5: 텍스트 매핑 완료 후 콘텐츠 사진/placeholder <p:pic> 제거
-  removeAllPicsFromSpTree(spTree, slideSizePt.w, slideSizePt.h, picCtx);
+  // Uploaded pictures can be backgrounds, logos, illustrations, or masks. File size
+  // and area cannot distinguish those from sample photographs. Preserve the
+  // template artwork; only an actual empty picture placeholder may be removed.
+  removeAllPicsFromSpTree(spTree);
 
-  // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
-  removeAllGraphicFramesFromSpTree(spTree);
+  // Native tables, charts, and SmartArt belong to the uploaded design. Keep
+  // their OOXML and relationships intact; mapping targets text shapes only.
 
-  // Pass 4: 적응형 재배치 — 빈 카드 그룹 제거 + 남은 카드 균등 재배치
-  adaptiveRegroup(spTree, boxes, slideSizePt.w, slideSizePt.h);
+  // Template geometry is deliberate. Moving or deleting neighbouring shapes
+  // based on an empty text slot also moves artwork and destroys the layout.
 
   return serializeXml(doc);
 }
@@ -501,17 +540,6 @@ function removeEmptyTextShapes(spTree) {
       const nvPr = nvSpPr ? firstChild(nvSpPr, P_NS, 'nvPr') : null;
       const isPh = nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
       if (isPh) { toRemove.push(c); continue; }
-      // 일반 도형: 자체 채움/외곽선/스타일 참조가 있으면 디자인 요소이므로 유지
-      const spPr = firstChild(c, P_NS, 'spPr');
-      const hasFill = spPr && (firstChild(spPr, A_NS, 'solidFill') || firstChild(spPr, A_NS, 'gradFill')
-        || firstChild(spPr, A_NS, 'blipFill') || firstChild(spPr, A_NS, 'pattFill'));
-      const ln = spPr ? firstChild(spPr, A_NS, 'ln') : null;
-      const hasLine = ln && !firstChild(ln, A_NS, 'noFill')
-        && (firstChild(ln, A_NS, 'solidFill') || firstChild(ln, A_NS, 'gradFill'));
-      const styleEl = firstChild(c, P_NS, 'style');
-      const fillRef = styleEl ? firstChild(styleEl, A_NS, 'fillRef') : null;
-      const hasStyleFill = fillRef && parseInt(attr(fillRef, 'idx') || '0', 10) > 0;
-      if (!hasFill && !hasLine && !hasStyleFill) toRemove.push(c);
     }
   };
   visit(spTree);
@@ -713,7 +741,9 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     const rid = sldId.getAttributeNS(R_NS, 'id') || sldId.getAttribute('r:id');
     const target = ridToTarget[rid];
     if (!target) continue;
-    const sourceFile = ('ppt/' + target.replace(/^\.\.\//, '').replace(/^\//, '')).replace(/\\/g, '/');
+    const sourceFile = target.startsWith('/')
+      ? target.slice(1)
+      : path.posix.normalize(path.posix.join('ppt', target.replace(/\\/g, '/')));
     const sourceXml = await zip.file(sourceFile)?.async('string');
     if (!sourceXml) continue;
     const baseName = sourceFile.match(/slides\/(slide\d+)\.xml$/)?.[1];
@@ -723,48 +753,7 @@ export async function renderDeckInPlace(deck, originalBuffer) {
   }
   if (tplSlides.length === 0) throw new Error('템플릿에 슬라이드가 없습니다');
 
-  // 3) parsePptxLayout 은 슬라이드 파일명 숫자 오름차순으로 정렬 → 동일 정렬을 보장
-  tplSlides.sort((a, b) => {
-    const na = parseInt(a.sourceFile.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
-    const nb = parseInt(b.sourceFile.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
-    return na - nb;
-  });
-
-  // 3-b) 콘텐츠 사진 판별용 미디어 메타 수집:
-  // 슬라이드별 rId→미디어 경로, 미디어 바이트, 템플릿 전체에서의 사용 횟수.
-  const mediaBytes = new Map();
-  const usageByMedia = new Map();
-  for (const t of tplSlides) {
-    t.ridToMedia = {};
-    if (!t.sourceRelsXml) continue;
-    const relsDoc = parseXml(t.sourceRelsXml);
-    const relList = relsDoc.getElementsByTagName('Relationship');
-    for (let ri = 0; ri < relList.length; ri++) {
-      const rel = relList.item(ri);
-      const target = rel.getAttribute('Target') || '';
-      if (!/media\//.test(target)) continue;
-      const mediaPath = target.replace(/^\.\.\//, 'ppt/').replace(/^\//, '');
-      t.ridToMedia[rel.getAttribute('Id')] = mediaPath;
-      if (!mediaBytes.has(mediaPath)) {
-        const file = zip.file(mediaPath);
-        if (file) mediaBytes.set(mediaPath, (await file.async('uint8array')).length);
-      }
-    }
-    for (const m of t.sourceXml.matchAll(/r:embed="(rId\d+)"/g)) {
-      const mediaPath = t.ridToMedia[m[1]];
-      if (mediaPath) usageByMedia.set(mediaPath, (usageByMedia.get(mediaPath) || 0) + 1);
-    }
-  }
-  const buildPicCtx = (t) => {
-    const ridInfo = new Map();
-    for (const [rid, mediaPath] of Object.entries(t.ridToMedia || {})) {
-      ridInfo.set(rid, {
-        bytes: mediaBytes.get(mediaPath) || 0,
-        usage: usageByMedia.get(mediaPath) || 1,
-      });
-    }
-    return { ridInfo };
-  };
+  // Keep presentation order, matching parsePptxLayout's sldIdLst traversal.
 
   // 4) 다음 사용 가능한 rId / sldId 번호 계산
   let maxRidNum = 0;
@@ -810,10 +799,7 @@ export async function renderDeckInPlace(deck, originalBuffer) {
       if (node.localName !== 'sp') continue;
       const txBody = firstChild(node, P_NS, 'txBody');
       if (!txBody) continue;
-      const nvSpPr = firstChild(node, P_NS, 'nvSpPr');
-      const nvPr   = nvSpPr ? firstChild(nvSpPr, P_NS, 'nvPr') : null;
-      const ph     = nvPr   ? firstChild(nvPr, P_NS, 'ph')     : null;
-      if (ph && !WATERMARK_RE.test(readTxBodyText(txBody))) continue;
+      if (!PLACEHOLDER_PROMPT_RE.test(readTxBodyText(txBody))) continue;
       for (const p of directChildrenByLocalName(txBody, 'p')) {
         const toRemove = [];
         for (let k = 0; k < p.childNodes.length; k++) {
@@ -854,7 +840,7 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     const newPath = `ppt/slides/slide${newNum}.xml`;
     const newRelsPath = `ppt/slides/_rels/slide${newNum}.xml.rels`;
 
-    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx, slideSizePt, buildPicCtx(src));
+    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx, slideSizePt);
     zip.file(newPath, modifiedXml);
     if (src.sourceRelsXml) zip.file(newRelsPath, stripNotesSlideRels(src.sourceRelsXml));
 

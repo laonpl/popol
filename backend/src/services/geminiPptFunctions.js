@@ -12,7 +12,7 @@ function parseJSON(text, pattern = /\{[\s\S]*\}/) {
 
 async function callGeminiPro(prompt) {
   return generateWithRetry(prompt, {
-    models: ['gemini-2.5-pro'],
+    models: ['gemini-2.5-flash'],
     retries: 1,
     callTimeoutMs: 60000,
   });
@@ -54,7 +54,7 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
   try {
     const prompt = buildNotionToPptSystemPrompt({ orchestrated, templateHint, customTemplate, baseDeck });
     const text = await generateWithRetry(prompt, {
-      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
       retries: 2,
       delayMs: 1500,
       callTimeoutMs: 90000,
@@ -2399,8 +2399,9 @@ function buildTimelineReferenceDeck(ctx) {
     });
     const detail = [
       (exp.problem || [])[0] && refItem('Problem', fs(exp.problem[0]), '', '01'),
-      (exp.action || [])[0] && refItem('Action', fs(exp.action[0]), '', '02'),
-      (exp.action || [])[1] && refItem('Action', fs(exp.action[1]), '', '03'),
+      // 실행 항목이 2개면 헤딩이 'Action / Action' 으로 똑같이 찍혀 다른 단계처럼 안 보인다.
+      (exp.action || [])[0] && refItem((exp.action || []).length > 1 ? 'Action 01' : 'Action', fs(exp.action[0]), '', '02'),
+      (exp.action || [])[1] && refItem('Action 02', fs(exp.action[1]), '', '03'),
       (exp.result || [])[0] && refItem('Result', fs(exp.result[0]), '', '04'),
     ].filter(Boolean);
     if (detail.length) {

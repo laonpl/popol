@@ -28,9 +28,9 @@ function Claim({ record, onSave }) {
 export default function PmEvidenceCaseStudy({ sr = {}, sourceText, readOnly = false, onRecordChange, onChange }) {
   const model = useMemo(() => buildPmEvidenceModel(sr, { sourceText: sourceText === undefined ? undefined : roleSourceText(sr, sourceText) }), [sr, sourceText]);
   return <PmPortfolioBoard model={model} Source={SourceExcerpt} readOnly={readOnly}
-    renderArtifacts={item => <>
+    renderArtifacts={(item, editorId) => <>
+      {!readOnly && <WorkProductReview id={editorId} sr={sr} item={item} groups={PM_WORK_PRODUCTS} role="pm" onChange={onChange} />}
       <RoleArtifactStudio sr={sr} item={item} onChange={onChange} readOnly={readOnly} />
-      {!readOnly && <WorkProductReview sr={sr} item={item} groups={PM_WORK_PRODUCTS} role="pm" onChange={onChange} />}
     </>}
     renderRecord={(item, record) => <>
       <Claim record={record} onSave={!readOnly && onRecordChange && !record.derivedLegacy ? value => onRecordChange(item.sourceIndex, record.sourceRecordIndex, value) : undefined} />
