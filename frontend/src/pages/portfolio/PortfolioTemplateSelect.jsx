@@ -187,6 +187,24 @@ const PORTFOLIO_TEMPLATES = [
     isNotion: true,
     previewBg: 'bg-white',
   },
+  {
+    id: 'visual-13',
+    name: '템플릿 12 (노션 워크스페이스)',
+    description: '노션 사이드바 페이지 트리와 속성 표, 갤러리·표로 바꿔 보는 프로젝트 데이터베이스까지 — 진짜 노션 페이지처럼 탐색하는 포트폴리오.',
+    tags: ['노션 감성', '사이드바', '갤러리/표 DB'],
+    category: 'notion',
+    isNotion: true,
+    previewBg: 'bg-white',
+  },
+  {
+    id: 'visual-15',
+    name: '템플릿 13 (커리어 로드맵)',
+    description: '경험·학력 기간을 노션 타임라인으로 그려 성장 흐름을 한눈에 보여주고, 프로젝트 보드와 스킬 숙련도 표로 정리합니다.',
+    tags: ['타임라인', '보드', '숙련도 표'],
+    category: 'notion',
+    isNotion: true,
+    previewBg: 'bg-[#FBFBFA]',
+  },
   ...PPT_TEMPLATES,
 ];
 

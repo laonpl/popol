@@ -6,6 +6,7 @@ import { requireCredits } from '../services/billingService.js';
 import { validatePortfolioWithAI, matchSectionsToRequirements, generateThemedPortfolio } from '../services/geminiService.js';
 import { generateAiPptDeck, reviseAiPptSlide, buildPreviewPptDeck } from '../services/geminiPptFunctions.js';
 import { externalizeInlineImages } from '../services/inlineImageExtractor.js';
+import { publicBaseUrl } from '../services/fileStore.js';
 
 const router = Router();
 
@@ -148,7 +149,7 @@ router.get('/list', authMiddleware, async (req, res, next) => {
 
 router.post('/', authMiddleware, async (req, res, next) => {
   try {
-    const cleanBody = await externalizeInlineImages(req.body || {});
+    const cleanBody = await externalizeInlineImages(req.body || {}, { baseUrl: publicBaseUrl(req), ownerId: req.user.uid });
     const payload = buildPortfolioPayload(cleanBody, req.user.uid);
     if (exceedsFirestoreLimit(payload, res)) return;
     const docRef = await adminDb.collection('portfolios').add(payload);
@@ -538,7 +539,7 @@ router.patch('/:id', authMiddleware, async (req, res, next) => {
     const snap = await ref.get();
     const data = snap.exists ? snap.data() : null;
     if (!requirePortfolioOwner(data, req.user.uid, res)) return;
-    const cleanBody = await externalizeInlineImages(req.body || {});
+    const cleanBody = await externalizeInlineImages(req.body || {}, { baseUrl: publicBaseUrl(req), ownerId: req.user.uid });
     const update = { ...cleanBody, userId: req.user.uid, updatedAt: now() };
     delete update.id;
     delete update.createdAt;

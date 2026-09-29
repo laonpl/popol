@@ -102,10 +102,10 @@ pre, code, kbd, samp { font-family: ui-monospace, SFMono-Regular, Menlo, Consola
 .portfolio-template .font-serif,
 .portfolio-template :is(button, input, textarea, select) { font-family: var(--portfolio-font); }
 .portfolio-template--web-1, .portfolio-template--visual-9 { --portfolio-font: 'DM Sans', 'Noto Sans KR', sans-serif; }
-.portfolio-template--web-2, .portfolio-template--web-6, .portfolio-template--visual-4, .portfolio-template--visual-8 { --portfolio-font: 'IBM Plex Sans KR', sans-serif; }
+.portfolio-template--web-2, .portfolio-template--web-6, .portfolio-template--visual-4, .portfolio-template--visual-8, .portfolio-template--visual-15 { --portfolio-font: 'IBM Plex Sans KR', sans-serif; }
 .portfolio-template--web-3 { --portfolio-font: 'DM Sans', 'IBM Plex Sans KR', sans-serif; }
 .portfolio-template--visual-2, .portfolio-template--visual-3, .portfolio-template--visual-10, .portfolio-template--academic { --portfolio-font: 'Nanum Myeongjo', Georgia, serif; }
-.portfolio-template--web-4, .portfolio-template--visual-1, .portfolio-template--visual-5, .portfolio-template--visual-6, .portfolio-template--visual-7, .portfolio-template--visual-11, .portfolio-template--notion, .portfolio-template--timeline { --portfolio-font: 'Noto Sans KR', sans-serif; }
+.portfolio-template--web-4, .portfolio-template--visual-1, .portfolio-template--visual-5, .portfolio-template--visual-6, .portfolio-template--visual-7, .portfolio-template--visual-11, .portfolio-template--visual-13, .portfolio-template--notion, .portfolio-template--timeline { --portfolio-font: 'Noto Sans KR', sans-serif; }
 .portfolio-template--web-5, .portfolio-template--visual-12, .portfolio-template--ashley { --portfolio-font: Georgia, 'Nanum Myeongjo', serif; }
 @media (max-width: 1100px) { .fp-experience-layout { grid-template-columns: minmax(0,1fr) 225px; gap: 18px; } }
 @media (max-width: 850px) { .fp-experience-layout { grid-template-columns: 1fr; } .fp-experience-guide { position: static; order: -1; display: grid; grid-template-columns: 160px minmax(0,1fr); align-items: center; column-gap: 16px; } .fp-guide-kicker { grid-column: 1/-1; } .fp-guide-cat-wrap { grid-row: 2/5; height: 155px; } .fp-guide-message { grid-column: 2; } .fp-guide-progress, .fp-guide-action { grid-column: 2; margin: 6px 0; } }

@@ -4,7 +4,7 @@ import BrandLoader from '../../components/BrandLoader';
 import FileCat from '../../components/FileCat';
 import {
   Plus, FileText, Trash2, Edit, Download, Search, Star, ExternalLink, ChevronDown, ArrowUpDown,
-  Globe, Presentation, Link2, Loader2, X, Copy, Check, Wand2, Building2, LayoutGrid, FolderPlus, FolderX,
+  Globe, Presentation, Link2, Loader2, X, Copy, Check, Wand2, Building2, LayoutGrid, FolderPlus, FolderX, MoreHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
@@ -208,7 +208,7 @@ export default function PortfolioHub() {
         return data.folder ? [...rest, data.folder] : rest;
       });
       await fetchPortfolios(user.uid);
-      setOpenCompany(to);
+      if (activeCompanyKey === from) setOpenCompany(to); // 열려 있던 폴더면 새 이름으로 계속 열어 둔다
       toast.success('기업명을 바꿨습니다');
       return true;
     } catch {
@@ -223,7 +223,7 @@ export default function PortfolioHub() {
       const { data } = await api.post('/company-folders/delete', { company });
       setFolders(prev => prev.filter(x => x.id !== data.fromId));
       await fetchPortfolios(user.uid);
-      setOpenCompany(null);
+      if (activeCompanyKey === company) setOpenCompany(null);
       toast.success('폴더를 삭제했습니다');
     } catch {
       toast.error('폴더를 삭제하지 못했습니다');
@@ -484,10 +484,13 @@ export default function PortfolioHub() {
                       ].slice(0, 3)}
                       active={activeCompanyKey === g.key}
                       onClick={() => toggleCompany(g.key)}
+                      onRename={g.key ? (to) => renameCompanyFolder(g.key, to) : null}
+                      onDelete={g.key ? () => setPendingFolderDelete(g) : null}
                     />
                   );
                 })}
-                <NewCompanyFolder onCreate={createCompanyFolder} existing={companyGroups.map(g => g.key)} />
+                {/* 폴더를 열어 둔 동안은 숨기고, 접으면 다시 보인다 */}
+                {!activeCompany && <NewCompanyFolder onCreate={createCompanyFolder} existing={companyGroups.map(g => g.key)} />}
               </div>
 
               {activeCompany ? (
@@ -611,17 +614,34 @@ export default function PortfolioHub() {
 
 /* ── 폴더 ──
    뒷판 + 탭 + 삐져나온 종이(안에 든 문서 제목) + 앞판. 열린 폴더는 종이가 올라온 상태.
-   다시 누르면 접힌다(부모에서 토글). */
-function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, onClick }) {
+   다시 누르면 접힌다(부모에서 토글).
+   onRename/onDelete를 주면 앞판 오른쪽 위 ⋯ 메뉴로 이름 수정·삭제를 할 수 있다. */
+function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, onClick, onRename, onDelete }) {
   const { back, front, ink } = colors;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(label);
+  const [saving, setSaving] = useState(false);
+  const hasMenu = !!(onRename || onDelete);
+
+  const startEdit = () => { setMenuOpen(false); setName(label); setEditing(true); };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    const ok = await onRename(name);
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
 
   return (
+    <div className="group relative">
     <button
       type="button"
       onClick={onClick}
       aria-expanded={active}
       title={active ? '눌러서 접기' : '눌러서 열기'}
-      className={`group relative block w-full pt-5 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none ${active ? '' : 'opacity-90 hover:opacity-100'}`}
+      className={`relative block w-full pt-5 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none ${active ? '' : 'opacity-90 hover:opacity-100'}`}
     >
       {/* 탭 */}
       <div className="absolute left-0 top-0 h-7 w-[42%] rounded-t-xl" style={{ background: back }} />
@@ -676,6 +696,66 @@ function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, on
       {/* 열림 표시 */}
       <div className={`mx-auto mt-2.5 h-1 rounded-full transition-all duration-300 ${active ? 'w-12' : 'w-0'}`} style={{ background: back }} />
     </button>
+
+    {/* ⋯ 메뉴 — 앞판 오른쪽 위 (앞판은 뒷판 아래쪽 62%: 위에서 약 87px 지점부터) */}
+    {hasMenu && !editing && (
+      <div className="absolute right-2.5 top-[94px] z-20">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+          aria-label="폴더 메뉴"
+          className={`flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 transition-opacity hover:bg-white/90 focus-visible:opacity-100 ${
+            menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
+          }`}
+          style={{ color: ink }}
+        >
+          <MoreHorizontal size={15} />
+        </button>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+            <div className="absolute right-0 top-full z-40 mt-1 w-32 overflow-hidden rounded-lg border border-surface-200 bg-white py-1 shadow-lg">
+              {onRename && (
+                <button type="button" onClick={startEdit} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-bluewood-600 hover:bg-surface-50">
+                  <Edit size={13} /> 이름 수정
+                </button>
+              )}
+              {onDelete && (
+                <button type="button" onClick={() => { setMenuOpen(false); onDelete(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-red-500 hover:bg-red-50">
+                  <Trash2 size={13} /> 폴더 삭제
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    )}
+
+    {/* 이름 수정 — 앞판 위에 입력칸을 겹친다 */}
+    {editing && (
+      <form
+        onSubmit={submit}
+        className="absolute inset-x-0 top-[87px] z-30 flex h-[109px] flex-col justify-center gap-2 rounded-2xl px-4"
+        style={{ background: front, color: ink }}
+      >
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') setEditing(false); }}
+          maxLength={100}
+          placeholder="기업명"
+          className="w-full rounded-lg border border-white/80 bg-white/90 px-3 py-1.5 text-[14px] font-bold text-bluewood-800 focus:outline-none focus:ring-2 focus:ring-white"
+        />
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setEditing(false)} className="flex-1 rounded-lg bg-white/50 py-1.5 text-[12.5px] font-semibold hover:bg-white/70">취소</button>
+          <button type="submit" disabled={saving || !name.trim()} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-bluewood-800 py-1.5 text-[12.5px] font-semibold text-white hover:bg-bluewood-900 disabled:opacity-50">
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 저장
+          </button>
+        </div>
+      </form>
+    )}
+    </div>
   );
 }
 
