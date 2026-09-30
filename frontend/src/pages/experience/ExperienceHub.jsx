@@ -1,3 +1,4 @@
+import JobDiscoveryPanel from '../../components/JobDiscoveryPanel';
 ﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import FileCat from '../../components/FileCat';
@@ -26,7 +27,6 @@ import ExperiencePortfolioGuide from '../../components/ExperiencePortfolioGuide'
 import { stripMd } from '../../utils/textUtils';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
-import { recommendLiveJobs } from '../../services/jobAI';
 import {
   JOB_COMPETENCIES, WORK_STYLES,
   sanitizeCompetencyTags, sanitizeWorkStyleTags,
@@ -2257,10 +2257,6 @@ function CareerDashboard({ experiences = [], user, profile }) {
   const autoTagAll = useExperienceStore(s => s.autoTagAll);
   const [tagging, setTagging] = useState(false);
   const [tagDone, setTagDone] = useState(0);
-  const [liveJobs, setLiveJobs] = useState(null);
-  const [jobsLoading, setJobsLoading] = useState(false);
-  const [jobsError, setJobsError] = useState('');
-  const [expandedJob, setExpandedJob] = useState(null); // 역량 분석 펼친 공고 id
 
   const runAutoTag = async () => {
     setTagging(true);
@@ -2324,38 +2320,6 @@ function CareerDashboard({ experiences = [], user, profile }) {
   const chartTooltip = {
     cursor: { fill: 'rgba(0,47,108,0.04)' },
     contentStyle: { borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12, padding: '6px 10px', boxShadow: '0 6px 20px rgba(0,47,108,0.10)' },
-  };
-  const recommendedJobs = liveJobs?.recommendations || [];
-
-  const loadLiveJobs = async () => {
-    setJobsLoading(true);
-    setJobsError('');
-    try {
-      const roles = [
-        topFamily?.name,
-        ...stats.families.slice(1, 3).map(f => f.name),
-        ...stats.styleFamilies.slice(0, 2).map(f => f.name),
-      ].filter(Boolean);
-      const data = await recommendLiveJobs({
-        targetRoles: roles,
-        locations: ['서울', '경기', '원격'],
-        preferences: {
-          competencies: stats.compTop.slice(0, 8).map(([name]) => name),
-          workStyles: stats.styleTop.slice(0, 8).map(([name]) => name),
-          keywords: stats.compTop.slice(0, 4).map(([name]) => name),
-        },
-        limit: 4,
-      });
-      setLiveJobs(data);
-      setExpandedJob(data?.recommendations?.[0]?.id || data?.recommendations?.[0]?.url || null);
-      toast.success('추천 공고를 찾았어요');
-    } catch (err) {
-      const message = err.response?.data?.error || err.message || '추천 공고를 불러오지 못했어요';
-      setJobsError(message);
-      toast.error(message);
-    } finally {
-      setJobsLoading(false);
-    }
   };
 
   return (
@@ -2429,174 +2393,8 @@ function CareerDashboard({ experiences = [], user, profile }) {
         </div>
       )}
 
-      <div className="mt-8 pt-8 border-t border-gray-100">
-        <SectionHead
-          title="실시간 추천 공고"
-          sub={liveJobs?.profileSummary || '현재 공개 공고 중 맞는 것만 추립니다'}
-          right={(
-            <button
-              type="button"
-              onClick={loadLiveJobs}
-              disabled={jobsLoading}
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-primary-100 bg-primary-50 px-3.5 py-2 text-[13px] font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:opacity-60"
-            >
-              <RefreshCw size={14} className={jobsLoading ? 'animate-spin' : ''} />
-              {recommendedJobs.length ? '새로고침' : '추천 공고 찾기'}
-            </button>
-          )}
-        />
+      <JobDiscoveryPanel targetRole={topFamily?.name} experienceCount={experiences.length} />
 
-        {jobsLoading && (
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {[0, 1].map(i => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-primary-500">
-                    <Briefcase size={17} />
-                  </span>
-                  <div className="flex-1">
-                    <div className="h-3 w-2/5 rounded bg-gray-200" />
-                    <div className="mt-2 h-3 w-3/4 rounded bg-gray-200" />
-                  </div>
-                </div>
-                <div className="mt-4 h-3 w-full rounded bg-gray-200" />
-                <div className="mt-2 h-3 w-4/5 rounded bg-gray-200" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!jobsLoading && jobsError && (
-          <div className="mt-5 flex items-start gap-3 rounded-xl border border-rose-100 bg-rose-50 px-5 py-4 text-[13px] text-rose-700">
-            <AlertCircle size={17} className="mt-0.5 flex-shrink-0" />
-            <p className="font-semibold leading-relaxed" style={{ wordBreak: 'keep-all' }}>{jobsError}</p>
-          </div>
-        )}
-
-        {!jobsLoading && !jobsError && !liveJobs && (
-          <div className="mt-5 flex flex-col gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white text-primary-600 shadow-sm">
-                <Sparkles size={18} />
-              </span>
-              <div>
-                <p className="text-[16px] font-extrabold text-bluewood-800">내 경험 기준으로 공고 찾기</p>
-                <p className="mt-1 text-[14px] font-medium text-gray-400">실제 채용 링크만 보여줍니다.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!jobsLoading && recommendedJobs.length > 0 && (
-          <div className="mt-5 divide-y divide-gray-100">
-            {recommendedJobs.map(job => (
-              <div key={job.id || job.url} className="py-5 first:pt-0 last:pb-0">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[11.5px] font-bold text-primary-700">{job.fitScore}점</span>
-                      {job.matchLevel && <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11.5px] font-bold text-emerald-700">{job.matchLevel}</span>}
-                      <span className="text-[12px] font-semibold text-gray-400">{job.platform}</span>
-                    </div>
-                    <p className="mt-2 text-[13px] font-bold text-bluewood-500">{job.company}</p>
-                    <h4 className="mt-0.5 text-[20px] font-extrabold leading-snug text-gray-900" style={{ wordBreak: 'keep-all' }}>{job.title}</h4>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] font-semibold text-gray-400">
-                      {job.location && <span className="inline-flex items-center gap-1"><MapPin size={13} />{job.location}</span>}
-                      {job.deadline && <span className="inline-flex items-center gap-1"><CalendarDays size={13} />{job.deadline}</span>}
-                    </div>
-                    {job.matchingReasons?.length > 0 && (
-                      <ul className="mt-3">
-                        {job.matchingReasons.slice(0, 1).map(reason => (
-                          <li key={reason} className="flex gap-2 text-[15px] font-medium leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
-                            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-caribbean-500" />
-                            <span>{reason}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {job.matchedExperiences?.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {job.matchedExperiences.slice(0, 2).map(exp => (
-                          <span key={`${job.id}-${exp.title}`} className="rounded-md bg-gray-50 px-2.5 py-1 text-[12.5px] font-bold text-bluewood-500">
-                            {exp.title}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-start gap-2 lg:items-end">
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700"
-                    >
-                      바로가기
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                </div>
-
-                {job.requiredCompetencies?.length > 0 && (() => {
-                  const jobKey = job.id || job.url;
-                  const open = expandedJob === jobKey;
-                  return (
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedJob(prev => (prev === jobKey ? null : jobKey))}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-50 px-3 py-1.5 text-[12.5px] font-bold text-primary-700 transition-colors hover:bg-primary-100"
-                      >
-                        <Sparkles size={13} />
-                        공고에서 뽑아낸 필수 역량 {job.requiredCompetencies.length}개
-                        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {open && (
-                        <div className="mt-4 space-y-3">
-                          {job.requiredCompetencies.map((comp, ci) => (
-                            <div key={comp.keyword} className="rounded-xl border border-gray-100 bg-gray-50/70 px-5 py-4">
-                              <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-[12px] font-bold text-white">{ci + 1}</span>
-                                <h5 className="text-[15px] font-extrabold text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{comp.keyword}</h5>
-                              </div>
-                              {comp.whatItMeans?.length > 0 && (
-                                <ul className="mt-2.5 space-y-1.5 pl-1">
-                                  {comp.whatItMeans.map(m => (
-                                    <li key={m} className="flex gap-2 text-[13.5px] font-medium leading-relaxed text-gray-600" style={{ wordBreak: 'keep-all' }}>
-                                      <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-gray-300" />
-                                      <span>{m}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                              {comp.howToConnect?.length > 0 && (
-                                <div className="mt-3 rounded-lg bg-primary-50/60 px-3.5 py-3">
-                                  <p className="text-[12.5px] font-extrabold text-primary-700">내 경험을 이렇게 연결하세요</p>
-                                  <ol className="mt-2 space-y-1.5">
-                                    {comp.howToConnect.map((h, hi) => (
-                                      <li key={h} className="flex gap-2 text-[13.5px] font-semibold leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
-                                        <span className="flex-shrink-0 font-bold text-primary-500">{hi + 1})</span>
-                                        <span>{h}</span>
-                                      </li>
-                                    ))}
-                                  </ol>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ③ 분포 — 직무 역량(가로 막대) / 업무 성향(도넛) */}
       <div className="mt-8 pt-8 border-t border-gray-100">
         <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2">
           {/* 직무 역량 분포 — 가로 막대 차트 */}

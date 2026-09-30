@@ -71,7 +71,7 @@ function getOpenAIClient() {
   if (!token) return null;
   if (!openaiClient) {
     openaiClient = new OpenAI({
-      baseURL: process.env.GITHUB_MODELS_ENDPOINT || 'https://models.inference.ai.azure.com',
+      baseURL: process.env.GITHUB_MODELS_ENDPOINT || 'https://models.github.ai/inference',
       apiKey: token,
     });
   }
@@ -96,7 +96,7 @@ export async function callGitHubModelsFallback(prompt, billingStore = getBilling
       { role: "system", content: "You are a helpful assistant. Always respond in valid JSON." },
       { role: "user", content: safePrompt }
     ],
-    model: "gpt-4o-mini",
+    model: "openai/gpt-4o-mini",
     temperature: 0.7,
   });
 

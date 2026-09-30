@@ -17,6 +17,8 @@ import { callProFirst, parseJSON } from '../services/geminiService.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireCredits } from '../services/billingService.js';
 
+import { findExperienceJobs } from '../services/liveJobSearchService.js';
+
 const router = Router();
 
 // 프로덕션에서 내부 에러 메시지 노출 차단
@@ -30,6 +32,22 @@ const sendError = (res, err) => res.status(err.status || 500).json({ error: safe
 
 // userId 헬퍼 — authMiddleware 통과 후 항상 req.user.uid가 존재함
 const getUserId = (req) => req.user.uid;
+
+// where + orderBy 조합은 복합 인덱스를 요구한다(미생성 시 FAILED_PRECONDITION).
+// 인덱스 없이도 동작하도록 where만 걸고 정렬은 메모리에서 처리한다.
+const tsMillis = (v) => v?.toMillis?.() ?? (v?.seconds != null ? v.seconds * 1000 : 0);
+const sortDocsDesc = (docs, field) =>
+  [...docs].sort((a, b) => tsMillis(b.data()[field]) - tsMillis(a.data()[field]));
+
+async function getUserExperiences(userId) {
+  const snap = await db.collection('experiences').where('userId', '==', userId).get();
+  return sortDocsDesc(snap.docs, 'createdAt').map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getLatestPortfolio(userId) {
+  const snap = await db.collection('portfolios').where('userId', '==', userId).get();
+  return snap.empty ? null : sortDocsDesc(snap.docs, 'updatedAt')[0].data();
+}
 
 // AI가 문자열 대신 객체({value,description} 등)를 돌려줘도 화면에 렌더 가능한 문자열로 만든다.
 function toDisplayText(v) {
@@ -140,11 +158,6 @@ const LIMITS = {
   maxSkillItemLen: 100,
 };
 
-const LIVE_JOB_HOST_BLOCKLIST = [
-  'google.', 'naver.com', 'daum.net', 'bing.com', 'youtube.com',
-  'instagram.com', 'facebook.com', 'x.com', 'twitter.com',
-];
-
 function compact(value, max = 160) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > max ? text.slice(0, max).trim() : text;
@@ -229,64 +242,6 @@ function buildExperienceProfile(experiences = []) {
   };
 }
 
-function isAcceptableLiveJobUrl(rawUrl) {
-  if (typeof rawUrl !== 'string') return false;
-  let parsed;
-  try {
-    parsed = new URL(rawUrl.trim());
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== 'https:') return false;
-  const host = parsed.hostname.toLowerCase();
-  if (LIVE_JOB_HOST_BLOCKLIST.some(blocked => host.includes(blocked))) return false;
-  if (!parsed.pathname || parsed.pathname === '/') return false;
-  return true;
-}
-
-function normalizeLiveJobRecommendation(item = {}, index = 0) {
-  const url = typeof item.url === 'string' ? item.url.trim() : '';
-  if (!isAcceptableLiveJobUrl(url)) return null;
-  const score = Number(item.fitScore);
-  return {
-    id: `${compact(item.company || 'company', 40)}-${compact(item.title || item.position || 'job', 60)}-${index}`
-      .toLowerCase()
-      .replace(/[^a-z0-9가-힣]+/gi, '-')
-      .replace(/^-+|-+$/g, ''),
-    company: compact(item.company, 80),
-    title: compact(item.title || item.position, 120),
-    position: compact(item.position || item.title, 100),
-    platform: compact(item.platform || item.source || new URL(url).hostname.replace(/^www\./, ''), 60),
-    location: compact(item.location, 80),
-    deadline: compact(item.deadline || '공고에서 확인', 80),
-    postedAt: compact(item.postedAt, 80),
-    url,
-    fitScore: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 70,
-    matchLevel: compact(item.matchLevel, 40),
-    matchingReasons: safeStringArray(item.matchingReasons || item.reasons, 4, 120),
-    matchedSkills: safeStringArray(item.matchedSkills, 8, 40),
-    matchedExperiences: Array.isArray(item.matchedExperiences)
-      ? item.matchedExperiences.slice(0, 3).map(exp => ({
-          title: compact(exp?.title || exp, 80),
-          reason: compact(exp?.reason, 120),
-        })).filter(exp => exp.title)
-      : [],
-    growthGap: compact(item.growthGap, 120),
-    applicationTip: compact(item.applicationTip, 180),
-    requiredCompetencies: Array.isArray(item.requiredCompetencies)
-      ? item.requiredCompetencies
-          .slice(0, 4)
-          .map(c => ({
-            keyword: compact(c?.keyword || c?.name, 60),
-            whatItMeans: safeStringArray(c?.whatItMeans || c?.description, 3, 200),
-            howToConnect: safeStringArray(c?.howToConnect || c?.connectExperience, 3, 200),
-          }))
-          .filter(c => c.keyword)
-      : [],
-  };
-}
-
-// ── jobAnalysis 안전 필드 추출 (allowlist) ───────────────────────
 function sanitizeJobAnalysis(ja) {
   if (!ja || typeof ja !== 'object') return {};
   return {
@@ -427,18 +382,9 @@ router.post('/match', authMiddleware, requireCredits, async (req, res) => {
       return res.status(400).json({ error: '채용공고 분석 결과가 필요합니다' });
     }
 
-    const expSnap = await db.collection('experiences')
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .get();
-    const experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const experiences = await getUserExperiences(userId);
 
-    const portSnap = await db.collection('portfolios')
-      .where('userId', '==', userId)
-      .orderBy('updatedAt', 'desc')
-      .limit(1)
-      .get();
-    const portfolio = portSnap.empty ? null : portSnap.docs[0].data();
+    const portfolio = await getLatestPortfolio(userId);
 
     const matchResult = await matchExperiencesToJob(jobAnalysis, experiences, portfolio);
     matchResult._experienceCount = experiences.length;
@@ -464,12 +410,7 @@ router.post('/generate-coverletter', authMiddleware, requireCredits, async (req,
       .get();
     const experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const portSnap = await db.collection('portfolios')
-      .where('userId', '==', userId)
-      .orderBy('updatedAt', 'desc')
-      .limit(1)
-      .get();
-    const portfolio = portSnap.empty ? null : portSnap.docs[0].data();
+    const portfolio = await getLatestPortfolio(userId);
 
     const coverLetter = await generateTailoredCoverLetter(jobAnalysis, matchResult, experiences, portfolio);
     res.json({ coverLetter });
@@ -493,12 +434,7 @@ router.post('/generate-portfolio', authMiddleware, requireCredits, async (req, r
       .get();
     const experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const portSnap = await db.collection('portfolios')
-      .where('userId', '==', userId)
-      .orderBy('updatedAt', 'desc')
-      .limit(1)
-      .get();
-    const portfolio = portSnap.empty ? null : portSnap.docs[0].data();
+    const portfolio = await getLatestPortfolio(userId);
 
     const portfolioSuggestion = await generateTailoredPortfolio(jobAnalysis, matchResult, experiences, portfolio);
     res.json({ portfolioSuggestion });
@@ -709,22 +645,7 @@ ${jaLine}
 router.post('/recommend-live-postings', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);
-    const limit = Math.min(Math.max(Number(req.body?.limit) || 6, 3), 8);
-    const targetRoles = safeStringArray(req.body?.targetRoles, 6, 80);
-    const locations = safeStringArray(req.body?.locations, 4, 60);
-    const preferences = req.body?.preferences && typeof req.body.preferences === 'object'
-      ? {
-          competencies: safeStringArray(req.body.preferences.competencies, 10, 40),
-          workStyles: safeStringArray(req.body.preferences.workStyles, 10, 40),
-          keywords: safeStringArray(req.body.preferences.keywords, 10, 40),
-        }
-      : {};
-
-    const expSnap = await db.collection('experiences')
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .get();
-    const experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const experiences = await getUserExperiences(userId);
 
     if (experiences.length === 0) {
       return res.json({
@@ -735,113 +656,8 @@ router.post('/recommend-live-postings', authMiddleware, requireCredits, async (r
       });
     }
 
-    const profile = buildExperienceProfile(experiences);
-    const now = new Date();
-    const currentDate = new Intl.DateTimeFormat('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now);
-
-    const prompt = `You are a Korean career recommendation agent.
-Use Google Search grounding to find currently open, real job postings that match the user's experience database.
-Current date in Korea: ${currentDate}.
-
-Rules:
-- Recommend only real public job postings that are open now or have a future/rolling deadline.
-- Each recommendation must include a direct https URL to the job detail page or company career detail page.
-- Do not include Google/Naver search URLs, blogs, news, company home pages, or generic search result pages.
-- Prefer Korean early-career, intern, new grad, junior, associate, PM/planning/data/product/engineer postings when relevant.
-- Use sources such as Wanted, Saramin, JobKorea, Jumpit, Rallit, Programmers, Jasoseol, LinkedIn Jobs, and official company career pages.
-- If a detail cannot be verified from search results, exclude it.
-- Match the postings to both competencies and work style. Explain the match using the user's actual experience titles.
-- For EVERY recommendation, read the posting and extract exactly 3 core required-competency keywords (필수 역량 키워드) written in natural Korean, e.g. "리드 퍼널 설계 역량", "CRM 마케팅 자동화 운영 역량", "데이터 기반 성과 분석 역량".
-- For each keyword provide: whatItMeans = 2 short Korean sentences explaining what the posting actually asks for; howToConnect = exactly 3 concrete Korean bullets on how the user can connect THEIR real experiences to that keyword, referencing actual experience titles from the profile below.
-- All Korean text must be natural and specific. Never leave requiredCompetencies empty.
-- Return valid JSON only. No markdown.
-
-Target roles from dashboard:
-${targetRoles.length ? targetRoles.join(', ') : 'Infer from profile'}
-
-Preferred locations:
-${locations.length ? locations.join(', ') : 'Korea, remote, Seoul/Gyeonggi if unspecified'}
-
-Extra dashboard signals:
-${JSON.stringify(preferences, null, 2)}
-
-Experience profile:
-${JSON.stringify(profile, null, 2).slice(0, 16000)}
-
-Return this JSON shape:
-{
-  "profileSummary": "One Korean sentence describing the user's career tendency",
-  "searchQueries": ["query used 1", "query used 2"],
-  "recommendations": [
-    {
-      "company": "Company name",
-      "title": "Exact job posting title",
-      "position": "Role category",
-      "platform": "Wanted/Saramin/etc",
-      "location": "Location or remote",
-      "deadline": "Deadline text, rolling, or 공고에서 확인",
-      "postedAt": "Posted date if visible",
-      "url": "https://direct-job-detail-url",
-      "fitScore": 0,
-      "matchLevel": "강력 추천|추천|탐색 추천",
-      "matchingReasons": ["Korean reason tied to experience data", "Korean reason tied to posting requirement"],
-      "matchedSkills": ["skill"],
-      "matchedExperiences": [{"title": "Experience title from profile", "reason": "Why it matches"}],
-      "growthGap": "A short gap to prepare",
-      "applicationTip": "Concrete tip for applying",
-      "requiredCompetencies": [
-        {
-          "keyword": "핵심 필수 역량 키워드 (Korean)",
-          "whatItMeans": ["공고가 이 역량으로 요구하는 바 1 (Korean)", "요구하는 바 2 (Korean)"],
-          "howToConnect": ["내 경험을 이 역량에 연결하는 방법 1 (Korean, 실제 경험 제목 참조)", "연결 방법 2", "연결 방법 3"]
-        }
-      ]
-    }
-  ]
-}
-Limit recommendations to ${limit}.`;
-
-    const raw = await generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash'],
-      retries: 2,
-      delayMs: 2500,
-      preferPro: true,
-      callTimeoutMs: 180000,
-      githubFallback: false,
-      config: { tools: [{ googleSearch: {} }] },
-    });
-    const parsed = parseJSON(raw, /\{[\s\S]*\}/);
-
-    const seen = new Set();
-    const recommendations = (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
-      .map((item, index) => normalizeLiveJobRecommendation(item, index))
-      .filter(Boolean)
-      .filter(item => {
-        const key = item.url.replace(/[?#].*$/, '').toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, limit);
-
-    if (recommendations.length === 0) {
-      const err = new Error('실제 채용공고 링크를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
-      err.status = 502;
-      throw err;
-    }
-
-    res.json({
-      generatedAt: now.toISOString(),
-      currentDate,
-      profileSummary: compact(parsed.profileSummary || '', 220),
-      searchQueries: safeStringArray(parsed.searchQueries, 8, 120),
-      recommendations,
-    });
+    const result = await findExperienceJobs(buildExperienceProfile(experiences), req.body || {});
+    res.status(result.unavailable ? 503 : 200).json(result);
   } catch (err) {
     console.error('[Job] live posting recommendation failed:', err.code || err.message);
     sendError(res, err);
