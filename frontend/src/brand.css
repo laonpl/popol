@@ -326,29 +326,55 @@ pre, code, kbd, samp { font-family: ui-monospace, SFMono-Regular, Menlo, Consola
 @keyframes fp-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
 
 .filecat { display: block; overflow: visible; }
-.filecat--curious { animation: fp-cat-float 4s ease-in-out infinite; }
-.filecat--loading { animation: fp-cat-trot .65s ease-in-out infinite alternate; }
-.filecat--sleepy { animation: fp-cat-breathe 3.5s ease-in-out infinite; }
-.filecat--happy { animation: fp-cat-hop 1.8s ease-in-out infinite; }
-.filecat--thinking .filecat-face { animation: fp-cat-glance 2.7s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.filecat--happy .filecat-spark { animation: fp-cat-spark 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.filecat-tail { transform-origin: 197px 179px; animation: fp-cat-tail 3s ease-in-out infinite; }
-.filecat-eyes { transform-box: fill-box; transform-origin: center; animation: fp-cat-blink 5.6s infinite; }
-.filecat-loose-file { transform-box: fill-box; transform-origin: center; animation: fp-file-gather 4s ease-in-out infinite; }
-.filecat-loose-file:nth-child(2) { animation-delay: -2s; }
-.filecat--loading .filecat-loose-file { animation-duration: 1.8s; }
-.filecat--thinking .filecat-face { animation: none; }
-.filecat--thinking .filecat-pupil { animation: fp-cat-glance 3.2s ease-in-out infinite; }
-@keyframes fp-cat-tail { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg); } }
-@keyframes fp-cat-blink { 0%,43%,47%,100% { transform: scaleY(1); } 45% { transform: scaleY(.12); } }
-@keyframes fp-file-gather { 0%,100% { translate: 0 0; } 50% { translate: 5px -9px; } }
-
-@keyframes fp-cat-float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-7px) rotate(1deg); } }
-@keyframes fp-cat-trot { from { transform: translateY(4px) rotate(-1deg); } to { transform: translateY(-5px) rotate(1deg); } }
-@keyframes fp-cat-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.015) translateY(-2px); } }
-@keyframes fp-cat-hop { 0%,100% { transform: translateY(0); } 40%,60% { transform: translateY(-8px); } }
-@keyframes fp-cat-glance { 0%,65%,100% { transform: translateX(0); } 80% { transform: translateX(3px); } }
-@keyframes fp-cat-spark { 0%,100% { opacity:.35; transform: scale(.8); } 50% { opacity:1; transform: scale(1.15); } }
+.filecat-tail { transform-origin: 196px 191px; animation: fp-cat-tail 3.4s ease-in-out infinite; }
+.filecat-eyes { transform-box: fill-box; transform-origin: center; animation: fp-cat-blink 6.2s infinite; }
+.filecat-companion { transform-origin: 140px 245px; }
+.filecat--curious .filecat-companion { animation: fp-cat-breathe 4s ease-in-out infinite; }
+.filecat--welcome .filecat-wave { transform-origin: 195px 165px; animation: fp-cat-wave 2.8s ease-in-out infinite; }
+.filecat--welcome .filecat-tail { animation-duration: 1.7s; }
+.filecat--collecting .filecat-reach, .filecat--loading .filecat-reach { transform-origin: 85px 158px; animation: fp-cat-reach 1.8s ease-in-out infinite; }
+.filecat--collecting .filecat-companion { animation: fp-cat-scoop 1.8s ease-in-out infinite; }
+.filecat--loading .filecat-companion { animation: fp-cat-trot .7s ease-in-out infinite; }
+.filecat--loading .filecat-foot--left { transform-origin: 110px 221px; animation: fp-cat-step .7s ease-in-out infinite; }
+.filecat--loading .filecat-foot--right { transform-origin: 171px 221px; animation: fp-cat-step .7s ease-in-out -.35s infinite; }
+.filecat--loading .filecat-tail { animation-duration: .7s; }
+.filecat--thinking .filecat-head { transform-origin: 135px 140px; animation: fp-cat-ponder 4s ease-in-out infinite; }
+.filecat--thinking .filecat-ponder-paw { transform-origin: 186px 173px; animation: fp-cat-tap 4s ease-in-out infinite; }
+.filecat--thinking .filecat-thought { animation: fp-cat-thought 4s ease-in-out infinite; }
+.filecat--reading .filecat-pupils { animation: fp-cat-read 3s ease-in-out infinite; }
+.filecat--reading .filecat-read-lines { animation: fp-cat-thought 3s ease-in-out infinite; }
+.filecat--offering .filecat-companion { animation: fp-cat-offer 3.4s ease-in-out infinite; }
+.filecat--happy .filecat-companion { animation: fp-cat-hop 2.4s ease-in-out infinite; }
+.filecat--happy .filecat-wave { transform-origin: 195px 165px; animation: fp-cat-wave 2.4s ease-in-out infinite; }
+.filecat--happy .filecat-cheer { transform-origin: 78px 165px; animation: fp-cat-cheer 2.4s ease-in-out infinite; }
+.filecat--happy .filecat-spark { animation: fp-cat-spark 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.filecat--sleepy .filecat-companion { animation: fp-cat-breathe 4.5s ease-in-out infinite; }
+.filecat--sleepy .filecat-tail { animation: none; }
+.filecat--sleepy .filecat-doze { animation: fp-cat-doze 4.5s ease-in-out infinite; }
+.filecat-loose-file { animation: fp-file-float 4s ease-in-out infinite; }
+.filecat-loose-file--right { animation-delay: -2s; }
+.filecat--collecting .filecat-loose-file--left, .filecat--loading .filecat-loose-file--left { animation: fp-file-collect 1.8s ease-in-out infinite; }
+.filecat--collecting .filecat-loose-file--right, .filecat--loading .filecat-loose-file--right { animation: fp-file-arrive 1.8s ease-in-out infinite; }
+@keyframes fp-cat-tail { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(9deg); } }
+@keyframes fp-cat-blink { 0%,45%,49%,100% { transform: scaleY(1); } 47% { transform: scaleY(.12); } }
+@keyframes fp-cat-wave { 0%,30%,65%,100% { transform: rotate(0); } 40%,55% { transform: rotate(17deg); } 48% { transform: rotate(-8deg); } }
+@keyframes fp-cat-cheer { 0%,100% { transform: rotate(0); } 40%,60% { transform: rotate(-12deg); } }
+@keyframes fp-cat-reach { 0%,100% { transform: rotate(0); } 40% { transform: rotate(12deg); } 75% { transform: rotate(-6deg); } }
+@keyframes fp-cat-scoop { 0%,100% { transform: rotate(0); } 40% { transform: rotate(-3deg); } 75% { transform: rotate(1deg); } }
+@keyframes fp-cat-trot { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes fp-cat-step { 0%,100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg) translateY(-3px); } }
+@keyframes fp-cat-ponder { 0%,55%,100% { transform: rotate(0); } 70%,85% { transform: rotate(-4deg); } }
+@keyframes fp-cat-tap { 0%,55%,100% { transform: rotate(0); } 65%,80% { transform: rotate(-5deg); } }
+@keyframes fp-cat-thought { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+@keyframes fp-cat-read { 0%,15%,100% { transform: translateX(-3px); } 65%,85% { transform: translateX(4px); } }
+@keyframes fp-cat-offer { 0%,20%,100% { transform: translateX(0) rotate(0); } 45%,65% { transform: translateX(5px) rotate(3deg); } }
+@keyframes fp-cat-breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.015); } }
+@keyframes fp-cat-hop { 0%,25%,65%,100% { transform: translateY(0); } 40%,50% { transform: translateY(-9px) rotate(-2deg); } }
+@keyframes fp-cat-spark { 0%,100% { opacity:.3; transform: scale(.8); } 45% { opacity:1; transform: scale(1.15); } }
+@keyframes fp-cat-doze { 0%,100% { opacity: .3; transform: translateY(2px); } 60% { opacity: 1; transform: translateY(-5px); } }
+@keyframes fp-file-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes fp-file-collect { 0%,10% { opacity: 0; transform: translate(-9px,-16px) rotate(-8deg); } 30% { opacity: 1; } 80% { opacity: 1; transform: translate(17px,22px) rotate(5deg); } 100% { opacity: 0; transform: translate(27px,26px); } }
+@keyframes fp-file-arrive { 0%,100% { transform: translateY(-4px) rotate(3deg); } 50% { transform: translate(-5px,9px) rotate(-4deg); } }
 
 @media (max-width: 900px) {
   .landing-page .fp-hero { min-height: auto; padding: 130px 22px 70px; }

@@ -185,7 +185,7 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
 
           {busy && (
             <div className="p-10 flex flex-col items-center gap-3 text-center">
-              <FileCat variant="loading" withDocuments className="h-32 w-32" />
+              <FileCat variant={step === 'analyzing' ? 'reading' : 'loading'} withDocuments className="h-32 w-32" />
               <p className="text-sm font-semibold text-gray-700">
                 {step === 'analyzing' ? '문서에서 경험을 찾고 있어요' : '경험을 저장하고 있어요'}
               </p>

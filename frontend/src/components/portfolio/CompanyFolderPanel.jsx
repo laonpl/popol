@@ -179,7 +179,7 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
 
 function Section({ icon: Icon, title, count, action, children }) {
   return (
-    <section className="rounded-2xl border border-surface-200 bg-white">
+    <section className="fp-company-section rounded-2xl border border-surface-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-100 px-5 py-3.5">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-bluewood-800">
           <Icon size={16} className="text-bluewood-400" />

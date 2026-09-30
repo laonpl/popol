@@ -553,25 +553,25 @@ function Spinner({ light = false, size = 16 }) {
 }
 
 /* 대화에서도 문서를 모아주는 같은 고양이를 사용한다. */
-function BotFace({ size = 22 }) {
+function BotFace({ size = 22, variant = 'welcome' }) {
   return (
-    <span style={{ width: size, height: size }}><FileCat variant="thinking" file="document" className="h-full w-full" /></span>
+    <span style={{ width: size, height: size }}><FileCat variant={variant} file="document" className="h-full w-full" /></span>
   );
 }
 
 /* 작은 영역에서는 크롭된 로고 대신 내부 챗봇 심볼을 사용한다. */
-function FitPolyChatbotMark({ className = '' }) {
+function FitPolyChatbotMark({ className = '', variant = 'welcome' }) {
   return (
     <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center ${className}`} aria-hidden="true">
-      <BotFace size={44} />
+      <BotFace size={44} variant={variant} />
     </span>
   );
 }
 
 /* AI 아바타 — 챗봇 캐릭터, 대화 내내 숨쉬듯 떠 있는 모션 */
-function AiAvatar() {
+function AiAvatar({ variant = 'welcome' }) {
   return (
-    <FitPolyChatbotMark className="mt-0.5" />
+    <FitPolyChatbotMark className="mt-0.5" variant={variant} />
   );
 }
 
@@ -644,7 +644,7 @@ function AiBubble({ children }) {
 function TypingBubble() {
   return (
     <div className="flex items-start gap-3 animate-fadeIn" aria-live="polite">
-      <AiAvatar />
+      <AiAvatar variant="thinking" />
       <div className="flex items-center gap-2 rounded-[14px] border border-primary-100 bg-white px-4 py-3 text-[13px] font-semibold text-bluewood-500">
         <span className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" aria-hidden="true" />
         답변을 경험 노트에 반영하고 있어요
@@ -1154,6 +1154,13 @@ function ProcessingWorkspace({ phase, buildSteps }) {
       <main className="mx-auto w-full max-w-[760px] px-4 pb-20 pt-14 sm:px-6">
         <FlowStepper phase={phase} />
         <section className="mt-10 rounded-[18px] border border-surface-200 bg-white px-6 py-6 shadow-[0_1px_3px_rgba(16,24,40,0.06)]" aria-busy="true">
+          <FileCat
+            variant={phase === 'building' ? 'reading' : 'loading'}
+            file="document"
+            withDocuments
+            className="mx-auto mb-5 h-36 w-36"
+            title={phase === 'building' ? '모은 서류를 읽으며 경험을 정리하는 고양이' : '흩어진 자료를 모으는 고양이'}
+          />
           <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
           <h1 className="mt-2 text-[26px] font-extrabold text-bluewood-900">{label}</h1>
           <p className="mt-2 text-[14px] leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>

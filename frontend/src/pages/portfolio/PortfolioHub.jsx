@@ -16,6 +16,7 @@ import DetailModal from '../../components/DetailModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import PortfolioReadinessBoard from '../../components/PortfolioReadinessBoard';
 import useExperienceStore from '../../stores/experienceStore';
+import './portfolio-hub.css';
 
 /* ── 포트폴리오 종류 ──
    노션형·홈페이지는 공개 링크로, PPT는 파일 다운로드로 내보낸다. */
@@ -23,24 +24,24 @@ import useExperienceStore from '../../stores/experienceStore';
 const KINDS = [
   {
     id: 'notion', label: '노션형', icon: FileText,
-    tile: 'bg-slate-100 text-slate-600',
+    tile: 'bg-stone-100 text-stone-700',
     hint: '공개 링크를 만들어 바로 공유할 수 있어요.',
-    folder: { back: '#8EA6CF', front: 'linear-gradient(160deg, #C3D2EC 0%, #A3B8DE 100%)', ink: '#1E3A66' },
-    sheet: '#EEF3FA',
+    folder: { back: '#deded5', front: '#ffffff', ink: '#111111' },
+    sheet: '#efefe9',
   },
   {
     id: 'ppt', label: 'PPT', icon: Presentation,
-    tile: 'bg-orange-50 text-orange-600',
+    tile: 'bg-stone-100 text-stone-700',
     hint: '만든 슬라이드를 PPTX 파일로 바로 내려받을 수 있어요.',
-    folder: { back: '#EBA066', front: 'linear-gradient(160deg, #FCD6B0 0%, #F4B67F 100%)', ink: '#7A3B0A' },
-    sheet: '#FDF3EA',
+    folder: { back: '#deded5', front: '#ffffff', ink: '#111111' },
+    sheet: '#efefe9',
   },
   {
     id: 'web', label: '홈페이지', icon: Globe,
-    tile: 'bg-violet-50 text-violet-600',
+    tile: 'bg-stone-100 text-stone-700',
     hint: '홈페이지를 발행하고 공개 링크로 공유할 수 있어요.',
-    folder: { back: '#A48DD8', front: 'linear-gradient(160deg, #D6CCF3 0%, #BBA9EA 100%)', ink: '#3F2A78' },
-    sheet: '#F4F0FC',
+    folder: { back: '#deded5', front: '#ffffff', ink: '#111111' },
+    sheet: '#efefe9',
   },
 ];
 const KIND_BY_ID = Object.fromEntries(KINDS.map(k => [k.id, k]));
@@ -62,22 +63,9 @@ function normalizePortfolio(p) {
   return { ...p, outputType: 'ppt', pptLayoutId: LEGACY_PPT_TITLES.get(p.title) };
 }
 
-// 기업 폴더 색 — 기업명 해시로 고정 배정. 기업 미지정은 회색.
-const COMPANY_FOLDER_COLORS = [
-  { back: '#7FA7C9', front: 'linear-gradient(160deg, #C4DAEC 0%, #A1C0DD 100%)', ink: '#173E5E' },
-  { back: '#79B79A', front: 'linear-gradient(160deg, #C3E6D4 0%, #9ED0B7 100%)', ink: '#14482F' },
-  { back: '#D9A05B', front: 'linear-gradient(160deg, #F6D9B1 0%, #EDBF84 100%)', ink: '#6A3D08' },
-  { back: '#C98AA6', front: 'linear-gradient(160deg, #EFCCDB 0%, #DFA9C1 100%)', ink: '#5E1D3A' },
-  { back: '#9C90D0', front: 'linear-gradient(160deg, #D8D2F1 0%, #BBB1E6 100%)', ink: '#35297A' },
-  { back: '#6FB1B5', front: 'linear-gradient(160deg, #C0E3E4 0%, #98CFD2 100%)', ink: '#0F4A4D' },
-];
-const UNASSIGNED_FOLDER_COLOR = { back: '#A7B0BC', front: 'linear-gradient(160deg, #DDE2E8 0%, #C6CDD6 100%)', ink: '#3A4553' };
-function companyColor(name) {
-  if (!name) return UNASSIGNED_FOLDER_COLOR;
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
-  return COMPANY_FOLDER_COLORS[hash % COMPANY_FOLDER_COLORS.length];
-}
+// 기업 폴더는 공통 종이 색을 사용하고 열린 상태를 테두리로 구분한다.
+const MONO_FOLDER = { back: '#deded5', front: '#ffffff', ink: '#111111' };
+function companyColor() { return MONO_FOLDER; }
 
 // 미리보기 화면이 있는 노션형 템플릿 — 그 외(예전 방식)는 상세 모달로 연다.
 function hasNotionPreview(templateType) {
@@ -298,12 +286,12 @@ export default function PortfolioHub() {
   );
 
   return (
-    <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+    <div className="fp-portfolio-hub animate-fadeIn max-w-[1240px] mx-auto">
+      <div className="fp-portfolio-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div className="min-w-0">
           <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">포트폴리오</h1>
           <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-primary-600 font-bold">{visiblePortfolios.length}</span>개의 포트폴리오가 있습니다
+            나를 보여주는 이야기 <span className="fp-portfolio-count">{visiblePortfolios.length}</span>권을 모았어요
           </p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
@@ -384,10 +372,10 @@ export default function PortfolioHub() {
       {loading ? (
         <BrandLoader label="포트폴리오를 불러오는 중" />
       ) : visiblePortfolios.length === 0 && visibleFolders.length === 0 ? (
-        <div className="text-center py-20">
-          <FileCat variant="sleepy" file="portfolio" className="mx-auto mb-4 h-32 w-40" />
-          <h3 className="text-[18px] font-bold text-primary-600 mb-2">아직 포트폴리오가 없습니다</h3>
-          <p className="text-bluewood-400 text-[14px] mb-6">경험을 먼저 정리한 후 포트폴리오를 작성해보세요</p>
+        <div className="fp-portfolio-empty text-center py-20">
+          <FileCat variant="welcome" file="portfolio" withDocuments className="mx-auto mb-4 h-40 w-44" />
+          <h3 className="text-[18px] font-bold text-primary-600 mb-2">첫 번째 이야기를 담아볼까요?</h3>
+          <p className="text-bluewood-400 text-[14px] mb-6">정리한 경험을 모아, 나를 보여주는 포트폴리오를 만들어요.</p>
           <button
             onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors"
@@ -398,8 +386,8 @@ export default function PortfolioHub() {
       ) : (
         <>
           {/* 보기 전환 + 검색·정렬 */}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <div className="flex items-center gap-1 p-1 bg-white border border-surface-200 rounded-xl">
+          <div className="fp-portfolio-toolbar flex flex-wrap items-center gap-3 mb-6">
+            <div className="fp-portfolio-tabs flex items-center gap-1 p-1 bg-white border border-surface-200 rounded-xl">
               {[
                 { id: 'company', label: '기업별', icon: Building2 },
                 { id: 'kind', label: '형식별', icon: LayoutGrid },
@@ -408,6 +396,7 @@ export default function PortfolioHub() {
                   key={v.id}
                   type="button"
                   onClick={() => setViewMode(v.id)}
+                  aria-pressed={viewMode === v.id}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13.5px] font-semibold transition-colors ${
                     viewMode === v.id ? 'bg-primary-600 text-white' : 'text-bluewood-500 hover:bg-surface-50 hover:text-bluewood-700'
                   }`}
@@ -422,7 +411,7 @@ export default function PortfolioHub() {
                 : '노션형·PPT·홈페이지 형식별로 모아 봐요.'}
             </p>
 
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="fp-portfolio-search flex items-center gap-2 ml-auto">
               <div className="relative w-[220px]">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
                 <input
@@ -430,12 +419,14 @@ export default function PortfolioHub() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="제목·기업 검색"
+                  aria-label="포트폴리오 제목 또는 기업 검색"
                   className="w-full pl-9 pr-3 py-2 bg-white border border-surface-200 rounded-lg text-[13px] text-bluewood-700 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-bluewood-300 transition-all"
                 />
               </div>
               <div className="relative" ref={sortDropRef}>
                 <button
                   onClick={() => setSortDropOpen(v => !v)}
+                  aria-expanded={sortDropOpen}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-600 hover:border-surface-300 transition-colors"
                 >
                   <ArrowUpDown size={13} />
@@ -464,7 +455,7 @@ export default function PortfolioHub() {
           {viewMode === 'company' ? (
             <>
               {/* 기업 폴더 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+              <div className="fp-portfolio-folders grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
                 {companyGroups.map(g => {
                   const files = g.folder?.files || [];
                   const essayCount = (g.folder?.essays || []).length + files.filter(f => f.category === 'coverLetter').length;
@@ -494,7 +485,7 @@ export default function PortfolioHub() {
               </div>
 
               {activeCompany ? (
-                <div className="animate-fadeIn">
+                <div className="fp-open-folder animate-fadeIn">
                   <OpenFolderHeader
                     icon={activeCompany.key ? Building2 : FolderX}
                     color={companyColor(activeCompany.key).ink}
@@ -519,13 +510,13 @@ export default function PortfolioHub() {
                   )}
                 </div>
               ) : (
-                <ClosedHint />
+                companyGroups.length === 0 && q ? <div className="fp-portfolio-empty fp-search-empty"><Search size={26} /><h3>찾는 서류가 아직 없어요</h3><p>다른 제목이나 기업명으로 검색해보세요.</p><button onClick={() => setSearchQuery('')}>검색 초기화</button></div> : <ClosedHint />
               )}
             </>
           ) : (
             <>
               {/* 형식 폴더 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+              <div className="fp-portfolio-folders grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
                 {KINDS.map(k => (
                   <Folder
                     key={k.id}
@@ -542,7 +533,7 @@ export default function PortfolioHub() {
               </div>
 
               {activeMeta ? (
-                <div className="animate-fadeIn">
+                <div className="fp-open-folder animate-fadeIn">
                   <OpenFolderHeader
                     icon={activeMeta.icon}
                     color={activeMeta.folder.ink}
@@ -635,26 +626,26 @@ function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, on
   };
 
   return (
-    <div className="group relative">
+    <div className={`fp-paper-folder group relative ${active ? 'is-open' : ''}`}>
     <button
       type="button"
       onClick={onClick}
       aria-expanded={active}
       title={active ? '눌러서 접기' : '눌러서 열기'}
-      className={`relative block w-full pt-5 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none ${active ? '' : 'opacity-90 hover:opacity-100'}`}
+      className={`fp-folder-toggle relative block w-full pt-5 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none ${active ? '' : 'opacity-90 hover:opacity-100'}`}
     >
       {/* 탭 */}
-      <div className="absolute left-0 top-0 h-7 w-[42%] rounded-t-xl" style={{ background: back }} />
+      <div className="fp-folder-tab absolute left-0 top-0 h-7 w-[42%] rounded-t-xl" style={{ background: back }} />
       {/* 뒷판 */}
       <div
-        className={`relative h-44 rounded-2xl rounded-tl-none transition-shadow ${active ? 'shadow-lg' : 'shadow-sm group-hover:shadow-md'}`}
+        className={`fp-folder-back relative h-44 rounded-2xl rounded-tl-none transition-shadow ${active ? 'shadow-lg' : 'shadow-sm group-hover:shadow-md'}`}
         style={{ background: back }}
       >
         {/* 종이들 */}
         {(papers.length ? papers : [null]).map((title, i) => (
           <div
             key={`${i}-${title}`}
-            className={`absolute left-4 right-4 transform rounded-lg bg-white px-3 pt-2 shadow-sm transition-transform duration-300 ${
+            className={`fp-folder-paper absolute left-4 right-4 transform rounded-lg bg-white px-3 pt-2 shadow-sm transition-transform duration-300 ${
               active ? '-translate-y-3' : 'group-hover:-translate-y-2'
             }`}
             style={{ top: 12 + i * 11, height: 90, '--tw-rotate': `${[-1.5, 1, -0.5][i]}deg`, opacity: title ? 1 : 0.55, zIndex: i }}
@@ -678,28 +669,28 @@ function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, on
 
         {/* 앞판 */}
         <div
-          className="absolute inset-x-0 bottom-0 z-10 flex h-[62%] flex-col justify-end rounded-2xl px-4 pb-3.5"
-          style={{ background: front, boxShadow: '0 -2px 10px rgba(0,0,0,0.06)', color: ink }}
+          className="fp-folder-front absolute inset-x-0 bottom-0 z-10 flex h-[62%] flex-col justify-end rounded-2xl px-4 pb-3.5"
+          style={{ background: front, boxShadow: 'none', color: ink }}
         >
           <div className="flex items-end justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/55">
                 <Icon size={16} />
               </span>
-              <span className="truncate text-[16px] font-bold">{label}</span>
+              <span className="fp-folder-label line-clamp-2 text-[16px] font-bold">{label}</span>
             </div>
-            <span className="text-[24px] font-extrabold leading-none">{count}</span>
+            <span className="fp-folder-count text-[24px] font-extrabold leading-none">{count}</span>
           </div>
           {subtitle && <p className="mt-1.5 truncate text-[11.5px] font-medium opacity-70">{subtitle}</p>}
         </div>
       </div>
       {/* 열림 표시 */}
-      <div className={`mx-auto mt-2.5 h-1 rounded-full transition-all duration-300 ${active ? 'w-12' : 'w-0'}`} style={{ background: back }} />
+      <div className={`fp-folder-indicator mx-auto mt-2.5 h-1 rounded-full transition-all duration-300 ${active ? 'w-12' : 'w-0'}`} style={{ background: back }} />
     </button>
 
     {/* ⋯ 메뉴 — 앞판 오른쪽 위 (앞판은 뒷판 아래쪽 62%: 위에서 약 87px 지점부터) */}
     {hasMenu && !editing && (
-      <div className="absolute right-2.5 top-[94px] z-20">
+      <div className="fp-folder-menu absolute right-2.5 top-[94px] z-20">
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
@@ -735,7 +726,7 @@ function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, on
     {editing && (
       <form
         onSubmit={submit}
-        className="absolute inset-x-0 top-[87px] z-30 flex h-[109px] flex-col justify-center gap-2 rounded-2xl px-4"
+        className="fp-folder-rename absolute inset-x-0 top-[87px] z-30 flex h-[109px] flex-col justify-center gap-2 rounded-2xl px-4"
         style={{ background: front, color: ink }}
       >
         <input
@@ -774,7 +765,7 @@ function NewCompanyFolder({ onCreate, existing }) {
   };
 
   return (
-    <div className="pt-5">
+    <div className="fp-new-folder pt-5">
       <div className="flex h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-surface-300 bg-white/60 px-4 text-center">
         {editing ? (
           <form onSubmit={submit} className="w-full space-y-2">
@@ -822,7 +813,7 @@ function OpenFolderHeader({ icon: Icon, color, title, subtitle, onClose, onRenam
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="fp-open-folder-header mb-4 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         {editing ? (
           <form onSubmit={submit} className="flex items-center gap-2">
@@ -891,13 +882,13 @@ function PortfolioFileCard({ portfolio: p, kind, exportMode, downloading, onOpen
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
       }}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-surface-200 bg-white cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      className="fp-portfolio-file group flex flex-col overflow-hidden rounded-2xl border border-surface-200 bg-white cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
     >
       {/* 문서 모양 썸네일 */}
-      <div className="relative h-32 px-6 pt-5" style={{ background: kind.sheet }}>
-        <div className="relative mx-auto h-full max-w-[210px] rounded-t-lg bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1">
+      <div className="fp-file-preview relative h-32 px-6 pt-5" style={{ background: kind.sheet }}>
+        <div className="fp-file-sheet relative mx-auto h-full max-w-[210px] rounded-t-lg bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1">
           {/* 접힌 모서리 */}
-          <div className="absolute right-0 top-0 h-5 w-5 rounded-bl-md" style={{ background: `linear-gradient(225deg, ${kind.sheet} 50%, #E5E9F0 50%)` }} />
+          <div className="absolute right-0 top-0 h-5 w-5 rounded-bl-md" style={{ background: `linear-gradient(225deg, ${kind.sheet} 50%, #d6d6cc 50%)` }} />
           <div className="px-4 pt-4">
             <div className="flex items-center gap-1.5" style={{ color: kind.folder.ink }}>
               <Icon size={13} />
@@ -911,7 +902,7 @@ function PortfolioFileCard({ portfolio: p, kind, exportMode, downloading, onOpen
           </div>
         </div>
         {p.isPublic && kind.id !== 'ppt' && (
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 shadow-sm">
+          <span className="fp-file-published absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 공개 중
           </span>
         )}
@@ -919,9 +910,10 @@ function PortfolioFileCard({ portfolio: p, kind, exportMode, downloading, onOpen
           type="button"
           onClick={stop(onToggleFavorite)}
           aria-label="즐겨찾기"
+          aria-pressed={!!p.isFavorite}
           className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm hover:bg-white"
         >
-          <Star size={13} className={p.isFavorite ? 'fill-amber-300 text-amber-300' : 'text-bluewood-300'} />
+          <Star size={13} className={p.isFavorite ? 'fill-black text-black' : 'text-bluewood-300'} />
         </button>
       </div>
 

@@ -764,7 +764,7 @@ export default function Landing() {
             <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
               어떤 파일이든 업로드하면 AI가 내용을 분석해 구조화된 경험으로 정리해줍니다. 카카오톡 대화도, PDF도 모두 OK.
             </p>
-            <FileCat variant="curious" file="image" className="fp-intro-cat" title="이미지 파일을 물고 온 FitPoly 고양이" />
+            <FileCat variant="collecting" file="image" className="fp-intro-cat" title="흩어진 이미지 파일을 모으는 FitPoly 고양이" />
           </div>
 
           {/* 파일 업로드 */}
@@ -1341,7 +1341,7 @@ export default function Landing() {
             <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
               기업이 원하는 역량을 파악하고, 내 경험 중 가장 잘 맞는 것들로 포트폴리오를 조합해 드립니다.
             </p>
-            <FileCat variant="happy" file="portfolio" className="fp-intro-cat" title="포트폴리오 파일을 물고 신난 FitPoly 고양이" />
+            <FileCat variant="offering" file="portfolio" className="fp-intro-cat" title="정리한 포트폴리오를 건네는 FitPoly 고양이" />
           </div>
 
           {/* 채용공고 분석 */}

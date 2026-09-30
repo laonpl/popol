@@ -1974,7 +1974,7 @@ export default function TemplateSelect() {
         <div>
           {/* 헤더 */}
           <div className="fp-material-heading mb-6">
-            <FileCat variant="curious" file="document" withDocuments className="fp-material-cat" />
+            <FileCat variant="thinking" file="document" withDocuments className="fp-material-cat" />
             <p className="text-[13px] font-bold text-bluewood-500 mb-3">자료로 만들기 · 1 / 3 단계</p>
             <h1 className="text-[21px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">프로젝트 기본 정보</h1>
             <p className="mt-2 text-[12px] text-bluewood-400 leading-relaxed">
@@ -2228,7 +2228,7 @@ export default function TemplateSelect() {
         <div>
           {/* 헤더 */}
           <div className="fp-material-heading mb-7">
-            <FileCat variant="happy" file="pdf" withDocuments className="fp-material-cat" />
+            <FileCat variant="collecting" file="pdf" withDocuments className="fp-material-cat" />
             <p className="text-[13px] font-bold text-bluewood-500 mb-2">자료로 만들기 · 2 / 3 단계</p>
             <h1 className="text-[24px] font-black tracking-[-0.02em] text-bluewood-950 leading-tight">자료 수집</h1>
             <p className="mt-2 text-[13px] text-bluewood-500 leading-relaxed">
