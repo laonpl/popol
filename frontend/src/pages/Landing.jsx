@@ -564,7 +564,7 @@ export default function Landing() {
             <div className="fp-hero-art-top"><span>FITPOLY FRIENDS</span><span>NO. 01 / 2026</span></div>
             <div className="fp-hero-poster">
               <span className="fp-poster-spark fp-poster-spark-one">✳</span>
-              <FileCat variant="curious" file="pdf" title="PDF를 물고 온 FitPoly 고양이" />
+              <FileCat variant="curious" file="pdf" withDocuments title="흩어진 자료와 PDF를 물고 온 FitPoly 고양이" />
               <span className="fp-poster-spark fp-poster-spark-two">✦</span>
             </div>
             <div className="fp-hero-art-bottom"><span>모든 경험에는 이야기가 있어요.</span><span>● ● ○</span></div>

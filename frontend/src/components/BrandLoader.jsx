@@ -4,7 +4,7 @@ export default function BrandLoader({ label = '이야기를 꺼내는 중', deta
   return (
     <div className={fullScreen ? 'fp-loader' : 'fp-loader fp-loader-inline'} role="status" aria-live="polite">
       <div className="fp-loader-card">
-        <FileCat variant="loading" file={file} className="fp-loader-mascot" />
+        <FileCat variant="loading" file={file} withDocuments className="fp-loader-mascot" />
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}
         <span className="fp-loader-dots" aria-hidden="true"><i /><i /><i /></span>

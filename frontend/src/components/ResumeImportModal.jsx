@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { X, Loader2, UploadCloud, FileText, CheckCircle2 } from 'lucide-react';
+import { X, UploadCloud, FileText, CheckCircle2 } from 'lucide-react';
+import FileCat from './FileCat';
 import toast from 'react-hot-toast';
 import useModalBehavior from '../hooks/useModalBehavior';
 import useAuthStore from '../stores/authStore';
@@ -12,14 +13,15 @@ import { buildDraftStructuredResult } from '../utils/experienceDraft';
 
 const normalizeTitle = value => String(value || '').replace(/\s+/g, '').toLowerCase();
 
-export default function ResumeImportModal({ onClose }) {
-  const { ref: panelRef, backdropProps } = useModalBehavior(true, onClose);
+export default function ResumeImportModal({ onClose, onImported = onClose, embedded = false }) {
   const user = useAuthStore(state => state.user);
-  const { experiences, createExperience } = useExperienceStore();
+  const { experiences, createExperience, fetchExperiences } = useExperienceStore();
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [step, setStep] = useState('upload'); // upload → analyzing → review → saving
+  const busy = step === 'analyzing' || step === 'saving';
+  const { ref: panelRef, backdropProps } = useModalBehavior(!embedded, () => { if (!busy) onClose(); });
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(new Set());
 
@@ -32,7 +34,11 @@ export default function ResumeImportModal({ onClose }) {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('targetType', 'resume');
-      const { structured } = await importFileUpload(formData);
+      // A direct visit to the new entry page may not have loaded the hub yet.
+      const [{ structured }] = await Promise.all([
+        importFileUpload(formData),
+        embedded ? fetchExperiences(user.uid) : Promise.resolve(),
+      ]);
       const found = structured?.experiences || [];
       if (found.length === 0) {
         toast.error('문서에서 경험을 찾지 못했어요. 다른 파일로 시도하거나 직접 추가해주세요.');
@@ -40,7 +46,8 @@ export default function ResumeImportModal({ onClose }) {
         return;
       }
       setItems(found);
-      setSelected(new Set(found.map((item, i) => (existingTitles.has(normalizeTitle(item.title)) ? null : i)).filter(i => i !== null)));
+      const knownTitles = new Set(useExperienceStore.getState().experiences.map(exp => normalizeTitle(exp.title)));
+      setSelected(new Set(found.map((item, i) => (knownTitles.has(normalizeTitle(item.title)) ? null : i)).filter(i => i !== null)));
       setStep('review');
     } catch (error) {
       toast.error(error.response?.data?.error || error.message || '파일 분석에 실패했습니다');
@@ -108,20 +115,18 @@ export default function ResumeImportModal({ onClose }) {
     }
     if (created === chosen.length) toast.success(`경험 ${created}개를 추가했어요. 각 경험을 열어 내용을 확인해주세요.`);
     else toast.error(`${chosen.length}개 중 ${created}개만 저장했어요. 나머지는 다시 시도해주세요.`);
-    onClose();
+    onImported();
   };
 
-  const busy = step === 'analyzing' || step === 'saving';
-
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4" {...backdropProps}>
+    <div className={embedded ? 'fp-resume-import' : 'fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4'} {...(!embedded ? backdropProps : {})}>
       <div
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
+        role={embedded ? 'region' : 'dialog'}
+        aria-modal={embedded ? undefined : true}
         aria-label="이력서·포트폴리오로 경험 가져오기"
         tabIndex={-1}
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] outline-none"
+        className={embedded ? 'fp-resume-import-panel' : 'bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] outline-none'}
       >
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
           <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -137,27 +142,27 @@ export default function ResumeImportModal({ onClose }) {
                 : '기존 이력서나 포트폴리오를 올리면 경험을 하나씩 나눠 정리해 드려요'}
             </p>
           </div>
-          <button onClick={onClose} disabled={busy} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0 disabled:opacity-40">
+          {!embedded && <button onClick={onClose} disabled={busy} aria-label="가져오기 닫기" className="p-1.5 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0 disabled:opacity-40">
             <X size={17} className="text-gray-500" />
-          </button>
+          </button>}
         </div>
 
         <div className="flex-1 overflow-auto">
           {step === 'upload' && (
             <div className="p-6 space-y-4">
-              <div
+              <button type="button"
                 onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
                 onDrop={e => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); }}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl px-6 py-8 text-center cursor-pointer transition-all select-none ${
+                className={`w-full border-2 border-dashed rounded-2xl px-6 py-8 text-center cursor-pointer transition-all select-none ${
                   isDragging ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60'
                 }`}
               >
                 <UploadCloud size={28} className={`mx-auto mb-3 ${isDragging ? 'text-primary-500' : 'text-gray-400'}`} />
-                <p className="text-sm font-semibold text-gray-700">이력서 또는 포트폴리오 파일을 올려주세요</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, Word(DOCX), PPTX, HWP, 이미지 · 최대 25MB</p>
-              </div>
+                <span className="block text-sm font-semibold text-gray-700">이력서 또는 포트폴리오 파일을 올려주세요</span>
+                <span className="block text-xs text-gray-400 mt-1">PDF, Word(DOCX), PPTX, HWP, 이미지 · 최대 25MB</span>
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -180,7 +185,7 @@ export default function ResumeImportModal({ onClose }) {
 
           {busy && (
             <div className="p-10 flex flex-col items-center gap-3 text-center">
-              <Loader2 size={26} className="animate-spin text-primary-500" />
+              <FileCat variant="loading" withDocuments className="h-32 w-32" />
               <p className="text-sm font-semibold text-gray-700">
                 {step === 'analyzing' ? '문서에서 경험을 찾고 있어요' : '경험을 저장하고 있어요'}
               </p>

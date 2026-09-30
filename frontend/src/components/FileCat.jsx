@@ -1,81 +1,48 @@
-const FILE_LABELS = {
-  pdf: 'PDF',
-  document: 'DOC',
-  image: 'IMG',
-  portfolio: 'PPT',
-};
+const FILE_LABELS = { pdf: 'PDF', document: 'DOC', image: 'IMG', portfolio: 'PPT' };
 
+// Round silhouette and expressive eyes inspired by choi0806/gong's mascot.
+// FitPoly's companion gathers loose files and carries a document in its mouth.
 export default function FileCat({ variant = 'curious', file = 'pdf', className = '', title = '', withDocuments = false }) {
-  const fileLabel = FILE_LABELS[file] || String(file).slice(0, 4).toUpperCase();
-  const isHappy = variant === 'happy';
-  const isSleepy = variant === 'sleepy';
-  const isThinking = variant === 'thinking';
-
+  const label = FILE_LABELS[file] || String(file).slice(0, 4).toUpperCase();
+  const sleepy = variant === 'sleepy';
+  const happy = variant === 'happy';
   return (
-    <svg
-      viewBox="55 20 265 250"
-      fill="none"
+    <svg viewBox="0 0 280 280" fill="none" xmlns="http://www.w3.org/2000/svg"
       className={`filecat filecat--${variant} ${className}`.trim()}
-      role={title ? 'img' : undefined}
-      aria-label={title || undefined}
-      aria-hidden={title ? undefined : true}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <ellipse cx="184" cy="259" rx="92" ry="8" fill="#e5e5df" />
-
-      {/* One straight, rounded silhouette: little feet, soft ears, no arched back. */}
-      <path d="M119 211h35v34c0 12-7 18-18 18s-17-7-17-18v-34ZM204 211h35v34c0 12-7 18-18 18s-17-7-17-18v-34Z" fill="#111" />
-      <path className="filecat-body" d="M101 86c0-8 1-28 3-43 1-11 10-14 18-7l29 24c19-5 40-5 59 0l30-24c8-7 17-4 18 7l4 42c9 13 13 28 13 46v82c0 17-11 27-28 27H115c-17 0-28-10-28-27v-82c0-18 5-33 14-45Z" fill="#111" />
-
-      {/* Large eyes stay the same visual size across the expression variants. */}
-      {isSleepy ? (
+      role={title ? 'img' : undefined} aria-label={title || undefined} aria-hidden={title ? undefined : true}>
+      <ellipse cx="143" cy="259" rx="79" ry="7" fill="#e6e6e0" />
+      {withDocuments && <g className="filecat-loose-files" stroke="#111" strokeWidth="2.5" strokeLinejoin="round">
+        <g className="filecat-loose-file" transform="rotate(-16 37 141)">
+          <path d="M20 119h26l10 10v34H20Z" fill="white" /><path d="M46 119v10h10M27 141h20M27 149h14" />
+        </g>
+        <g className="filecat-loose-file" transform="rotate(14 243 76)">
+          <path d="M226 53h26l10 10v35h-36Z" fill="white" /><path d="M252 53v10h10" />
+          <path d="m232 89 8-10 6 6 5-5 5 9Z" fill="#e6e6e0" /><circle cx="237" cy="71" r="2" fill="#111" stroke="none" />
+        </g>
+      </g>}
+      <g className="filecat-companion">
+        <path className="filecat-tail" d="M190 177c27 25 48 9 48-8 0-11-9-15-16-5-7 9-16 6-23-3Z" fill="#111" />
+        <path className="filecat-body" d="M78 99c-5-22-9-56 5-60 10-3 23 12 33 22 15-5 33-5 49 0 11-12 23-28 33-22 11 7 7 40 3 61 14 21 18 52 11 80-4 19-13 34-24 45l-3 19c-3 20-28 21-32 2l-4-20h-23l-5 20c-5 19-30 16-28-3l3-23c-16-14-26-38-27-63-1-23 2-42 9-58Z" fill="#111" />
         <g className="filecat-face">
-          <path d="M126 104c8 8 20 8 28 0M188 104c8 8 20 8 28 0" stroke="#fff" strokeWidth="8" strokeLinecap="round" />
+          {sleepy ? <path d="M96 101q12 13 25 0m19 0q12 13 25 0" stroke="white" strokeWidth="5" strokeLinecap="round" /> : <g className="filecat-eyes">
+            <ellipse cx="111" cy="100" rx="18" ry="23" fill="white" /><ellipse cx="156" cy="99" rx="18" ry="23" fill="white" />
+            <ellipse className="filecat-pupil" cx="115" cy="102" rx="6.5" ry="10" fill="#111" /><ellipse className="filecat-pupil" cx="160" cy="101" rx="6.5" ry="10" fill="#111" />
+            {happy && <><circle cx="113" cy="98" r="2.5" fill="white" /><circle cx="158" cy="97" r="2.5" fill="white" /></>}
+          </g>}
+          <path d="m129 123 5 3 5-3" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         </g>
-      ) : (
-        <g className="filecat-face">
-          <ellipse cx="141" cy="104" rx="19" ry="24" fill="#fff" />
-          <ellipse cx="203" cy="104" rx="19" ry="24" fill="#fff" />
-          <ellipse cx={isThinking ? '146' : '142'} cy="107" rx="6.5" ry="10" fill="#111" />
-          <ellipse cx={isThinking ? '208' : '204'} cy="107" rx="6.5" ry="10" fill="#111" />
-          {isHappy && <circle cx="137" cy="97" r="3" fill="#fff" />}
+        <g className="filecat-mouth-file">
+          {withDocuments && <path d="m98 144 96-5 10 84-103 10Z" fill="white" stroke="#111" strokeWidth="4" strokeLinejoin="round" />}
+          <path d="m81 140 83-8 23 20 7 68-103 12Z" fill="white" stroke="#111" strokeWidth="4.5" strokeLinejoin="round" />
+          <path d="m164 133 2 22 21-3M107 172l44-5m-42 19 58-7m-56 21 36-4" stroke="#111" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+          <text x="156" y="211" transform="rotate(-6 156 211)" fill="#111" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="10">{label}</text>
         </g>
-      )}
-      <path d="m166 136 8 4 8-4" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* A small lens mirrors the reference pose without competing with the page. */}
-      {withDocuments && (
-        <g className="filecat-lens">
-          <path d="m279 120 26 30" stroke="#111" strokeWidth="10" strokeLinecap="round" />
-          <circle cx="267" cy="100" r="25" fill="#fff" stroke="#111" strokeWidth="7" />
-          <path d="M254 92c3-5 7-8 13-9" stroke="#d3d3cd" strokeWidth="3" strokeLinecap="round" />
-        </g>
-      )}
-
-      {/* Multiple file edges show behind one clear page, held in front of the cat. */}
-      {withDocuments && (
-        <g className="filecat-back-documents">
-          <rect x="143" y="155" width="127" height="80" rx="4" fill="#fff" stroke="#111" strokeWidth="4" />
-          <rect x="150" y="153" width="127" height="80" rx="4" fill="#fff" stroke="#111" strokeWidth="4" />
-          <path d="M218 154v-18h27v18M249 153v-18h29v18" fill="#fff" stroke="#111" strokeWidth="3.5" strokeLinejoin="round" />
-          <text x="223" y="149" fill="#111" fontFamily="Pretendard, sans-serif" fontWeight="900" fontSize="9">CV</text>
-          <text x="252" y="148" fill="#111" fontFamily="Pretendard, sans-serif" fontWeight="900" fontSize="8">PDF</text>
-        </g>
-      )}
-      <g className="filecat-mouth-file" transform="rotate(-3 183 194)">
-        <rect x="119" y="149" width="135" height="89" rx="4" fill="#fff" stroke="#111" strokeWidth="6" />
-        <path d="M140 177h89M140 192h78M140 207h59" stroke="#111" strokeWidth="5" strokeLinecap="round" />
-        <text x="213" y="224" fill="#111" fontFamily="Pretendard, sans-serif" fontWeight="900" fontSize="11">{fileLabel}</text>
+        {/* Mouth overlaps the paper edge so the bite reads at small sizes. */}
+        <path d="M125 133q9 12 19-2" stroke="#111" strokeWidth="7" strokeLinecap="round" />
+        <path d="M130 132q4 4 8-1" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M80 156c-17-5-24 13-8 22l15 7c11 4 19-9 10-17ZM190 163c-8-11-23-8-22 4 1 11 21 20 31 12 8-6 0-13-9-16Z" fill="#111" />
       </g>
-
-      {/* The top of the page disappears under the mouth; paws hug both edges. */}
-      <path d="M171 147c5 6 11 6 17 0" stroke="#111" strokeWidth="8" strokeLinecap="round" />
-      <path d="M171 137c4 3 9 3 13 0" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-      <path d="M115 166c-14-3-23 5-22 17 1 12 12 17 27 14l8-4-2-21-11-6ZM256 164c14-3 25 5 25 18 0 12-12 18-27 15l-8-4 2-21 8-8Z" fill="#111" />
-      {withDocuments && <path d="M292 145c-6-7-17-8-24-2" stroke="#111" strokeWidth="12" strokeLinecap="round" />}
-
-      {isHappy && <path className="filecat-spark" d="M303 54v17m-9-9h18" stroke="#111" strokeWidth="4" strokeLinecap="round" />}
-      {variant === 'loading' && <path className="filecat-spark" d="M301 57v16m-8-8h16" stroke="#111" strokeWidth="4" strokeLinecap="round" />}
+      {(happy || variant === 'loading') && <g className="filecat-spark" stroke="#111" strokeWidth="3" strokeLinecap="round"><path d="M42 77v14m-7-7h14M234 224v12m-6-6h12" /></g>}
     </svg>
   );
 }

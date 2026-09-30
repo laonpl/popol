@@ -10,6 +10,7 @@ import { BracketsCurlyIcon } from '@phosphor-icons/react/dist/csr/BracketsCurly'
 import { ChartLineUpIcon } from '@phosphor-icons/react/dist/csr/ChartLineUp';
 import { KanbanIcon } from '@phosphor-icons/react/dist/csr/Kanban';
 import toast from 'react-hot-toast';
+import FileCat from '../../components/FileCat';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
@@ -551,15 +552,10 @@ function Spinner({ light = false, size = 16 }) {
   );
 }
 
-/* 챗봇 얼굴 — 눈 2개(주기적으로 깜빡임) + 텍스트 라인 입 */
+/* 대화에서도 문서를 모아주는 같은 고양이를 사용한다. */
 function BotFace({ size = 22 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true">
-      <ellipse className="bot-eye" cx="17" cy="18" rx="3" ry="4.2" fill="#3c4551" />
-      <ellipse className="bot-eye" cx="31" cy="18" rx="3" ry="4.2" fill="#3c4551" style={{ animationDelay: '0.06s' }} />
-      <rect x="13" y="29" width="22" height="2.8" rx="1.4" fill="#c9d2dc" />
-      <rect x="13" y="34.5" width="15" height="2.8" rx="1.4" fill="#c9d2dc" />
-    </svg>
+    <span style={{ width: size, height: size }}><FileCat variant="thinking" file="document" className="h-full w-full" /></span>
   );
 }
 
@@ -567,7 +563,7 @@ function BotFace({ size = 22 }) {
 function FitPolyChatbotMark({ className = '' }) {
   return (
     <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center ${className}`} aria-hidden="true">
-      <BotFace size={30} />
+      <BotFace size={44} />
     </span>
   );
 }
@@ -580,54 +576,8 @@ function AiAvatar() {
 }
 
 /* 히어로 — 챗봇 위로 자료 아이콘들이 둥둥 떠오르는 장면 */
-const HERO_FLOATERS = [
-  { cls: 'left-1 top-16', delay: 0,   type: 'doc' },
-  { cls: 'left-12 top-3', delay: 0.6, type: 'img' },
-  { cls: 'left-1/2 -translate-x-1/2 top-0', delay: 1.1, type: 'doc' },
-  { cls: 'right-12 top-4', delay: 0.3, type: 'sq' },
-  { cls: 'right-0 top-16', delay: 0.9, type: 'doc' },
-  { cls: 'left-[86px] top-[104px]', delay: 1.5, type: 'dot' },
-  { cls: 'right-[86px] top-[100px]', delay: 0.4, type: 'dot' },
-];
-
-function HeroFloater({ type }) {
-  if (type === 'doc') {
-    return (
-      <div className="flex h-10 w-10 flex-col items-center justify-center gap-1 rounded-xl bg-white border border-surface-200 shadow-sm">
-        <span className="h-[3px] w-5 rounded-full bg-surface-200" />
-        <span className="h-[3px] w-3.5 rounded-full bg-surface-200" />
-      </div>
-    );
-  }
-  if (type === 'img') {
-    return (
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-surface-200 shadow-sm">
-        <span className="rounded-md bg-primary-100" style={{ height: 18, width: 20 }} />
-      </div>
-    );
-  }
-  if (type === 'sq') return <div className="h-8 w-8 rounded-lg bg-amber-100/90 border border-amber-100 shadow-sm" />;
-  return <div className="h-2.5 w-2.5 rounded-full bg-surface-300" />;
-}
-
 function HeroBot() {
-  return (
-    <div className="relative mx-auto mb-8 h-44 w-full max-w-[320px]">
-      {HERO_FLOATERS.map((f, i) => (
-        <div key={i} className={`absolute ${f.cls}`}>
-          <div className="animate-float-y" style={{ animationDelay: `${f.delay}s` }}>
-            <HeroFloater type={f.type} />
-          </div>
-        </div>
-      ))}
-      {/* 챗봇 본체 */}
-      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 flex h-24 w-24 items-center justify-center rounded-[26px] bg-white border border-surface-200 shadow-[0_18px_44px_rgba(49,65,87,0.14)] animate-bot-idle">
-        {/* 머리 위 따뜻한 글로우 */}
-        <div className="pointer-events-none absolute -top-2.5 left-1/2 h-5 w-16 -translate-x-1/2 rounded-full bg-amber-100/90 blur-md" />
-        <BotFace size={62} />
-      </div>
-    </div>
-  );
+  return <FileCat variant="loading" withDocuments className="mx-auto mb-8 h-44 w-44" />;
 }
 
 /* 부드러운 바 로더 — 로딩 단계용 */
@@ -761,11 +711,11 @@ function FlowStepper({ phase }) {
 function ExperienceBackLink({ className = '' }) {
   return (
     <Link
-      to="/app/experience"
+      to="/app/experience/start"
       className={`inline-flex min-h-[44px] items-center gap-2 text-[14px] font-semibold text-bluewood-500 transition-colors hover:text-bluewood-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${className}`}
     >
       <ArrowLeft size={16} aria-hidden="true" />
-      경험 목록으로
+      추가 방법 다시 선택
     </Link>
   );
 }
@@ -773,15 +723,11 @@ function ExperienceBackLink({ className = '' }) {
 function FocusHeader({ phase }) {
   const saving = phase === 'saving';
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-200/70 bg-white/70 px-4 py-3 backdrop-blur sm:px-6">
-      <div className="flex items-center gap-3">
-        <img src="/logo.png" alt="FitPoly" className="h-7 w-auto" />
-        <span className="h-4 w-px bg-surface-200" aria-hidden="true" />
-        <span className="text-[13px] font-bold text-bluewood-700">경험 정리</span>
-      </div>
+    <div className="fp-flow-toolbar">
+      <ExperienceBackLink />
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-bluewood-500" aria-live="polite">
-          {saving ? <BarsLoader height={12} /> : <ShieldCheck size={14} className="text-caribbean-600" aria-hidden="true" />}
+          {saving ? <BarsLoader height={12} /> : <ShieldCheck size={14} aria-hidden="true" />}
           {saving ? '저장 중...' : '저장 전까지 자유롭게 수정 가능'}
         </span>
         <Link
@@ -797,8 +743,8 @@ function FocusHeader({ phase }) {
 
 function FitPolyGuidePanel({ children }) {
   return (
-    <section className="flex gap-3 rounded-[14px] bg-[#F1F5FF] px-4 py-4 text-left sm:px-[18px]" aria-label="FitPoly 경험 가이드">
-      <FitPolyChatbotMark className="mt-0.5" />
+    <section className="fp-flow-guide" aria-label="FitPoly 경험 가이드">
+      <FileCat variant="thinking" file="document" className="fp-flow-guide-cat" />
       <div>
         <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
         <p className="mt-1 text-[15px] leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
@@ -820,7 +766,7 @@ function SelectionOption({ option, selected = false, onSelect, meta, compact = f
       role="radio"
       aria-checked={selected}
       onClick={() => onSelect(option)}
-      className={`group relative flex w-full items-start justify-between gap-4 overflow-hidden rounded-[16px] border bg-white text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${compact ? 'min-h-[170px] px-5 py-5' : 'min-h-[104px] px-5 py-4'} ${
+      className={`fp-flow-option group relative flex w-full items-start justify-between gap-4 overflow-hidden rounded-[16px] border bg-white text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${compact ? 'min-h-[170px] px-5 py-5' : 'min-h-[104px] px-5 py-4'} ${
         selected
           ? 'border-primary-500 -translate-y-0.5 ring-2 ring-primary-100 shadow-[0_8px_24px_rgba(49,65,87,0.08)]'
           : 'border-surface-200 shadow-[0_1px_2px_rgba(16,24,40,0.03)] hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-[0_8px_24px_rgba(49,65,87,0.07)]'
@@ -917,10 +863,9 @@ function ExperienceSelectionWorkspace({
     : '전용 정리 방식이 있는 분야만 간단히 모았어요. 디자인·데이터·AI·인사·영업 등 나머지 경험은 공통을 선택하면 역할과 성과 중심으로 정리됩니다.';
 
   return (
-    <div className="min-h-full bg-[#F7F9FC]">
+    <div className="fp-experience-workspace min-h-full">
       <FocusHeader phase={phase} />
       <main className="mx-auto w-full max-w-[1040px] px-4 pb-16 pt-5 sm:px-6 sm:pt-7 lg:px-8">
-        <ExperienceBackLink />
         <div className="mt-4">
           <FlowStepper phase={phase} />
         </div>
@@ -1031,7 +976,7 @@ function ExperienceBasicsWorkspace({
   const canSubmit = title.trim() && periodReady;
 
   return (
-    <div className="min-h-full bg-[#F7F9FC]">
+    <div className="fp-experience-workspace min-h-full">
       <FocusHeader phase={phase} />
       <main className="mx-auto w-full max-w-[880px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
         <button
@@ -1056,7 +1001,7 @@ function ExperienceBasicsWorkspace({
           </p>
         </section>
 
-        <section className="mt-8 rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:px-6 sm:py-6" aria-labelledby="basics-heading">
+        <section className="mt-8 fp-flow-panel rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:px-6 sm:py-6" aria-labelledby="basics-heading">
           <h2 id="basics-heading" className="text-[18px] font-bold text-bluewood-900">경험 기본 정보</h2>
           <div className="mt-5 space-y-5">
             <div>
@@ -1159,7 +1104,7 @@ function ExperienceBasicsWorkspace({
 
 function MaterialsPrepWorkspace({ phase, jobCategory, marketerField, preset, onSubmit, onBack }) {
   return (
-    <div className="min-h-full bg-[#F7F9FC]">
+    <div className="fp-experience-workspace min-h-full">
       <FocusHeader phase={phase} />
       <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
         <button
@@ -1186,7 +1131,7 @@ function MaterialsPrepWorkspace({ phase, jobCategory, marketerField, preset, onS
               <FitPolyGuidePanel>{preset.intro}</FitPolyGuidePanel>
             </div>
           </div>
-          <aside className="rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          <aside className="fp-flow-panel rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <h2 className="text-[17px] font-bold text-bluewood-900">자료 입력</h2>
             <p className="mt-1 text-[13.5px] leading-relaxed text-bluewood-500">
               완벽한 문서가 아니어도 괜찮아요. 가지고 있는 단서만으로 시작할 수 있습니다.
@@ -1204,7 +1149,7 @@ function MaterialsPrepWorkspace({ phase, jobCategory, marketerField, preset, onS
 function ProcessingWorkspace({ phase, buildSteps }) {
   const label = phase === 'building' ? '경험 초안을 만드는 중' : '자료에서 경험 조각을 찾는 중';
   return (
-    <div className="min-h-full bg-[#F7F9FC]">
+    <div className="fp-experience-workspace min-h-full">
       <FocusHeader phase={phase} />
       <main className="mx-auto w-full max-w-[760px] px-4 pb-20 pt-14 sm:px-6">
         <FlowStepper phase={phase} />
@@ -1242,7 +1187,7 @@ function ProcessingWorkspace({ phase, buildSteps }) {
 function MomentsReviewWorkspace({ phase, moments, onToggle, onConfirm }) {
   const selectedCount = moments.filter(m => m.selected).length;
   return (
-    <div className="min-h-full bg-[#F7F9FC]">
+    <div className="fp-experience-workspace min-h-full">
       <FocusHeader phase={phase} />
       <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
         <FlowStepper phase={phase} />
@@ -1255,7 +1200,7 @@ function MomentsReviewWorkspace({ phase, moments, onToggle, onConfirm }) {
             자료에서 찾은 경험 조각입니다. 선택한 항목을 중심으로 초안을 만들고, 이후 인터뷰에서 부족한 정보를 보완합니다.
           </p>
         </section>
-        <div className="mt-8 rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+        <div className="mt-8 fp-flow-panel rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <span className="text-[14px] font-bold text-bluewood-700">{selectedCount} / {moments.length} 선택</span>
             <button
@@ -1299,7 +1244,7 @@ function InterviewProgressRail({
 
   return (
     <aside className="hidden xl:block">
-      <div className="sticky top-6 rounded-[16px] border border-surface-200 bg-white px-4 py-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+      <div className="sticky top-6 fp-flow-panel rounded-[16px] border border-surface-200 bg-white px-4 py-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
         <p className="text-[12px] font-bold text-primary-700">인터뷰 진행</p>
         <p className="mt-1 text-[12px] text-bluewood-400">{mode.label} · {mode.time}</p>
         <ol className="mt-4 space-y-3" aria-label="인터뷰 진행 레일">
@@ -2770,10 +2715,10 @@ export default function ExperienceChat() {
   }
 
   return (
-    <div className="animate-fadeIn min-h-full bg-[#F7F9FC] px-4 py-6 pb-16 sm:px-6">
+    <div className="fp-experience-workspace animate-fadeIn min-h-full pb-16">
       <div className="mx-auto max-w-[1520px]">
       <FocusHeader phase={phase} />
-      <ExperienceBackLink className="mt-4 mb-4" />
+
 
       <div className={draft
         ? 'grid grid-cols-1 gap-5 items-start lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[180px_minmax(0,1fr)_360px]'
@@ -3146,7 +3091,7 @@ export default function ExperienceChat() {
 
         {/* ═══ 우측: 실시간 경험 노트 — 대화에서 확인된 내용을 정리한다 ═══ */}
         {draft && (
-        <div className="lg:sticky lg:top-6 rounded-[16px] border border-surface-200 bg-[#F9FAFC] overflow-hidden shadow-[0_1px_3px_rgba(16,24,40,0.06)] animate-panel-in">
+        <div className="lg:sticky lg:top-6 fp-flow-panel rounded-[16px] border border-surface-200 bg-[#F9FAFC] overflow-hidden shadow-[0_1px_3px_rgba(16,24,40,0.06)] animate-panel-in">
           <div className="px-5 py-4 border-b border-surface-200/70 bg-white/70 flex items-center justify-between gap-3">
             <div>
               <p className="text-[16px] font-extrabold text-bluewood-900">실시간 경험 노트</p>

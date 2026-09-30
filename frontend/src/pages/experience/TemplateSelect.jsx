@@ -15,6 +15,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
+import FileCat from '../../components/FileCat';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 
@@ -1937,9 +1938,9 @@ export default function TemplateSelect() {
   return (
     <>
     {createTutorialOverlay}
-    <div className="animate-fadeIn mx-auto max-w-4xl px-1 pb-6" >
-      <Link to="/app/experience" className="mb-6 inline-flex items-center gap-2 text-[12px] text-bluewood-400 hover:text-bluewood-600">
-        <ArrowLeft size={9} /> 경험 정리로 돌아가기
+    <div className="fp-material-workspace animate-fadeIn mx-auto max-w-4xl px-1 pb-6" >
+      <Link to="/app/experience/start" className="fp-flow-back mb-6">
+        <ArrowLeft size={16} /> 추가 방법 다시 선택
       </Link>
 
       {/* 스텝 인디케이터 */}
@@ -1972,8 +1973,9 @@ export default function TemplateSelect() {
       {step === 1 && (
         <div>
           {/* 헤더 */}
-          <div className="mb-6">
-            <p className="text-[15px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Project Registration · Step 1 of 3</p>
+          <div className="fp-material-heading mb-6">
+            <FileCat variant="curious" file="document" withDocuments className="fp-material-cat" />
+            <p className="text-[13px] font-bold text-bluewood-500 mb-3">자료로 만들기 · 1 / 3 단계</p>
             <h1 className="text-[21px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">프로젝트 기본 정보</h1>
             <p className="mt-2 text-[12px] text-bluewood-400 leading-relaxed">
               직군을 선택하면 해당 직군에 최적화된 분석 섹션이 자동으로 구성됩니다.
@@ -1981,7 +1983,7 @@ export default function TemplateSelect() {
           </div>
 
           {/* 폼 테이블 */}
-          <div className="divide-y divide-surface-100">
+            <div className="fp-material-form divide-y divide-surface-100">
 
             {/* 01 프로젝트명 */}
             <div className="grid md:grid-cols-[200px_1fr] gap-2 py-6">
@@ -2106,7 +2108,7 @@ export default function TemplateSelect() {
                 {JOB_CATEGORIES.map((group, gi) => (
                   <div key={group.group} className={gi > 0 ? 'mt-7' : ''}>
                     <p className="text-[11.5px] font-bold uppercase tracking-[0.20em] text-bluewood-200 pb-2 border-b border-surface-100 mb-1">{group.group}</p>
-                    <div className="divide-y divide-surface-50">
+                    <div className="fp-material-options">
                       {group.items.map(opt => {
                         const selected = jobCategory === opt.value;
                         return (
@@ -2114,7 +2116,8 @@ export default function TemplateSelect() {
                             key={opt.value}
                             type="button"
                             onClick={() => setJobCategory(selected ? '' : opt.value)}
-                            className={`w-full flex items-center gap-2 py-1.5 text-left transition-all group ${
+                            aria-pressed={selected}
+                            className={`fp-material-option w-full flex items-center gap-2 py-1.5 text-left transition-all group ${
                               selected ? '' : ''
                             }`}
                           >
@@ -2146,7 +2149,7 @@ export default function TemplateSelect() {
                 </div>
               </div>
               <div>
-                <div className="divide-y divide-surface-50">
+                <div className="fp-material-options">
                   {CAREER_STAGES.map(opt => {
                     const selected = careerStage === opt.value;
                     return (
@@ -2154,7 +2157,8 @@ export default function TemplateSelect() {
                         key={opt.value}
                         type="button"
                         onClick={() => setCareerStage(opt.value)}
-                        className="w-full flex items-center gap-2 py-1.5 text-left transition-all group"
+                        aria-pressed={selected}
+                        className="fp-material-option w-full flex items-center gap-2 py-1.5 text-left transition-all group"
                       >
                         <div className={`w-[14px] h-[14px] rounded-full border-2 flex-shrink-0 transition-all flex items-center justify-center ${
                           selected ? 'border-primary-600 bg-primary-600' : 'border-surface-300 group-hover:border-bluewood-400'
@@ -2223,8 +2227,9 @@ export default function TemplateSelect() {
       {step === 2 && (
         <div>
           {/* 헤더 */}
-          <div className="mb-7 rounded-2xl border border-primary-100 bg-white px-5 py-5 shadow-sm">
-            <p className="text-[13px] font-black uppercase tracking-[0.22em] text-primary-500 mb-2">Data Collection · Step 2 of 3</p>
+          <div className="fp-material-heading mb-7">
+            <FileCat variant="happy" file="pdf" withDocuments className="fp-material-cat" />
+            <p className="text-[13px] font-bold text-bluewood-500 mb-2">자료로 만들기 · 2 / 3 단계</p>
             <h1 className="text-[24px] font-black tracking-[-0.02em] text-bluewood-950 leading-tight">자료 수집</h1>
             <p className="mt-2 text-[13px] text-bluewood-500 leading-relaxed">
               파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출하고 다음 단계에서 직접 검토·수정할 수 있습니다.

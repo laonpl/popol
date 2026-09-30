@@ -22,6 +22,7 @@ import NotFound from './pages/NotFound';
 // ── 코드 스플리팅: 인증 후에만 필요한 페이지 ─────────────────────
 const ProfileSetup          = lazy(() => import('./pages/ProfileSetup'));
 const ExperienceHub         = lazy(() => import('./pages/experience/ExperienceHub'));
+const ExperienceStart       = lazy(() => import('./pages/experience/ExperienceStart'));
 const TemplateSelect        = lazy(() => import('./pages/experience/TemplateSelect'));
 const ExperienceInterview   = lazy(() => import('./pages/experience/ExperienceInterview'));
 const ExperienceChat        = lazy(() => import('./pages/experience/ExperienceChat'));
@@ -141,6 +142,7 @@ const router = createBrowserRouter(
         <Route index element={<Navigate to="/app/experience" replace />} />
         {/* 경험정리 */}
         <Route path="experience" element={<ExperienceHub />} />
+        <Route path="experience/start" element={<ExperienceStart />} />
         <Route path="experience/new" element={<PrivateRoute><TemplateSelect /></PrivateRoute>} />
         <Route path="experience/interview" element={<PrivateRoute><ExperienceInterview /></PrivateRoute>} />
         <Route path="experience/chat" element={<PrivateRoute><ExperienceChat /></PrivateRoute>} />

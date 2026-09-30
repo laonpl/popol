@@ -19,7 +19,6 @@ import useAuthStore from '../../stores/authStore';
 import useAuthGate from '../../hooks/useAuthGate';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
-import ResumeImportModal from '../../components/ResumeImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -223,7 +222,6 @@ export default function ExperienceHub() {
   const { experiences, fetchExperiences, loading, loadError, deleteExperience, createExperience, updateExperience } = useExperienceStore();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
-  const [showResumeImport, setShowResumeImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -559,11 +557,9 @@ export default function ExperienceHub() {
 
   const experienceTutorialSteps = useMemo(() => [
     {
-      // 이 튜토리얼이 이어서 보여주는 화면은 "자료로 만들기"(TemplateSelect)다.
-      // 따라서 하이라이트도 그 버튼을 가리켜야 배운 대로 다시 찾아갈 수 있다.
-      selector: '[data-tour="experience-import"]',
-      title: '자료로 만들기를 눌러보세요',
-      body: '경험을 만드는 방법은 두 가지예요. 파일·링크 같은 자료가 있다면 "자료로 만들기", 자료 없이 대화하며 정리하려면 "새 경험 추가"를 누르면 됩니다. 지금은 자료로 만드는 흐름을 보여드릴게요.',
+      selector: '[data-tour="experience-new"]',
+      title: '새 경험 추가를 눌러보세요',
+      body: '새 경험 추가에서 대화, 자료, 이력서 중 편한 방법을 고를 수 있어요. 지금은 다음 화면에서 "자료로 만들기"를 골라 샘플 경험을 정리해볼게요.',
       preview: <p>실제 저장이나 AI 호출 없이, 작성 화면 안에서 샘플 경험 생성 흐름을 확인합니다.</p>,
     },
     {
@@ -777,50 +773,23 @@ export default function ExperienceHub() {
                 : <><span className="text-primary-600 font-bold text-[18px]">{headerSummary.count}</span>{headerSummary.suffix}</>}
             </p>
           </div>
-          {/* 경험을 만드는 방법은 두 가지다.
-              예전엔 "자료로 만들기"(TemplateSelect) 화면이 튜토리얼에서만 열려서,
-              튜토리얼로 그 화면을 배운 사용자가 실제로는 절대 다시 갈 수 없었다. */}
+          {/* 모든 생성 방법은 새 경험 추가에서 선택한다. */}
           <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:shrink-0">
             <button
               type="button"
-              data-tour="experience-import"
-              onClick={() => requireAuth(() => {
-                if (tutorialVisible && tutorialCurrentStep === 0) {
-                  dismissTutorial(false);
-                  setTutorialDemoExperience(null);
-                  setTutorialDemoBuildStep('idle');
-                  navigate('/app/experience/new?tutorial=1');
-                  return;
-                }
-                navigate('/app/experience/new');
-              })}
-              className="flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14.5px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
-            >
-              <FolderOpen size={16} /> 자료로 만들기
-            </button>
-            <button
-              type="button"
-              onClick={() => requireAuth(() => setShowResumeImport(true))}
-              className="flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14.5px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
-            >
-              <FileText size={16} /> 이력서·포트폴리오로 가져오기
-            </button>
-            <button
-              type="button"
               data-tour="experience-new"
-              onClick={() => requireAuth(() => {
-                // 튜토리얼 진행 중엔 기존 흐름(직접 작성 화면) 유지
+              onClick={() => {
                 if (tutorialVisible || forceTutorial) {
                   if (tutorialVisible && tutorialCurrentStep === 0) {
                     dismissTutorial(false);
                     setTutorialDemoExperience(null);
                     setTutorialDemoBuildStep('idle');
                   }
-                  navigate('/app/experience/new?tutorial=1');
+                  navigate('/app/experience/start?tutorial=1');
                   return;
                 }
-                navigate('/app/experience/chat');
-              })}
+                navigate('/app/experience/start');
+              }}
               className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
             >
               + 새 경험 추가
@@ -940,7 +909,7 @@ export default function ExperienceHub() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
       ) : displayExperiences.length === 0 ? (
-        <EmptyState onAdd={() => requireAuth(() => navigate('/app/experience/chat'))} />
+        <EmptyState onAdd={() => navigate('/app/experience/start')} />
       ) : (
         <>
           {/* ═══ 간트 타임라인 ═══ */}
@@ -1308,7 +1277,7 @@ export default function ExperienceHub() {
       )}
 
       </div>
-      {!isGuest && !loading && <ExperiencePortfolioGuide experiences={experiences} onAdd={() => requireAuth(() => navigate('/app/experience/chat'))} />}
+      {!isGuest && !loading && <ExperiencePortfolioGuide experiences={experiences} onAdd={() => navigate('/app/experience/start')} />}
       </div>
 
       <ConfirmDialog
@@ -1322,7 +1291,6 @@ export default function ExperienceHub() {
         onConfirm={confirmDeleteExperience}
       />
 
-      {showResumeImport && <ResumeImportModal onClose={() => setShowResumeImport(false)} />}
       {showImport && (
         <ImportModal targetType="experience" onClose={() => setShowImport(false)} onImport={handleImport} />
       )}
