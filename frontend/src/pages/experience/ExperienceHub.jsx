@@ -36,6 +36,7 @@ import {
 } from '../../constants/competencies';
 import { recommendJobFamilies, recommendByWorkStyle } from '../../constants/jobFamilies';
 import { SKILL_ICONS, matchSkillIcon } from '../../constants/skillIcons';
+import './experience-desk.css';
 
 /* 직무 유형 라벨 — experienceStore의 직군 목록에서 괄호 설명을 뗀 이름 */
 const JOB_CATEGORY_LABELS = Object.fromEntries(
@@ -707,7 +708,7 @@ export default function ExperienceHub() {
         key={exp.id}
         onClick={() => setSelectedId(isSelected ? null : exp.id)}
         onDoubleClick={() => { if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`); }}
-        className={`fp-experience-card group relative flex flex-col gap-2.5 rounded-xl border bg-white p-4 cursor-pointer transition-all ${
+        className={`fp-experience-card ${isSelected ? 'is-selected' : ''} group relative flex flex-col gap-2.5 rounded-xl border bg-white p-4 cursor-pointer transition-all ${
           isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-card-hover'
         }`}
       >
@@ -761,11 +762,11 @@ export default function ExperienceHub() {
       initialStep={tutorialInitialStep}
       onStepChange={setTutorialCurrentStep}
     />
-    <div className="animate-fadeIn max-w-[1320px] mx-auto">
+    <div className="fp-experience-desk animate-fadeIn max-w-[1320px] mx-auto">
       {/* ═══ 페이지 헤더 ═══ */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-5">
-          <div className="min-w-0">
+      <div className="fp-desk-heading mb-6">
+        <div className="fp-desk-hero flex flex-col sm:flex-row items-start justify-between gap-4 mb-5">
+          <div className="fp-desk-hero-copy min-w-0">
             <h1 className="text-[34px] font-extrabold text-gray-900 tracking-[-0.03em] leading-tight">경험 정리</h1>
             <p className="text-[16px] text-gray-500 mt-2 font-medium">
               {headerSummary.empty
@@ -790,7 +791,7 @@ export default function ExperienceHub() {
                 }
                 navigate('/app/experience/start');
               }}
-              className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
+              className="fp-desk-add flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
             >
               + 새 경험 추가
             </button>
@@ -827,7 +828,7 @@ export default function ExperienceHub() {
           </div>
         )}
         {/* 컨트롤 바 */}
-        {/* 컨트롤 바 — 전문 라인형 탭 (메인 네이비 밑줄로 섹션 구분) */}
+        {/* 서류 보관함과 같은 얇은 밑줄 탭 */}
         <div className="fp-experience-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* 뷰 탭 */}
           <div data-tour="experience-view-toggle" className="fp-experience-tabs flex flex-wrap items-center gap-1">
@@ -841,6 +842,7 @@ export default function ExperienceHub() {
               return (
                 <button
                   key={t.key}
+                  aria-pressed={active}
                   onClick={() => {
                     setViewMode(t.key);
                     if (t.key === 'resume' && tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
@@ -854,7 +856,7 @@ export default function ExperienceHub() {
           </div>
 
           {/* 우측 컨트롤 */}
-          <div className="flex items-center gap-2">
+          <div className="fp-desk-controls flex items-center gap-2">
             {viewMode === 'table' && (
               <select
                 value={compFilter}
@@ -914,10 +916,10 @@ export default function ExperienceHub() {
         <>
           {/* ═══ 간트 타임라인 ═══ */}
           {viewMode === 'timeline' && ganttData && (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="fp-desk-timeline fp-desk-surface bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               {/* 타임라인 헤더 */}
-              <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
-                <div className="flex items-center gap-3">
+              <div className="fp-desk-panel-header px-6 py-5 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
+                <div className="fp-desk-timeline-title flex items-center gap-3">
                   {/* 년도 드롭다운 */}
                   <div className="relative" ref={yearDropdownRef}>
                     <button
@@ -950,7 +952,7 @@ export default function ExperienceHub() {
                   </span>
                 </div>
                 {/* 팔레트 선택 */}
-                <div className="flex items-center gap-1.5">
+                <div className="fp-desk-palettes flex items-center gap-1.5">
                   {[
                     { key: 'blue',  colors: ['bg-primary-600', 'bg-white border border-primary-200', 'bg-surface-200'] },
                     { key: 'green', colors: ['bg-caribbean-600', 'bg-white border border-caribbean-200', 'bg-surface-200'] },
@@ -958,6 +960,8 @@ export default function ExperienceHub() {
                   ].map(p => (
                     <button
                       key={p.key}
+                      aria-label={`${p.key === 'green' ? '초록' : p.key === 'dark' ? '진한 회색' : '기본'} 타임라인 색상`}
+                      aria-pressed={colorPalette === p.key}
                       onClick={() => setColorPalette(p.key)}
                       className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
                         colorPalette === p.key ? 'border-primary-600 shadow-sm scale-110' : 'border-transparent hover:border-surface-300 opacity-60 hover:opacity-100'
@@ -971,7 +975,7 @@ export default function ExperienceHub() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-6 py-3">
+              <div className="fp-desk-category-filters flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-6 py-3">
                 <span className="mr-1 text-[11.5px] font-extrabold uppercase tracking-[0.12em] text-gray-300">활동 유형</span>
                 <button
                   type="button"
@@ -1189,8 +1193,8 @@ export default function ExperienceHub() {
 
           {/* ═══ 날짜 미입력 경험 — 기간 입력 시 타임라인에 자동 편입 ═══ */}
           {viewMode === 'timeline' && filteredUndatedExperiences.length > 0 && (
-            <div className="mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-              <div className="px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
+            <div className="fp-desk-undated fp-desk-surface mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+              <div className="fp-desk-panel-header px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
                 <span className="h-3.5 w-1 rounded-full bg-primary-600" />
                 <span className="text-[15px] font-bold text-bluewood-800">날짜 미입력 경험</span>
                 <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
@@ -1233,6 +1237,7 @@ export default function ExperienceHub() {
                       return (
                         <button
                           key={it.key}
+                          aria-pressed={on}
                           onClick={() => setActiveFolder(it.key)}
                           className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[13.5px] font-semibold transition-colors ${
                             on ? 'bg-primary-50 text-primary-700' : 'text-bluewood-600 hover:bg-gray-50'
@@ -2473,7 +2478,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
 
 function EmptyState({ onAdd }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+    <div className="fp-desk-empty flex flex-col items-center justify-center py-24 px-8 text-center">
       <FileCat variant="sleepy" file="document" className="mb-7 h-36 w-44" />
 
       <h3 className="text-[24px] font-extrabold text-gray-900 mb-3 tracking-tight">첫 경험을 기록해보세요</h3>

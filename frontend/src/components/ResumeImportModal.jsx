@@ -9,7 +9,7 @@ import { importFileUpload } from '../services/importAI';
 import { buildDraftStructuredResult } from '../utils/experienceDraft';
 
 /* 이력서·포트폴리오 한 부에서 경험을 여러 개 뽑아 한 번에 경험 정리에 넣는다.
-   AI가 뽑은 목록은 사용자가 고른 것만 저장하고, 각 경험은 '확인 필요' 초안으로 남긴다. */
+   추출한 목록은 사용자가 고른 것만 저장하고, 각 경험은 '확인 필요' 초안으로 남긴다. */
 
 const normalizeTitle = value => String(value || '').replace(/\s+/g, '').toLowerCase();
 
@@ -24,12 +24,14 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
   const { ref: panelRef, backdropProps } = useModalBehavior(!embedded, () => { if (!busy) onClose(); });
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(new Set());
+  const [reviewWarning, setReviewWarning] = useState('');
 
   const existingTitles = new Set(experiences.map(exp => normalizeTitle(exp.title)));
 
   const analyze = async () => {
     if (!file) return;
     setStep('analyzing');
+    setReviewWarning('');
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -46,6 +48,7 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
         return;
       }
       setItems(found);
+      setReviewWarning(structured?.processing?.warning || '');
       const knownTitles = new Set(useExperienceStore.getState().experiences.map(exp => normalizeTitle(exp.title)));
       setSelected(new Set(found.map((item, i) => (knownTitles.has(normalizeTitle(item.title)) ? null : i)).filter(i => i !== null)));
       setStep('review');
@@ -180,6 +183,9 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
               <p className="text-[12px] text-gray-400 leading-relaxed">
                 문서에 적힌 내용만 옮겨요. 없는 성과는 지어내지 않으니, 저장 후 각 경험을 열어 빈 부분을 채워주세요.
               </p>
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                텍스트 정리는 크레딧 없이 먼저 진행해요. 경험 구분이 어려운 문서나 스캔·이미지를 읽을 때만 AI 크레딧이 사용될 수 있어요.
+              </p>
             </div>
           )}
 
@@ -194,6 +200,8 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
           )}
 
           {step === 'review' && (
+            <>
+            {reviewWarning && <p role="status" className="mx-4 mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">{reviewWarning}</p>}
             <ul className="p-4 space-y-2">
               {items.map((item, i) => {
                 const duplicate = existingTitles.has(normalizeTitle(item.title));
@@ -218,6 +226,7 @@ export default function ResumeImportModal({ onClose, onImported = onClose, embed
                 );
               })}
             </ul>
+            </>
           )}
         </div>
 

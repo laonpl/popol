@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminDb } from '../config/firebase.js';
 
@@ -61,6 +61,7 @@ router.put('/', authMiddleware, async (req, res, next) => {
     const prev = snap.exists ? snap.data() : {};
     const folder = {
       userId: req.user.uid,
+      boardId: prev.boardId || (snap.exists ? ref.id : randomUUID()),
       company,
       files: req.body.files !== undefined ? cleanFiles(req.body.files) : (prev.files || []),
       essays: req.body.essays !== undefined ? cleanEssays(req.body.essays) : (prev.essays || []),
@@ -104,6 +105,7 @@ router.post('/rename', authMiddleware, async (req, res, next) => {
       const b = folder || {};
       folder = {
         userId: uid,
+        boardId: b.boardId || (toSnap.exists ? toRef.id : (a.boardId || fromRef.id)),
         company: to,
         files: [...(b.files || []), ...(a.files || [])].slice(0, MAX_FILES),
         essays: [...(b.essays || []), ...(a.essays || [])].slice(0, MAX_ESSAYS),

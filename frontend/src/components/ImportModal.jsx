@@ -87,7 +87,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
       setImportedData(imported);
       setStructuredData(structured);
       setStep('preview');
-      toast.success(structured ? 'AI가 문서를 분석하여 경험을 정리했습니다!' : '데이터를 가져왔습니다!');
+      toast.success(structured ? '문서를 분석하여 내용을 정리했습니다!' : '데이터를 가져왔습니다!');
     } catch (error) {
       toast.error(error.response?.data?.error || '임포트에 실패했습니다');
     }
@@ -141,18 +141,18 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     setImportedData(updated);
     setManualText('');
 
-    // PDF처럼 자동으로 AI 구조화 실행
+    // 붙여넣기도 파일 가져오기와 동일하게 로컬 우선으로 정리한다.
     if (targetType) {
       setStructuring(true);
       try {
-        const data = await structureImportedData(updated, targetType);
+        const data = await structureImportedData(updated, targetType, { preferLocal: true });
         setStructuredData(data.structured);
-        toast.success('AI 구조화가 완료되었습니다!');
+        toast.success('내용을 정리했습니다. 원문과 함께 확인해주세요.');
       } catch (error) {
         if (error.response?.status === 429) {
           toast.error('AI 요청이 너무 많습니다. 10초 후 다시 시도해주세요.');
         } else {
-          toast.error('AI 구조화에 실패했습니다. 수동으로 편집할 수 있습니다.');
+          toast.error('내용 정리에 실패했습니다. 원문을 그대로 적용할 수 있습니다.');
         }
       }
       setStructuring(false);
@@ -224,7 +224,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
             <p className="text-xs text-gray-400 mt-0.5 truncate">
               {step === 'upload'
                 ? `${targetTypeLabel[targetType] || '경험'} 분석에 활용할 파일을 올려주세요`
-                : 'AI가 분석한 내용을 확인하고 적용하세요'}
+                : '정리된 내용을 원문과 함께 확인하고 적용하세요'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
@@ -468,7 +468,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
                         <Sparkles size={14} className="text-gray-700" />
-                        <p className="text-xs font-semibold text-gray-700">AI 구조화 결과</p>
+                        <p className="text-xs font-semibold text-gray-700">정리 결과</p>
                       </div>
                       <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
                         <p className="text-sm font-bold text-gray-800 mb-2">{structuredData.title}</p>
@@ -498,6 +498,12 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                           </div>
                         )}
                       </div>
+                      {structuredData.processing?.method === 'local' && (
+                        <button type="button" onClick={handleStructure} disabled={structuring}
+                          className="mt-3 text-xs font-semibold text-primary-600 disabled:opacity-40">
+                          {structuring ? '문장을 다듬고 있어요...' : 'AI로 문장 다듬기 (크레딧 사용)'}
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <button

@@ -8,6 +8,7 @@ import {
   importFromPDF,
   importFromFile,
   structureImportedContent,
+  LOCAL_FIRST_TYPES,
 } from '../services/importService.js';
 import { requireCredits } from '../services/billingService.js';
 
@@ -24,7 +25,8 @@ async function saveImportHistory(data) {
 const router = Router();
 
 function maybeRequireCredits(req, res, next) {
-  if (req.body?.targetType) return requireCredits(req, res, next);
+  // 규칙 기반으로 처리하는 타입은 크레딧이 없어도 된다. AI 폴백은 호출 시점에 크레딧을 따로 확인한다.
+  if (req.body?.targetType && !LOCAL_FIRST_TYPES.has(req.body.targetType)) return requireCredits(req, res, next);
   next();
 }
 
@@ -244,14 +246,17 @@ router.post('/text', authMiddleware, maybeRequireCredits, async (req, res, next)
 });
 
 // POST /api/import/structure - 이미 임포트된 내용을 AI로 구조화
-router.post('/structure', authMiddleware, requireCredits, async (req, res, next) => {
+router.post('/structure', authMiddleware, (req, res, next) => (
+  req.body?.preferLocal === true ? maybeRequireCredits(req, res, next) : requireCredits(req, res, next)
+), async (req, res, next) => {
   try {
     const { importedData, targetType } = req.body;
     if (!importedData || !targetType) {
       return res.status(400).json({ error: 'importedData와 targetType이 필요합니다' });
     }
 
-    const structured = await structureImportedContent(importedData, targetType);
+    // 붙여넣기 자동 정리는 로컬 우선, 'AI로 다듬기' 버튼은 명시적으로 AI 사용.
+    const structured = await structureImportedContent(importedData, targetType, { preferLocal: req.body.preferLocal === true });
     res.json({ structured });
   } catch (error) {
     if (error.status === 429 || error.message?.includes('429') || error.message?.includes('Resource has been exhausted')) {

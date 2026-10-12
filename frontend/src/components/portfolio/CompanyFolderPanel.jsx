@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { FileText, ScrollText, PenLine, Paperclip, Upload, Trash2, Plus, Loader2, ExternalLink, Check } from 'lucide-react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { ScrollText, PenLine, Paperclip, Upload, Trash2, Plus, Loader2, ExternalLink, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import ResumeExportModal from '../ResumeExportModal';
 
-// 기업 폴더 안쪽 — 포트폴리오(children) · 이력서 · 자소서 · 기타 서류를 한곳에서 관리한다.
+// 기업 폴더 안쪽 — 이력서 · 자소서 · 기타 서류를 관리한다. 포트폴리오는 위쪽 서류 보드에 나온다.
 // 파일은 /upload/document 로 올리고, 목록과 자소서 답변은 /company-folders 에 저장한다.
 
 const ACCEPT = '.pdf,.doc,.docx,.hwp,.hwpx,.txt,.md,.ppt,.pptx,.jpg,.jpeg,.png';
@@ -17,22 +17,40 @@ function formatSize(bytes) {
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export default function CompanyFolderPanel({ company, folder, portfolios, onSaved, onCreatePortfolio, children }) {
+export default forwardRef(function CompanyFolderPanel({ company, folder, portfolios, onSaved }, ref) {
   const files = folder?.files || [];
   const [essays, setEssays] = useState(folder?.essays || []);
-  const [essayState, setEssayState] = useState('idle'); // idle | saving | saved
+  const [essayState, setEssayState] = useState('idle'); // idle | saving | saved | error
   const [uploading, setUploading] = useState(null);     // 업로드 중인 category
   const [resumeFrom, setResumeFrom] = useState(null);   // 이력서로 만들 포트폴리오
   const saveTimer = useRef(null);
+  const pendingSave = useRef(null);
+  const saveQueue = useRef(Promise.resolve());
+  const revision = useRef(0);
+  const mounted = useRef(true);
 
-  // 다른 폴더로 바뀌면 자소서 편집 상태를 새로 불러온다.
+  useImperativeHandle(ref, () => ({
+    async flush() {
+      clearTimeout(saveTimer.current);
+      pendingSave.current?.();
+      return (await saveQueue.current) !== false;
+    },
+  }), []);
+
+  // The parent keys this editor by company. Late saves can refresh an untouched editor.
   useEffect(() => {
-    setEssays(folder?.essays || []);
-    setEssayState('idle');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company]);
+    if (revision.current === 0) setEssays(folder?.essays || []);
+  }, [folder?.essays]);
 
-  useEffect(() => () => clearTimeout(saveTimer.current), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(saveTimer.current);
+      // Switching folders must flush the last keystrokes, not discard the debounce.
+      pendingSave.current?.();
+    };
+  }, []);
 
   const save = async (patch) => {
     const { data } = await api.put('/company-folders', { company, ...patch });
@@ -74,15 +92,27 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
     setEssays(next);
     setEssayState('saving');
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try {
-        await save({ essays: next });
-        setEssayState('saved');
-      } catch {
-        setEssayState('idle');
-        toast.error('자소서를 저장하지 못했습니다');
-      }
-    }, 800);
+    const version = ++revision.current;
+    const flush = () => {
+      pendingSave.current = null;
+      // Requests stay in order even when a slow save overlaps the next edit.
+      saveQueue.current = saveQueue.current.then(async () => {
+        try {
+          await save({ essays: next });
+          if (mounted.current && revision.current === version) setEssayState('saved');
+          return true;
+        } catch {
+          if (mounted.current && revision.current === version) {
+            setEssayState('error');
+            pendingSave.current = flush;
+          }
+          toast.error(`${company} 자소서를 저장하지 못했습니다`);
+          return false;
+        }
+      });
+    };
+    pendingSave.current = flush;
+    saveTimer.current = setTimeout(flush, 800);
   };
   const patchEssay = (id, patch) => updateEssays(essays.map(e => (e.id === id ? { ...e, ...patch } : e)));
   const addEssay = () => updateEssays([...essays, { id: newId(), question: '', answer: '', limit: 0 }]);
@@ -96,20 +126,6 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
 
   return (
     <div className="space-y-5">
-      {/* 포트폴리오 */}
-      <Section
-        icon={FileText}
-        title="포트폴리오"
-        count={portfolios.length}
-        action={(
-          <button type="button" onClick={onCreatePortfolio} className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary-600 hover:text-primary-700">
-            <Plus size={14} /> 새 포트폴리오
-          </button>
-        )}
-      >
-        {portfolios.length ? children : <Empty text="이 기업용 포트폴리오가 아직 없어요." />}
-      </Section>
-
       {/* 이력서 */}
       <Section
         icon={ScrollText}
@@ -122,7 +138,7 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
                 포트폴리오로 이력서 만들기
               </button>
             )}
-            <UploadButton busy={uploading === 'resume'} onFile={f => upload('resume', f)} />
+            <UploadButton busy={!!uploading} onFile={f => upload('resume', f)} />
           </div>
         )}
       >
@@ -131,18 +147,19 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
 
       {/* 자소서 */}
       <Section
+        id="company-essays"
         icon={PenLine}
         title="자기소개서"
         count={essays.length + filesOf('coverLetter').length}
         action={(
           <div className="flex items-center gap-3">
-            <span className="text-[12px] text-bluewood-300">
-              {essayState === 'saving' ? '저장 중…' : essayState === 'saved' ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check size={12} /> 저장됨</span> : ''}
+            <span className="text-[12px] text-bluewood-300" role="status">
+              {essayState === 'saving' ? '저장 중…' : essayState === 'saved' ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check size={12} /> 저장됨</span> : essayState === 'error' ? <button type="button" className="text-red-600 underline" onClick={() => { setEssayState('saving'); pendingSave.current?.(); }}>저장 실패 · 다시 시도</button> : ''}
             </span>
             <button type="button" onClick={addEssay} className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary-600 hover:text-primary-700">
               <Plus size={14} /> 문항 추가
             </button>
-            <UploadButton busy={uploading === 'coverLetter'} onFile={f => upload('coverLetter', f)} />
+            <UploadButton busy={!!uploading} onFile={f => upload('coverLetter', f)} />
           </div>
         )}
       >
@@ -165,7 +182,7 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
         icon={Paperclip}
         title="기타 서류"
         count={filesOf('etc').length}
-        action={<UploadButton busy={uploading === 'etc'} onFile={f => upload('etc', f)} />}
+        action={<UploadButton busy={!!uploading} onFile={f => upload('etc', f)} />}
       >
         <FileList files={filesOf('etc')} onRemove={removeFile} emptyText="성적증명서, 자격증, 경력기술서 등을 함께 보관하세요." />
       </Section>
@@ -175,11 +192,11 @@ export default function CompanyFolderPanel({ company, folder, portfolios, onSave
       )}
     </div>
   );
-}
+});
 
-function Section({ icon: Icon, title, count, action, children }) {
+function Section({ id, icon: Icon, title, count, action, children }) {
   return (
-    <section className="fp-company-section rounded-2xl border border-surface-200 bg-white">
+    <section id={id} className="fp-company-section scroll-mt-24 rounded-2xl border border-surface-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-100 px-5 py-3.5">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-bluewood-800">
           <Icon size={16} className="text-bluewood-400" />
