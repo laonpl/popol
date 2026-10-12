@@ -111,7 +111,6 @@ export default function ExperienceInterview() {
           try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('targetType', 'experience');
             const data = await importFileUpload(formData);
             const content = data?.imported?.content || '';
             if (content.trim()) fileText += `\n\n--- ${file.name} ---\n${content.trim()}`;

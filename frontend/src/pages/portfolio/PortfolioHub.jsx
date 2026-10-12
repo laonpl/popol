@@ -1,47 +1,35 @@
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
 import BrandLoader from '../../components/BrandLoader';
-import FileCat from '../../components/FileCat';
 import {
-  Plus, FileText, Trash2, Edit, Download, Search, Star, ExternalLink, ChevronDown, ArrowUpDown,
-  Globe, Presentation, Link2, Loader2, X, Copy, Check, Wand2, Building2, LayoutGrid, FolderPlus, FolderX, MoreHorizontal,
+  Plus, FileText, Trash2, Edit, Download, Search, Star, ExternalLink, ArrowUpRight,
+  Globe, Presentation, Link2, Loader2, X, Copy, Check, Wand2, Folder, FolderOpen, MoreHorizontal,
+  ScrollText, PenLine, Paperclip, ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal, GripVertical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { db } from '../../config/firebase';
 import CompanyFolderPanel from '../../components/portfolio/CompanyFolderPanel';
+import FolderCatTransition from '../../components/portfolio/FolderCatTransition';
 import useAuthStore from '../../stores/authStore';
 import useAuthGate from '../../hooks/useAuthGate';
+import useDocumentBoard from '../../hooks/useDocumentBoard';
+import { applyDocumentBoard, documentMoveChanges } from '../../utils/documentBoard';
 import usePortfolioStore from '../../stores/portfolioStore';
 import DetailModal from '../../components/DetailModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import PortfolioReadinessBoard from '../../components/PortfolioReadinessBoard';
-import useExperienceStore from '../../stores/experienceStore';
+import './portfolio-hub.css';
+import './document-cabinet.css';
 
 /* ── 포트폴리오 종류 ──
    노션형·홈페이지는 공개 링크로, PPT는 파일 다운로드로 내보낸다. */
-// folder: 폴더 뒷판·앞판·글자색, sheet: 파일 카드 윗부분 색
 const KINDS = [
-  {
-    id: 'notion', label: '노션형', icon: FileText,
-    tile: 'bg-slate-100 text-slate-600',
-    hint: '공개 링크를 만들어 바로 공유할 수 있어요.',
-    folder: { back: '#8EA6CF', front: 'linear-gradient(160deg, #C3D2EC 0%, #A3B8DE 100%)', ink: '#1E3A66' },
-    sheet: '#EEF3FA',
-  },
-  {
-    id: 'ppt', label: 'PPT', icon: Presentation,
-    tile: 'bg-orange-50 text-orange-600',
-    hint: '만든 슬라이드를 PPTX 파일로 바로 내려받을 수 있어요.',
-    folder: { back: '#EBA066', front: 'linear-gradient(160deg, #FCD6B0 0%, #F4B67F 100%)', ink: '#7A3B0A' },
-    sheet: '#FDF3EA',
-  },
-  {
-    id: 'web', label: '홈페이지', icon: Globe,
-    tile: 'bg-violet-50 text-violet-600',
-    hint: '홈페이지를 발행하고 공개 링크로 공유할 수 있어요.',
-    folder: { back: '#A48DD8', front: 'linear-gradient(160deg, #D6CCF3 0%, #BBA9EA 100%)', ink: '#3F2A78' },
-    sheet: '#F4F0FC',
-  },
+  { id: 'notion', label: '노션형', icon: FileText },
+  { id: 'ppt', label: 'PPT', icon: Presentation },
+  { id: 'web', label: '홈페이지', icon: Globe },
 ];
 const KIND_BY_ID = Object.fromEntries(KINDS.map(k => [k.id, k]));
 
@@ -62,23 +50,6 @@ function normalizePortfolio(p) {
   return { ...p, outputType: 'ppt', pptLayoutId: LEGACY_PPT_TITLES.get(p.title) };
 }
 
-// 기업 폴더 색 — 기업명 해시로 고정 배정. 기업 미지정은 회색.
-const COMPANY_FOLDER_COLORS = [
-  { back: '#7FA7C9', front: 'linear-gradient(160deg, #C4DAEC 0%, #A1C0DD 100%)', ink: '#173E5E' },
-  { back: '#79B79A', front: 'linear-gradient(160deg, #C3E6D4 0%, #9ED0B7 100%)', ink: '#14482F' },
-  { back: '#D9A05B', front: 'linear-gradient(160deg, #F6D9B1 0%, #EDBF84 100%)', ink: '#6A3D08' },
-  { back: '#C98AA6', front: 'linear-gradient(160deg, #EFCCDB 0%, #DFA9C1 100%)', ink: '#5E1D3A' },
-  { back: '#9C90D0', front: 'linear-gradient(160deg, #D8D2F1 0%, #BBB1E6 100%)', ink: '#35297A' },
-  { back: '#6FB1B5', front: 'linear-gradient(160deg, #C0E3E4 0%, #98CFD2 100%)', ink: '#0F4A4D' },
-];
-const UNASSIGNED_FOLDER_COLOR = { back: '#A7B0BC', front: 'linear-gradient(160deg, #DDE2E8 0%, #C6CDD6 100%)', ink: '#3A4553' };
-function companyColor(name) {
-  if (!name) return UNASSIGNED_FOLDER_COLOR;
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
-  return COMPANY_FOLDER_COLORS[hash % COMPANY_FOLDER_COLORS.length];
-}
-
 // 미리보기 화면이 있는 노션형 템플릿 — 그 외(예전 방식)는 상세 모달로 연다.
 function hasNotionPreview(templateType) {
   return ['notion', 'ashley', 'academic', 'timeline'].includes(templateType)
@@ -87,6 +58,7 @@ function hasNotionPreview(templateType) {
 
 function toMillis(value) {
   if (!value) return 0;
+  if (typeof value === 'number') return value;
   if (typeof value.toMillis === 'function') return value.toMillis();
   if (typeof value.seconds === 'number') return value.seconds * 1000;
   if (typeof value._seconds === 'number') return value._seconds * 1000;
@@ -103,103 +75,281 @@ function formatDate(value) {
 
 const publicUrlOf = (p) => `${window.location.origin}/p/${p.customSlug || p.id}`;
 
+/* ── 서류 ──
+   포트폴리오 · 이력서 · 자기소개서를 한 형태로 모은다. company: 지원 기업('' = 미지정)
+   status: draft(작성 중) | done(완성) | public(공개 중) — 보드의 세 칸을 정한다. */
+const DOC_TYPES = [
+  { key: 'all', label: '전체' },
+  { key: 'portfolio', label: '포트폴리오' },
+  { key: 'resume', label: '이력서' },
+  { key: 'cover', label: '자기소개서' },
+  { key: 'etc', label: '기타 서류' },
+];
+
+const COLUMNS = [
+  { key: 'draft', title: '작성 중', description: '이어서 작성할 서류' },
+  { key: 'done', title: '완성', description: '제출하기 전 최종 확인' },
+  { key: 'public', title: '제출 · 공개', description: '제출했거나 공유한 서류' },
+];
+
+function portfolioDoc(p) {
+  const kind = kindOf(p);
+  const hasDeck = !!p.pptDeck?.slides?.length;
+  const status = kind === 'ppt' ? (hasDeck ? 'done' : 'draft') : (p.isPublic ? 'public' : 'draft');
+  const at = toMillis(p.updatedAt || p.createdAt);
+  return {
+    key: p.id, boardKey: `portfolio:${p.id}`, docType: 'portfolio', title: p.title || '제목 없음', company: (p.targetCompany || '').trim(),
+    icon: KIND_BY_ID[kind].icon, label: kind === 'ppt' && hasDeck ? `PPT · ${p.pptDeck.slides.length}장` : KIND_BY_ID[kind].label,
+    meta: at ? `${formatDate(at)} 수정` : '', updatedAt: at, status, favorite: !!p.isFavorite, portfolio: p,
+  };
+}
+
+// 답변이 있고 글자 수 제한을 넘지 않으면 완성한 문항
+const essayDone = (e) => !!(e.answer || '').trim() && !(e.limit > 0 && e.answer.length > e.limit);
+
+function folderDocs(f) {
+  const folderAt = toMillis(f.updatedAt);
+  const fileDoc = (file, docType) => {
+    const at = toMillis(file.uploadedAt) || folderAt;
+    return {
+      key: `${f.id}-${file.id}`, boardKey: `file:${file.id}`, docType, title: file.name, company: f.company, icon: Paperclip,
+      label: docType === 'resume' ? '이력서 파일' : docType === 'cover' ? '자소서 파일' : '첨부 파일', meta: at ? `${formatDate(at)} 올림` : '',
+      updatedAt: at, status: 'done', file,
+    };
+  };
+  const files = f.files || [];
+  const essays = f.essays || [];
+  const done = essays.filter(essayDone).length;
+  return [
+    ...files.filter(x => x.category === 'resume').map(x => fileDoc(x, 'resume')),
+    ...files.filter(x => x.category === 'coverLetter').map(x => fileDoc(x, 'cover')),
+    ...files.filter(x => x.category === 'etc').map(x => fileDoc(x, 'etc')),
+    ...(essays.length ? [{
+      key: `${f.id}-essays`, boardKey: `essays:${f.boardId || f.id}`, docType: 'cover', title: `${f.company} 자기소개서`, company: f.company, icon: PenLine,
+      label: '자기소개서', meta: `${essays.length}문항 중 ${done}문항 작성`, updatedAt: folderAt,
+      status: done === essays.length ? 'done' : 'draft', essays: true,
+    }] : []),
+  ];
+}
+
+// 기본 이력서 — 경험 정리 > 이력서 탭에서 만드는 사용자당 1개 이력서(profiles.careerProfile)
+function baseResumeDoc(profile) {
+  return {
+    key: 'base-resume', boardKey: 'base-resume', docType: 'resume', title: '기본 이력서', company: '', icon: ScrollText, label: '이력서',
+    meta: profile ? '경험 정리 › 이력서 탭' : '아직 만들지 않았어요', updatedAt: toMillis(profile?.updatedAt),
+    status: profile ? 'done' : 'draft', base: true,
+  };
+}
+
+const byFavoriteThenRecent = (a, b) => (b.favorite === true) - (a.favorite === true) || b.updatedAt - a.updatedAt;
+
 export default function PortfolioHub() {
   const { user } = useAuthStore();
   const { isGuest, requireAuth } = useAuthGate();
+  const board = useDocumentBoard(user?.uid);
   const { portfolios, fetchPortfolios, deletePortfolio, updatePortfolio, loading, loadError } = usePortfolioStore();
-  const { experiences, fetchExperiences } = useExperienceStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [detailData, setDetailData] = useState(null);
   const [shareTarget, setShareTarget] = useState(null);       // 링크 내보내기 모달 대상
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortMode, setSortMode] = useState('recent');
+  const [docType, setDocType] = useState('all');
   const [exportConfig, setExportConfig] = useState(location.state?.exportConfig || null);
-  const [viewMode, setViewMode] = useState('company');          // company: 기업별 | kind: 형식별
-  const [openCompany, setOpenCompany] = useState(location.state?.openCompany); // undefined: 첫 폴더 자동 열림, null: 모두 접힘 (이력서 저장함에서 오면 그 폴더)
-  const [openKind, setOpenKind] = useState('notion');
+  // 열린 폴더 id — null이면 첫 기업 폴더 (이력서 저장함에서 오면 그 기업 폴더)
+  const [selected, setSelected] = useState(location.state?.openCompany ? `c:${location.state.openCompany}` : null);
   const [folders, setFolders] = useState([]);                   // 기업 폴더(이력서·자소서)
-  const [sortDropOpen, setSortDropOpen] = useState(false);
+  const [baseResume, setBaseResume] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingFolderDelete, setPendingFolderDelete] = useState(null); // 삭제 확인 대기 중인 기업 폴더
   const [downloadingId, setDownloadingId] = useState(null);
-  const sortDropRef = useRef(null);
+  const [stage, setStage] = useState('all');
+  const [sort, setSort] = useState('manual');
+  const [managing, setManaging] = useState(false);
+  const folderEditorRef = useRef(null);
+  const cabinetRef = useRef(null);
+  const folderSwitchRef = useRef(0);
+  const [cabinetWidth, setCabinetWidth] = useState(1180);
+  const [switchingTo, setSwitchingTo] = useState(null);
+  const [folderMotion, setFolderMotion] = useState(null);
+  const [cabinetHeight, setCabinetHeight] = useState(480);
+  const frozenScroll = useRef([]);
 
   useEffect(() => {
     if (user?.uid) {
       fetchPortfolios(user.uid);
-      fetchExperiences(user.uid);
       api.get('/company-folders').then(({ data }) => setFolders(Array.isArray(data) ? data : [])).catch(() => {});
+      getDoc(doc(db, 'profiles', user.uid))
+        .then(snap => setBaseResume(snap.exists() ? (snap.data().careerProfile || null) : null))
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
-  useEffect(() => {
-    const h = (e) => {
-      if (sortDropRef.current && !sortDropRef.current.contains(e.target)) setSortDropOpen(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
   // 비로그인은 목록을 렌더하지 않는다. 스토어는 그대로 두므로 로그인 사용자의 데이터에 영향이 없다.
   const visiblePortfolios = (isGuest ? [] : portfolios).map(normalizePortfolio);
   const visibleFolders = isGuest ? [] : folders;
+  const docs = applyDocumentBoard([...visiblePortfolios.map(portfolioDoc), ...visibleFolders.flatMap(folderDocs)].sort(byFavoriteThenRecent), board.entries);
 
+  // 저장할 때 폴더 위치가 바뀌지 않도록 기업명순을 유지한다.
+  const companyNames = [...new Set([...visibleFolders.map(f => f.company), ...docs.map(d => d.company)].filter(Boolean))];
+  const companyFolders = companyNames.map(name => {
+    const folder = visibleFolders.find(f => f.company === name) || null;
+    const list = docs.filter(d => d.company === name);
+    return { id: `c:${name}`, name, company: name, folder, docs: list, at: Math.max(toMillis(folder?.updatedAt), ...list.map(d => d.updatedAt)) };
+  }).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+  const allFolders = [
+    ...(isGuest ? [] : [{ id: 'base', name: '기본 서류', docs: applyDocumentBoard([baseResumeDoc(baseResume)], board.entries) }]),
+    ...companyFolders,
+    { id: 'none', name: '기업 미지정', docs: docs.filter(d => !d.company) },
+  ];
   const q = searchQuery.trim().toLowerCase();
-  const searched = visiblePortfolios.filter(p => !q || (
-    p.title?.toLowerCase().includes(q) ||
-    p.targetCompany?.toLowerCase().includes(q) ||
-    p.targetPosition?.toLowerCase().includes(q)
-  ));
-  const byRecent = (a, b) => toMillis(b.createdAt) - toMillis(a.createdAt);
-  const sortCards = (list) => [...list].sort((a, b) => {
-    if (sortMode === 'favorites' && !!a.isFavorite !== !!b.isFavorite) return a.isFavorite ? -1 : 1;
-    return byRecent(a, b);
-  });
+  const matches = (text) => !q || (text || '').toLowerCase().includes(q);
+  const cabinet = allFolders.filter(f => matches(f.name) || f.docs.some(d => matches(d.title)));
+  const current = cabinet.find(f => f.id === selected) || cabinet[0] || null;
+  const activeIndex = cabinet.indexOf(current);
+  const compactCabinet = window.matchMedia('(max-width: 760px)').matches;
+  const panelWidth = compactCabinet ? Math.max(200, cabinetWidth - 50) : Math.max(640, cabinetWidth - cabinet.length * 56);
+  const visibleDocs = (current?.docs || [])
+    .filter(d => (docType === 'all' || d.docType === docType) && (matches(current.name) || matches(d.title)))
+    .sort(sort === 'name' ? (a, b) => a.title.localeCompare(b.title, 'ko') : sort === 'recent' ? byFavoriteThenRecent : (a, b) => a.order - b.order || byFavoriteThenRecent(a, b));
 
-  // 형식별 폴더
-  const byKind = KINDS.reduce((acc, k) => ({ ...acc, [k.id]: searched.filter(p => kindOf(p) === k.id).sort(byRecent) }), {});
+  useEffect(() => {
+    setStage('all');
+    setManaging(false);
+    // Search, renaming and deletion can change the active folder without a handoff.
+    setFolderMotion(motion => motion?.folderId === current?.id ? motion : null);
+  }, [current?.id]);
 
-  // 기업별 폴더 — 포트폴리오의 지원 기업 + 직접 만든 기업 폴더. 최근 활동순, '기업 미지정'은 맨 뒤.
-  const companyMap = new Map();
-  const ensureCompany = (name) => {
-    if (!companyMap.has(name)) companyMap.set(name, { key: name, portfolios: [], folder: null });
-    return companyMap.get(name);
+  useEffect(() => () => { folderSwitchRef.current += 1; }, []);
+
+  useEffect(() => {
+    const container = cabinetRef.current;
+    if (!container) return undefined;
+    const observer = new ResizeObserver(([entry]) => setCabinetWidth(entry.contentRect.width));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [loading, !!current]);
+
+  useEffect(() => {
+    const container = cabinetRef.current;
+    const main = container?.closest('main');
+    if (!container || !main) return undefined;
+    const measure = () => {
+      const mainTop = main.getBoundingClientRect().top;
+      const cabinetTop = container.getBoundingClientRect().top - mainTop + main.scrollTop;
+      const hub = container.closest('.ws');
+      const footer = hub?.querySelector('.ws-cabinet-footer');
+      const number = value => parseFloat(value) || 0;
+      const footerSpace = footer ? footer.getBoundingClientRect().height + number(getComputedStyle(footer).marginTop) : 0;
+      const bottomSpace = footerSpace + number(getComputedStyle(hub).paddingBottom)
+        + number(getComputedStyle(hub.parentElement).paddingBottom) + 8;
+      // Use the available workspace directly, including the footer and page
+      // gutters. Narrow screens retain enough room for a complete document card.
+      const available = main.clientHeight - cabinetTop - bottomSpace;
+      setCabinetHeight(Math.max(compactCabinet ? 520 : 420, Math.min(680, available)));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(main);
+    container.closest('.ws')?.querySelectorAll('.ws-header, .ws-toolbar, .ws-section-label').forEach(element => observer.observe(element));
+    window.addEventListener('resize', measure);
+    measure();
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+  }, [loading, !!current, compactCabinet, exportConfig, isGuest]);
+
+  const restoreDragScrolling = () => {
+    frozenScroll.current.forEach(({ element, overflow }) => { element.style.overflow = overflow; });
+    frozenScroll.current = [];
   };
-  searched.forEach(p => ensureCompany((p.targetCompany || '').trim()).portfolios.push(p));
-  visibleFolders.forEach(f => {
-    if (!q || f.company.toLowerCase().includes(q) || companyMap.has(f.company)) ensureCompany(f.company).folder = f;
-  });
-  const lastActivity = (g) => Math.max(0, ...g.portfolios.map(p => toMillis(p.createdAt)), toMillis(g.folder?.updatedAt));
-  const companyGroups = [...companyMap.values()]
-    .map(g => ({ ...g, portfolios: g.portfolios.sort(byRecent) }))
-    .sort((a, b) => (a.key === '') - (b.key === '') || lastActivity(b) - lastActivity(a));
+  useEffect(() => () => restoreDragScrolling(), []);
 
-  const activeCompanyKey = openCompany === undefined ? companyGroups[0]?.key : openCompany;
-  const activeCompany = companyGroups.find(g => g.key === activeCompanyKey) || null;
-  const activeMeta = openKind ? KIND_BY_ID[openKind] : null;
-  const toggleCompany = (key) => setOpenCompany(activeCompanyKey === key ? null : key);
-  const toggleKind = (id) => setOpenKind(openKind === id ? null : id);
+  const captureDragScrolling = () => {
+    setFolderMotion(null);
+    restoreDragScrolling();
+    const container = cabinetRef.current;
+    [container, container?.closest('main'), container?.querySelector('.ws-board')].filter(Boolean).forEach(element => {
+      frozenScroll.current.push({ element, overflow: element.style.overflow });
+      element.style.overflow = 'hidden';
+    });
+  };
+
+  const moveDocument = async (document, destination, index) => {
+    if (!board.ready || isGuest || exportConfig) return;
+    if (document.status === destination && index === undefined) return;
+    const target = sort === 'manual' ? visibleDocs : [...visibleDocs].sort((a, b) => a.order - b.order);
+    const changes = documentMoveChanges(document, destination, index, target, current?.docs || target);
+    if (!changes.length) return;
+    const changedKeys = new Set(changes.map(change => change.key));
+    // Freeze the inferred initial order once the user starts arranging a folder.
+    // Later edits, favourites and new documents cannot reshuffle existing cards.
+    const initialPositions = (current?.docs || [])
+      .filter(item => !changedKeys.has(item.boardKey) && !board.entries[item.boardKey])
+      .map(item => ({ key: item.boardKey, status: item.status, order: item.order }));
+    const success = await board.update([...initialPositions, ...changes]);
+    if (!success) toast.error('서류 이동을 저장하지 못했어요. 다시 시도해 주세요.');
+  };
+
+  useEffect(() => {
+    const container = cabinetRef.current;
+    if (!container) return undefined;
+    // Wait for the accordion width to settle; only scroll its own horizontal viewport.
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = setTimeout(() => {
+      const spine = container.querySelector('.ws-folder-slot.is-open');
+      if (!spine) return;
+      const left = spine.offsetLeft;
+      const right = left + spine.offsetWidth;
+      if (left < container.scrollLeft || right > container.scrollLeft + container.clientWidth + 1) {
+        container.scrollTo({ left: Math.max(0, left - (compactCabinet ? 0 : 12)), behavior: reduced ? 'instant' : 'smooth' });
+      }
+    }, reduced ? 0 : 280);
+    return () => clearTimeout(timer);
+  }, [current?.id, cabinetWidth, cabinet.length, compactCabinet]);
+
+  const selectFolder = async (id) => {
+    const request = ++folderSwitchRef.current;
+    if (id === current?.id) { setSwitchingTo(null); return; }
+    setSwitchingTo(id);
+    const saved = await folderEditorRef.current?.flush();
+    if (request !== folderSwitchRef.current) return;
+    setSwitchingTo(null);
+    if (saved === false) { setManaging(true); return; }
+    setSelected(id);
+    setFolderMotion({ request, folderId: id, direction: cabinet.findIndex(folder => folder.id === id) < activeIndex ? -1 : 1 });
+    setDocType('all');
+    setStage('all');
+  };
+
+  const onFolderKeyDown = (event, index) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? cabinet.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + cabinet.length) % cabinet.length;
+    cabinetRef.current?.querySelectorAll('.ws-folder-item')[next]?.focus({ preventScroll: true });
+    selectFolder(cabinet[next].id);
+  };
 
   const upsertFolder = (f) => setFolders(prev => [...prev.filter(x => x.id !== f.id), f]);
   const createCompanyFolder = async (name) => {
     const company = name.trim();
-    if (!company) return;
+    if (!company) return false;
+    if (companyNames.includes(company)) { toast('이미 있는 기업 폴더예요'); return false; }
     try {
       const { data } = await api.put('/company-folders', { company });
       upsertFolder(data);
       setSearchQuery('');
-      setOpenCompany(company);
+      setSelected(`c:${company}`);
+      return true;
     } catch {
       toast.error('기업 폴더를 만들지 못했습니다');
+      return false;
     }
   };
   // 기업명 변경 — 포트폴리오의 지원 기업과 이력서·자소서 폴더를 서버에서 한 번에 옮긴다.
   const renameCompanyFolder = async (from, rawTo) => {
     const to = rawTo.trim();
     if (!to || to === from) return true;
-    if (companyGroups.some(g => g.key === to)
+    if (await folderEditorRef.current?.flush() === false) return false;
+    if (companyNames.includes(to)
       && !window.confirm(`"${to}" 폴더가 이미 있어요. 두 폴더를 합칠까요?`)) return false;
     try {
       const { data } = await api.post('/company-folders/rename', { from, to });
@@ -208,7 +358,7 @@ export default function PortfolioHub() {
         return data.folder ? [...rest, data.folder] : rest;
       });
       await fetchPortfolios(user.uid);
-      if (activeCompanyKey === from) setOpenCompany(to); // 열려 있던 폴더면 새 이름으로 계속 열어 둔다
+      if (current?.company === from) setSelected(`c:${to}`); // 열려 있던 폴더면 새 이름으로 계속 열어 둔다
       toast.success('기업명을 바꿨습니다');
       return true;
     } catch {
@@ -219,18 +369,19 @@ export default function PortfolioHub() {
 
   // 기업 폴더 삭제 — 이력서·자소서는 지우고, 포트폴리오는 '기업 미지정'으로 옮긴다.
   const deleteCompanyFolder = async (company) => {
+    if (await folderEditorRef.current?.flush() === false) return;
     try {
       const { data } = await api.post('/company-folders/delete', { company });
       setFolders(prev => prev.filter(x => x.id !== data.fromId));
       await fetchPortfolios(user.uid);
-      if (activeCompanyKey === company) setOpenCompany(null);
+      if (current?.company === company) setSelected(null);
       toast.success('폴더를 삭제했습니다');
     } catch {
       toast.error('폴더를 삭제하지 못했습니다');
     }
   };
 
-  // ── 행 동작 ──
+  // ── 서류 동작 ──
   const openPortfolio = (p) => {
     if (exportConfig) return navigate(`/app/portfolio/edit-notion/${p.id}`, { state: { exportConfig } });
     const kind = kindOf(p);
@@ -238,6 +389,17 @@ export default function PortfolioHub() {
     if (kind === 'ppt') return navigate(pptPageUrl(p));
     if (hasNotionPreview(p.templateType)) return navigate(`/app/portfolio/preview/${p.id}`);
     setDetailData(p);
+  };
+
+  const openDoc = (d) => {
+    if (d.portfolio) return openPortfolio(d.portfolio);
+    if (d.file) return window.open(d.file.url, '_blank', 'noopener,noreferrer');
+    if (d.base) return navigate('/app/experience?view=resume');
+    // 자소서 문항은 보드 아래 편집 영역에서 쓴다.
+    setManaging(true);
+    requestAnimationFrame(() => {
+      document.getElementById('company-essays')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    });
   };
 
   const editPortfolio = (p) => navigate(kindOf(p) === 'web' ? `/app/portfolio/web-edit/${p.id}` : `/app/portfolio/edit-notion/${p.id}`);
@@ -276,55 +438,59 @@ export default function PortfolioHub() {
     setShareTarget(prev => (prev && prev.id === p.id ? { ...prev, ...patch } : prev));
   };
 
-  const renderCards = (list) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {list.map(p => (
-        <PortfolioFileCard
-          key={p.id}
-          portfolio={p}
-          kind={KIND_BY_ID[kindOf(p)]}
-          exportMode={!!exportConfig}
-          downloading={downloadingId === p.id}
-          onOpen={() => openPortfolio(p)}
-          onEdit={() => editPortfolio(p)}
-          onShare={() => setShareTarget(p)}
-          onDownload={() => downloadPpt(p)}
-          onMakePpt={() => navigate(pptPageUrl(p, { autostart: true }))}
-          onToggleFavorite={() => updatePortfolio(p.id, { isFavorite: !p.isFavorite })}
-          onDelete={() => setPendingDelete(p)}
-        />
-      ))}
-    </div>
-  );
+  // 카드 ⋯ 메뉴 — 경험 내보내기 중에는 카드를 눌러 추가만 한다.
+  const actionsOf = (d) => {
+    const p = d.portfolio;
+    if (!p || exportConfig) return null;
+    const isPpt = kindOf(p) === 'ppt';
+    return [
+      isPpt
+        ? (p.pptDeck?.slides?.length
+          ? { label: downloadingId === p.id ? 'PPT 내려받는 중…' : 'PPT 다운로드', icon: Download, run: () => downloadPpt(p) }
+          : { label: 'PPT 만들기', icon: Wand2, run: () => navigate(pptPageUrl(p, { autostart: true })) })
+        : { label: '링크 내보내기', icon: Link2, run: () => setShareTarget(p) },
+      { label: '내용 편집', icon: Edit, run: () => editPortfolio(p) },
+      { label: p.isFavorite ? '즐겨찾기 해제' : '즐겨찾기', icon: Star, run: () => updatePortfolio(p.id, { isFavorite: !p.isFavorite }) },
+      { label: '삭제', icon: Trash2, danger: true, run: () => setPendingDelete(p) },
+    ];
+  };
+
+  const createPortfolio = (company) => requireAuth(() => navigate('/app/portfolio/new', company ? { state: { targetCompany: company } } : undefined));
+
+  const folderButton = (folder, index) => {
+    const active = folder.id === current?.id;
+    const Icon = active ? FolderOpen : Folder;
+    return (
+      <button type="button" className={`ws-folder-item ${active ? 'is-open' : ''}`} aria-expanded={active} aria-label={`${folder.name}, 서류 ${folder.docs.length}개`} aria-controls={active ? 'cabinet-documents' : undefined} onClick={() => selectFolder(folder.id)} onKeyDown={event => onFolderKeyDown(event, index)} title={folder.name}>
+        <span className="ws-spine-number">{String(index + 1).padStart(2, '0')}</span>
+        {switchingTo === folder.id ? <Loader2 size={19} className="animate-spin" /> : <Icon size={19} strokeWidth={1.5} />}
+        <span className="ws-folder-name">{folder.name}</span>
+        <span className="ws-folder-count">{folder.docs.length}</span>
+      </button>
+    );
+  };
+
+  const count = (type) => current.docs.filter(d => d.docType === type).length;
+  const missing = current?.company
+    ? [['portfolio', '포트폴리오'], ['resume', '이력서'], ['cover', '자소서']].filter(([type]) => !count(type)).map(([, label]) => label)
+    : [];
 
   return (
-    <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-        <div className="min-w-0">
-          <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">포트폴리오</h1>
-          <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-primary-600 font-bold">{visiblePortfolios.length}</span>개의 포트폴리오가 있습니다
-          </p>
+    <div className="ws fp-portfolio-hub">
+      <header className="ws-header">
+        <div>
+          <h1>서류 보관함</h1>
+          <p>지원할 기업을 고르고, 필요한 서류를 꺼내 보세요.</p>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
-          <button
-            type="button"
-            onClick={() => requireAuth(() => navigate('/app/portfolio/new'))}
-            className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-3 sm:px-4 py-2.5 text-[14px] font-semibold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-600"
-          >
-            <Plus size={16} />
-            빠르게 만들기
+        <div className="ws-header-actions">
+          <button type="button" className="ws-btn" onClick={() => createPortfolio()}>
+            <Plus size={17} /> 빠르게 만들기
           </button>
-          <button
-            type="button"
-            onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
-            className="flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
-          >
-            <Plus size={16} />
-            포트폴리오 플랜
+          <button type="button" className="ws-btn ws-btn--primary" onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}>
+            <Plus size={17} /> 포트폴리오 만들기
           </button>
         </div>
-      </div>
+      </header>
 
       {/* 비로그인 안내 — 화면은 보되 저장·생성은 로그인 후 */}
       {isGuest && (
@@ -358,12 +524,6 @@ export default function PortfolioHub() {
         </div>
       )}
 
-      {!isGuest && (
-        <div className="mb-6">
-          <PortfolioReadinessBoard experiences={experiences} compact />
-        </div>
-      )}
-
       {/* 경험 내보내기 배너 */}
       {exportConfig && (
         <div className="mb-5 flex items-center gap-4 px-5 py-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
@@ -381,198 +541,129 @@ export default function PortfolioHub() {
         </div>
       )}
 
+      <div className="ws-toolbar">
+        <div className="ws-tabs" role="group" aria-label="서류 종류">
+          {DOC_TYPES.map(t => <button key={t.key} type="button" aria-pressed={docType === t.key} onClick={() => { setDocType(t.key); setStage('all'); }}>{t.label}</button>)}
+        </div>
+        <div className="ws-filter-tools">
+          <label className="ws-search">
+            <Search size={17} />
+            <input type="search" aria-label="기업 또는 서류 검색" placeholder="기업·서류 검색" value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setStage('all'); }} />
+            {searchQuery && <button type="button" aria-label="검색 지우기" onClick={() => setSearchQuery('')}><X size={15} /></button>}
+          </label>
+        </div>
+      </div>
+
+      <div className="ws-section-label">
+        <span>내 폴더 <b>{allFolders.length}</b></span>
+        {folderMotion?.folderId === current?.id && (
+          <span className="ws-folder-mascot" aria-hidden="true" data-folder-id={folderMotion.folderId}>
+            <FolderCatTransition
+              key={folderMotion.request}
+              direction={folderMotion.direction}
+              onComplete={() => setFolderMotion(motion => motion?.request === folderMotion.request ? null : motion)}
+            />
+          </span>
+        )}
+        <div className="ws-section-actions">
+          {current && <div className="ws-folder-pagination"><span>{String(activeIndex + 1).padStart(2, '0')} <i>/ {String(cabinet.length).padStart(2, '0')}</i></span>
+            <button type="button" aria-label="이전 폴더" disabled={activeIndex <= 0} onClick={() => selectFolder(cabinet[activeIndex - 1].id)}><ChevronLeft size={16} /></button>
+            <button type="button" aria-label="다음 폴더" disabled={activeIndex >= cabinet.length - 1} onClick={() => selectFolder(cabinet[activeIndex + 1].id)}><ChevronRight size={16} /></button>
+          </div>}
+          {!isGuest && <NewCompanyFolder onCreate={createCompanyFolder} />}
+        </div>
+      </div>
+
       {loading ? (
         <BrandLoader label="포트폴리오를 불러오는 중" />
-      ) : visiblePortfolios.length === 0 && visibleFolders.length === 0 ? (
-        <div className="text-center py-20">
-          <FileCat variant="sleepy" file="portfolio" className="mx-auto mb-4 h-32 w-40" />
-          <h3 className="text-[18px] font-bold text-primary-600 mb-2">아직 포트폴리오가 없습니다</h3>
-          <p className="text-bluewood-400 text-[14px] mb-6">경험을 먼저 정리한 후 포트폴리오를 작성해보세요</p>
-          <button
-            onClick={() => requireAuth(() => navigate('/app/portfolio/plan'))}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors"
-          >
-            <Plus size={16} /> 첫 포트폴리오 만들기
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* 보기 전환 + 검색·정렬 */}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <div className="flex items-center gap-1 p-1 bg-white border border-surface-200 rounded-xl">
-              {[
-                { id: 'company', label: '기업별', icon: Building2 },
-                { id: 'kind', label: '형식별', icon: LayoutGrid },
-              ].map(v => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => setViewMode(v.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13.5px] font-semibold transition-colors ${
-                    viewMode === v.id ? 'bg-primary-600 text-white' : 'text-bluewood-500 hover:bg-surface-50 hover:text-bluewood-700'
-                  }`}
-                >
-                  <v.icon size={14} /> {v.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[13px] text-bluewood-400">
-              {viewMode === 'company'
-                ? '지원하는 기업마다 포트폴리오·이력서·자소서를 한 폴더에 모아요.'
-                : '노션형·PPT·홈페이지 형식별로 모아 봐요.'}
-            </p>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <div className="relative w-[220px]">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="제목·기업 검색"
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-surface-200 rounded-lg text-[13px] text-bluewood-700 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-bluewood-300 transition-all"
-                />
-              </div>
-              <div className="relative" ref={sortDropRef}>
-                <button
-                  onClick={() => setSortDropOpen(v => !v)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-600 hover:border-surface-300 transition-colors"
-                >
-                  <ArrowUpDown size={13} />
-                  {sortMode === 'recent' ? '최신순' : '즐겨찾기순'}
-                  <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {sortDropOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-30 py-1 min-w-[120px]">
-                    {[{ value: 'recent', label: '최신순' }, { value: 'favorites', label: '즐겨찾기순' }].map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => { setSortMode(opt.value); setSortDropOpen(false); }}
-                        className={`w-full text-left px-3 py-2 text-[13px] font-medium transition-colors ${
-                          sortMode === opt.value ? 'text-primary-600 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {viewMode === 'company' ? (
-            <>
-              {/* 기업 폴더 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                {companyGroups.map(g => {
-                  const files = g.folder?.files || [];
-                  const essayCount = (g.folder?.essays || []).length + files.filter(f => f.category === 'coverLetter').length;
-                  const resumeCount = files.filter(f => f.category === 'resume').length;
-                  return (
-                    <Folder
-                      key={g.key || '__none'}
-                      label={g.key || '기업 미지정'}
-                      icon={g.key ? Building2 : FolderX}
-                      colors={companyColor(g.key)}
-                      count={g.portfolios.length + resumeCount + essayCount}
-                      subtitle={g.key ? `포트폴리오 ${g.portfolios.length} · 이력서 ${resumeCount} · 자소서 ${essayCount}` : `포트폴리오 ${g.portfolios.length}`}
-                      papers={[
-                        ...g.portfolios.map(p => p.title || '제목 없음'),
-                        ...files.map(f => f.name),
-                        ...(g.folder?.essays || []).map(e => e.question || '자기소개서'),
-                      ].slice(0, 3)}
-                      active={activeCompanyKey === g.key}
-                      onClick={() => toggleCompany(g.key)}
-                      onRename={g.key ? (to) => renameCompanyFolder(g.key, to) : null}
-                      onDelete={g.key ? () => setPendingFolderDelete(g) : null}
-                    />
-                  );
-                })}
-                {/* 폴더를 열어 둔 동안은 숨기고, 접으면 다시 보인다 */}
-                {!activeCompany && <NewCompanyFolder onCreate={createCompanyFolder} existing={companyGroups.map(g => g.key)} />}
-              </div>
-
-              {activeCompany ? (
-                <div className="animate-fadeIn">
-                  <OpenFolderHeader
-                    icon={activeCompany.key ? Building2 : FolderX}
-                    color={companyColor(activeCompany.key).ink}
-                    title={activeCompany.key || '기업 미지정'}
-                    subtitle={activeCompany.key ? '이 기업에 제출할 서류를 한곳에서 관리해요.' : '지원 기업이 정해지지 않은 포트폴리오예요.'}
-                    onClose={() => setOpenCompany(null)}
-                    onRename={activeCompany.key ? (to) => renameCompanyFolder(activeCompany.key, to) : null}
-                    onDelete={activeCompany.key ? () => setPendingFolderDelete(activeCompany) : null}
-                  />
-                  {activeCompany.key ? (
-                    <CompanyFolderPanel
-                      company={activeCompany.key}
-                      folder={activeCompany.folder}
-                      portfolios={activeCompany.portfolios}
-                      onSaved={upsertFolder}
-                      onCreatePortfolio={() => navigate('/app/portfolio/new', { state: { targetCompany: activeCompany.key } })}
-                    >
-                      {renderCards(sortCards(activeCompany.portfolios))}
-                    </CompanyFolderPanel>
+      ) : current ? (
+        <div ref={cabinetRef} className="ws-cabinet" style={{ '--panel-width': `${panelWidth}px`, '--cabinet-height': `${cabinetHeight}px` }} role="group" aria-label="가로 폴더 보관함">
+          <div className="ws-cabinet-track">
+          {cabinet.map((folder, index) => (
+            <div key={folder.id} className={`ws-folder-slot ${folder.id === current.id ? 'is-open' : ''}`}>
+              {folderButton(folder, index)}
+              <div className="ws-folder-body">
+              {folder.id === current.id && (
+                <section className="ws-open-folder" id="cabinet-documents" aria-label={`${current.name} 폴더`}>
+                  {current.company ? (
+                    <>
+                      <FolderHeading
+                        key={current.company}
+                        title={current.company}
+                        description="이 기업에 제출할 서류를 한곳에서 관리해요."
+                        onRename={(to) => renameCompanyFolder(current.company, to)}
+                        onDelete={() => setPendingFolderDelete(current)}
+                      />
+                      <div className="ws-folder-meta">
+                        <span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span>
+                        <span>{missing.length ? `${missing.join(' · ')} 추가해 보세요` : '모든 종류의 서류를 모았어요'}</span>
+                      </div>
+                    </>
                   ) : (
-                    renderCards(sortCards(activeCompany.portfolios))
+                    <>
+                    <FolderHeading
+                      title={current.name}
+                      description={current.id === 'base' ? '모든 지원에 기본으로 쓰는 서류예요. 경험 정리의 이력서 탭에서 고칠 수 있어요.' : '지원 기업을 정하기 전의 서류예요.'}
+                    />
+                    <div className="ws-folder-meta"><span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span><span>{current.id === 'base' ? '지원할 때 공통으로 쓰는 서류' : '기업을 정하면 폴더로 모을 수 있어요'}</span></div>
+                    </>
                   )}
-                </div>
-              ) : (
-                <ClosedHint />
-              )}
-            </>
-          ) : (
-            <>
-              {/* 형식 폴더 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-                {KINDS.map(k => (
-                  <Folder
-                    key={k.id}
-                    label={k.label}
-                    icon={k.icon}
-                    colors={k.folder}
-                    count={byKind[k.id].length}
-                    subtitle={k.hint}
-                    papers={byKind[k.id].slice(0, 3).map(p => p.title || '제목 없음')}
-                    active={openKind === k.id}
-                    onClick={() => toggleKind(k.id)}
+                  <StatusBoard
+                    documents={visibleDocs}
+                    stage={stage}
+                    onStageChange={setStage}
+                    sort={sort}
+                    onSortChange={setSort}
+                    onOpen={openDoc}
+                    actionsOf={actionsOf}
+                    onAdd={current.id === 'base' || !['all', 'portfolio'].includes(docType) ? null : () => createPortfolio(current.company)}
+                    filtered={!!q || docType !== 'all'}
+                    onReset={() => { setSearchQuery(''); setDocType('all'); setStage('all'); }}
+                    canMove={board.ready && !isGuest && !exportConfig}
+                    onMove={moveDocument}
+                    onBeforeCapture={captureDragScrolling}
+                    onDragFinished={restoreDragScrolling}
+                    saving={board.saving}
+                    error={board.error}
+                    onRetry={board.reload}
+                    boardReady={board.ready}
                   />
-                ))}
-              </div>
-
-              {activeMeta ? (
-                <div className="animate-fadeIn">
-                  <OpenFolderHeader
-                    icon={activeMeta.icon}
-                    color={activeMeta.folder.ink}
-                    title={`${activeMeta.label} ${byKind[openKind].length}`}
-                    subtitle={activeMeta.hint}
-                    onClose={() => setOpenKind(null)}
-                  />
-                  {byKind[openKind].length ? renderCards(sortCards(byKind[openKind])) : (
-                    <div className="rounded-2xl border border-dashed border-surface-300 bg-white py-14 text-center">
-                      <p className="text-bluewood-500 text-[14px] font-medium mb-4">
-                        {q ? `'${searchQuery}'에 맞는 ${activeMeta.label} 포트폴리오가 없습니다` : `아직 ${activeMeta.label} 포트폴리오가 없어요`}
-                      </p>
-                      {!q && (
-                        <button
-                          onClick={() => requireAuth(() => navigate('/app/portfolio/new'))}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg text-[13px] font-semibold hover:bg-primary-700 transition-colors"
-                        >
-                          <Plus size={14} /> {activeMeta.label} 만들기
-                        </button>
-                      )}
+                  {current.company && (
+                    <div className="ws-folder-panel" key={current.company}>
+                      <button type="button" className="ws-manage-toggle" aria-expanded={managing} aria-controls="folder-management" onClick={() => setManaging(!managing)}>
+                        <span className="ws-manage-icon"><SlidersHorizontal size={18} /></span>
+                        <span><strong>서류 추가 · 자기소개서 작성</strong><small>파일을 올리거나, 자소서 문항을 직접 작성하세요.</small></span>
+                        <ChevronDown size={18} className={managing ? 'is-open' : ''} />
+                      </button>
                     </div>
                   )}
-                </div>
-              ) : (
-                <ClosedHint />
+                </section>
               )}
-            </>
-          )}
-        </>
+              </div>
+            </div>
+          ))}
+          </div>
+        </div>
+      ) : (
+        <div className="ws-empty">
+          <Search size={28} strokeWidth={1.4} />
+          <p>검색에 맞는 폴더가 없어요.</p>
+          <span>기업명이나 서류 제목으로 다시 찾아보세요.</span>
+          <button type="button" className="ws-btn" onClick={() => setSearchQuery('')}>검색 지우기</button>
+        </div>
       )}
+
+      {current && <div className="ws-cabinet-footer"><p>폴더를 눌러 펼치고, 서류를 끌어 상태와 순서를 정리하세요.</p></div>}
+      {current?.company && <div id="folder-management" hidden={!managing} className="ws-management-drawer" key={current.company}>
+        <div className="ws-management-heading"><strong>{current.company} · 서류 관리</strong><button type="button" className="ws-btn ws-btn--sm" onClick={() => setManaging(false)}><X size={14} /> 접기</button></div>
+        <CompanyFolderPanel
+          ref={folderEditorRef}
+          company={current.company}
+          folder={current.folder}
+          portfolios={current.docs.filter(d => d.portfolio).map(d => d.portfolio)}
+          onSaved={upsertFolder}
+        />
+      </div>}
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -588,12 +679,12 @@ export default function PortfolioHub() {
       <ConfirmDialog
         open={!!pendingFolderDelete}
         tone="danger"
-        title={`"${pendingFolderDelete?.key}" 폴더를 삭제할까요?`}
-        message={`폴더에 올린 이력서·자소서·기타 서류 목록과 작성한 자소서가 지워집니다. 포트폴리오 ${pendingFolderDelete?.portfolios.length || 0}개는 지워지지 않고 '기업 미지정'으로 옮겨집니다.`}
+        title={`"${pendingFolderDelete?.company}" 폴더를 삭제할까요?`}
+        message={`폴더에 올린 이력서·자소서·기타 서류 목록과 작성한 자소서가 지워집니다. 포트폴리오 ${pendingFolderDelete?.docs.filter(d => d.portfolio).length || 0}개는 지워지지 않고 '기업 미지정'으로 옮겨집니다.`}
         confirmLabel="폴더 삭제"
         cancelLabel="그대로 두기"
         onCancel={() => setPendingFolderDelete(null)}
-        onConfirm={() => { deleteCompanyFolder(pendingFolderDelete.key); setPendingFolderDelete(null); }}
+        onConfirm={() => { deleteCompanyFolder(pendingFolderDelete.company); setPendingFolderDelete(null); }}
       />
 
       {detailData && (
@@ -612,209 +703,53 @@ export default function PortfolioHub() {
   );
 }
 
-/* ── 폴더 ──
-   뒷판 + 탭 + 삐져나온 종이(안에 든 문서 제목) + 앞판. 열린 폴더는 종이가 올라온 상태.
-   다시 누르면 접힌다(부모에서 토글).
-   onRename/onDelete를 주면 앞판 오른쪽 위 ⋯ 메뉴로 이름 수정·삭제를 할 수 있다. */
-function Folder({ label, icon: Icon, colors, count, subtitle, papers, active, onClick, onRename, onDelete }) {
-  const { back, front, ink } = colors;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(label);
-  const [saving, setSaving] = useState(false);
-  const hasMenu = !!(onRename || onDelete);
-
-  const startEdit = () => { setMenuOpen(false); setName(label); setEditing(true); };
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setSaving(true);
-    const ok = await onRename(name);
-    setSaving(false);
-    if (ok) setEditing(false);
-  };
-
-  return (
-    <div className="group relative">
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={active}
-      title={active ? '눌러서 접기' : '눌러서 열기'}
-      className={`relative block w-full pt-5 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none ${active ? '' : 'opacity-90 hover:opacity-100'}`}
-    >
-      {/* 탭 */}
-      <div className="absolute left-0 top-0 h-7 w-[42%] rounded-t-xl" style={{ background: back }} />
-      {/* 뒷판 */}
-      <div
-        className={`relative h-44 rounded-2xl rounded-tl-none transition-shadow ${active ? 'shadow-lg' : 'shadow-sm group-hover:shadow-md'}`}
-        style={{ background: back }}
-      >
-        {/* 종이들 */}
-        {(papers.length ? papers : [null]).map((title, i) => (
-          <div
-            key={`${i}-${title}`}
-            className={`absolute left-4 right-4 transform rounded-lg bg-white px-3 pt-2 shadow-sm transition-transform duration-300 ${
-              active ? '-translate-y-3' : 'group-hover:-translate-y-2'
-            }`}
-            style={{ top: 12 + i * 11, height: 90, '--tw-rotate': `${[-1.5, 1, -0.5][i]}deg`, opacity: title ? 1 : 0.55, zIndex: i }}
-          >
-            {title ? (
-              <>
-                <p className="truncate text-[11.5px] font-semibold text-bluewood-700">{title}</p>
-                <div className="mt-1.5 space-y-1">
-                  <div className="h-1 w-4/5 rounded-full bg-surface-200" />
-                  <div className="h-1 w-3/5 rounded-full bg-surface-200" />
-                </div>
-              </>
-            ) : (
-              <div className="mt-1 space-y-1.5">
-                <div className="h-1.5 w-1/2 rounded-full bg-surface-200" />
-                <div className="h-1 w-4/5 rounded-full bg-surface-100" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* 앞판 */}
-        <div
-          className="absolute inset-x-0 bottom-0 z-10 flex h-[62%] flex-col justify-end rounded-2xl px-4 pb-3.5"
-          style={{ background: front, boxShadow: '0 -2px 10px rgba(0,0,0,0.06)', color: ink }}
-        >
-          <div className="flex items-end justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/55">
-                <Icon size={16} />
-              </span>
-              <span className="truncate text-[16px] font-bold">{label}</span>
-            </div>
-            <span className="text-[24px] font-extrabold leading-none">{count}</span>
-          </div>
-          {subtitle && <p className="mt-1.5 truncate text-[11.5px] font-medium opacity-70">{subtitle}</p>}
-        </div>
-      </div>
-      {/* 열림 표시 */}
-      <div className={`mx-auto mt-2.5 h-1 rounded-full transition-all duration-300 ${active ? 'w-12' : 'w-0'}`} style={{ background: back }} />
-    </button>
-
-    {/* ⋯ 메뉴 — 앞판 오른쪽 위 (앞판은 뒷판 아래쪽 62%: 위에서 약 87px 지점부터) */}
-    {hasMenu && !editing && (
-      <div className="absolute right-2.5 top-[94px] z-20">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-          aria-label="폴더 메뉴"
-          className={`flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 transition-opacity hover:bg-white/90 focus-visible:opacity-100 ${
-            menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
-          }`}
-          style={{ color: ink }}
-        >
-          <MoreHorizontal size={15} />
-        </button>
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-full z-40 mt-1 w-32 overflow-hidden rounded-lg border border-surface-200 bg-white py-1 shadow-lg">
-              {onRename && (
-                <button type="button" onClick={startEdit} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-bluewood-600 hover:bg-surface-50">
-                  <Edit size={13} /> 이름 수정
-                </button>
-              )}
-              {onDelete && (
-                <button type="button" onClick={() => { setMenuOpen(false); onDelete(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-red-500 hover:bg-red-50">
-                  <Trash2 size={13} /> 폴더 삭제
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    )}
-
-    {/* 이름 수정 — 앞판 위에 입력칸을 겹친다 */}
-    {editing && (
-      <form
-        onSubmit={submit}
-        className="absolute inset-x-0 top-[87px] z-30 flex h-[109px] flex-col justify-center gap-2 rounded-2xl px-4"
-        style={{ background: front, color: ink }}
-      >
-        <input
-          autoFocus
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Escape') setEditing(false); }}
-          maxLength={100}
-          placeholder="기업명"
-          className="w-full rounded-lg border border-white/80 bg-white/90 px-3 py-1.5 text-[14px] font-bold text-bluewood-800 focus:outline-none focus:ring-2 focus:ring-white"
-        />
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setEditing(false)} className="flex-1 rounded-lg bg-white/50 py-1.5 text-[12.5px] font-semibold hover:bg-white/70">취소</button>
-          <button type="submit" disabled={saving || !name.trim()} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-bluewood-800 py-1.5 text-[12.5px] font-semibold text-white hover:bg-bluewood-900 disabled:opacity-50">
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 저장
-          </button>
-        </div>
-      </form>
-    )}
-    </div>
-  );
-}
-
-/* ── 새 기업 폴더 — 누르면 기업명 입력칸으로 바뀐다 ── */
-function NewCompanyFolder({ onCreate, existing }) {
+/* ── 기업 추가 — 누르면 기업명 입력칸으로 바뀐다. onCreate(이름) → 성공하면 true ── */
+function NewCompanyFolder({ onCreate }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
-  const submit = (e) => {
+  const [saving, setSaving] = useState(false);
+  const close = () => { setEditing(false); setName(''); };
+  const submit = async (e) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    if (existing.includes(trimmed)) { toast('이미 있는 기업 폴더예요'); return; }
-    onCreate(trimmed);
-    setName('');
-    setEditing(false);
+    if (saving || !name.trim()) return;
+    setSaving(true);
+    const ok = await onCreate(name);
+    setSaving(false);
+    if (ok) close();
   };
 
+  if (!editing) {
+    return <button type="button" className="ws-add-folder" onClick={() => setEditing(true)}><Plus size={16} /> 새 기업 폴더</button>;
+  }
   return (
-    <div className="pt-5">
-      <div className="flex h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-surface-300 bg-white/60 px-4 text-center">
-        {editing ? (
-          <form onSubmit={submit} className="w-full space-y-2">
-            <input
-              autoFocus
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === 'Escape' && setEditing(false)}
-              placeholder="기업명 (예: 네이버)"
-              maxLength={100}
-              className="w-full rounded-lg border border-surface-200 px-3 py-2 text-[13.5px] focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
-            />
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setEditing(false)} className="flex-1 rounded-lg border border-surface-200 py-1.5 text-[12.5px] font-semibold text-bluewood-500 hover:bg-surface-50">취소</button>
-              <button type="submit" className="flex-1 rounded-lg bg-primary-600 py-1.5 text-[12.5px] font-semibold text-white hover:bg-primary-700">만들기</button>
-            </div>
-          </form>
-        ) : (
-          <button type="button" onClick={() => setEditing(true)} className="flex flex-col items-center gap-2 text-bluewood-400 hover:text-primary-600">
-            <FolderPlus size={26} />
-            <span className="text-[13.5px] font-semibold">새 기업 폴더</span>
-            <span className="text-[12px] text-bluewood-300">이력서·자소서를 먼저 모아둘 수 있어요</span>
-          </button>
-        )}
-      </div>
-    </div>
+    <form className="ws-inline-form ws-new-folder" onSubmit={submit}>
+      <input
+        autoFocus
+        disabled={saving}
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') close(); }}
+        placeholder="기업명 (예: 네이버)"
+        aria-label="기업명"
+        maxLength={100}
+      />
+      <button type="button" onClick={close} disabled={saving}>취소</button>
+      <button type="submit" className="ws-btn ws-btn--primary ws-btn--sm" disabled={saving || !name.trim()}>
+        {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 만들기
+      </button>
+    </form>
   );
 }
 
-// onRename(새 이름) → 성공하면 true. onRename·onDelete가 없으면(기업 미지정·형식 폴더) 버튼을 숨긴다.
-function OpenFolderHeader({ icon: Icon, color, title, subtitle, onClose, onRename, onDelete }) {
+/* ── 열린 폴더 머리 — onRename(새 이름) → 성공하면 true. onRename·onDelete가 없으면(기본 서류·기업 미지정) 버튼을 숨긴다 ── */
+function FolderHeading({ title, description, onRename, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(title);
   const [saving, setSaving] = useState(false);
 
-  // 다른 폴더를 열면 편집 상태를 닫는다.
-  useEffect(() => { setEditing(false); setName(title); }, [title]);
-
   const submit = async (e) => {
     e.preventDefault();
+    if (saving || !name.trim()) return;
     setSaving(true);
     const ok = await onRename(name);
     setSaving(false);
@@ -822,150 +757,212 @@ function OpenFolderHeader({ icon: Icon, color, title, subtitle, onClose, onRenam
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <header className="ws-folder-heading">
       <div className="min-w-0">
         {editing ? (
-          <form onSubmit={submit} className="flex items-center gap-2">
-            <Icon size={18} style={{ color }} className="flex-shrink-0" />
+          <form onSubmit={submit} className="ws-inline-form ws-rename-form">
             <input
               autoFocus
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Escape') { setEditing(false); setName(title); } }}
+              aria-label="기업명"
               maxLength={100}
-              className="w-[240px] rounded-lg border border-primary-300 px-3 py-1.5 text-[16px] font-bold text-bluewood-800 focus:outline-none focus:ring-2 focus:ring-primary-100"
             />
-            <button type="submit" disabled={saving || !name.trim()} className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+            <button type="button" onClick={() => { setEditing(false); setName(title); }}>취소</button>
+            <button type="submit" className="ws-btn ws-btn--primary ws-btn--sm" disabled={saving || !name.trim()}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
-            </button>
-            <button type="button" onClick={() => { setEditing(false); setName(title); }} className="rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-bluewood-400 hover:text-bluewood-600">
-              취소
             </button>
           </form>
         ) : (
-          <h2 className="flex items-center gap-2 text-[18px] font-bold text-bluewood-800">
-            <Icon size={18} style={{ color }} /> {title}
-            {onRename && (
-              <button type="button" onClick={() => setEditing(true)} aria-label="기업명 수정" title="기업명 수정" className="flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600">
-                <Edit size={14} />
-              </button>
-            )}
-          </h2>
+          <h2 title={title}>{title}</h2>
         )}
-        <p className="mt-0.5 text-[13px] text-bluewood-400">{subtitle}</p>
+        <p>{description}</p>
       </div>
-      <div className="flex items-center gap-2">
-        {onDelete && (
-          <button type="button" onClick={onDelete} className="inline-flex items-center gap-1 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-bluewood-400 hover:border-red-200 hover:text-red-500">
-            <Trash2 size={13} /> 폴더 삭제
-          </button>
-        )}
-        <button type="button" onClick={onClose} className="inline-flex items-center gap-1 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-bluewood-500 hover:text-bluewood-700">
-          <ChevronDown size={13} className="rotate-180" /> 접기
-        </button>
+      {(onRename || onDelete) && !editing && (
+        <div className="ws-folder-tools">
+          {onRename && <button type="button" aria-label="폴더 이름 수정" onClick={() => setEditing(true)}><Edit size={15} /><span>이름 수정</span></button>}
+          {onDelete && <button type="button" aria-label="폴더 삭제" className="is-danger" onClick={onDelete}><Trash2 size={15} /><span>폴더 삭제</span></button>}
+        </div>
+      )}
+    </header>
+  );
+}
+
+/* ── 상태 보드 — 작성 중 · 완성 · 제출·공개. 좁은 화면에서는 한 칸씩 골라 본다 ── */
+function StatusBoard({ documents, stage, onStageChange, sort, onSortChange, onOpen, actionsOf, onAdd, filtered, onReset, canMove, onMove, onBeforeCapture, onDragFinished, saving, error, onRetry, boardReady }) {
+  const columns = COLUMNS.filter(column => stage === 'all' || column.key === stage);
+  const finishDrag = (result, { announce }) => {
+    onDragFinished();
+    if (!result.destination) { announce('서류 이동을 취소했습니다.'); return; }
+    const document = documents.find(d => d.boardKey === result.draggableId);
+    const target = result.destination.droppableId;
+    if (!document || (result.source.droppableId === target && result.source.index === result.destination.index)) return;
+    if (sort !== 'manual' && result.source.droppableId === target) { announce('직접 정렬을 선택하면 순서를 바꿀 수 있습니다.'); return; }
+    onMove(document, target, sort === 'manual' ? result.destination.index : undefined);
+    announce(`${document.title}을 ${COLUMNS.find(c => c.key === target)?.title} 칸으로 옮겼습니다.`);
+  };
+  return (
+    <div className="ws-status-board">
+      <div className="ws-board-toolbar">
+      <div className="ws-document-controls">
+        <div className="ws-stages" role="group" aria-label="진행 단계">
+          {[{ key: 'all', title: '전체 상태' }, ...COLUMNS].map(column => (
+            <button key={column.key} type="button" className={`ws-stage--${column.key}`} aria-pressed={stage === column.key} onClick={() => onStageChange(column.key)}>
+              {column.key !== 'all' && <i />}{column.title}<span>{column.key === 'all' ? documents.length : documents.filter(d => d.status === column.key).length}</span>
+            </button>
+          ))}
+        </div>
+        <select className="ws-sort" aria-label="서류 정렬" value={sort} onChange={e => onSortChange(e.target.value)}>
+          <option value="manual">직접 정렬</option><option value="recent">즐겨찾기 · 최신순</option><option value="name">이름순</option>
+        </select>
       </div>
+      <div className="ws-board-help"><span>{sort === 'manual' ? '끌어서 상태와 순서를 바꿀 수 있어요' : '끌거나 카드 아래에서 상태를 바꿀 수 있어요'}</span><span role="status" className={error ? 'is-error' : ''}>{saving ? <><Loader2 size={12} className="animate-spin" /> 저장 중</> : error ? <>{error}{!boardReady && <button type="button" onClick={onRetry}>다시 시도</button>}</> : boardReady ? '자동 저장' : '불러오는 중…'}</span></div>
+      </div>
+      {filtered && !documents.length ? (
+        <div className="ws-empty ws-empty--documents">
+          <FileText size={30} strokeWidth={1.3} />
+          <p>조건에 맞는 서류가 없어요</p>
+          <span>다른 서류 종류나 검색어로 찾아보세요.</span>
+          <button type="button" className="ws-btn ws-btn--sm" onClick={onReset}>모든 서류 보기</button>
+        </div>
+      ) : (
+        <DragDropContext onBeforeCapture={onBeforeCapture} onDragEnd={finishDrag}
+          dragHandleUsageInstructions="스페이스 키로 서류를 잡고, 방향키로 이동한 뒤 스페이스 키로 내려놓으세요. Escape 키로 취소할 수 있습니다."
+          onDragStart={(start, { announce }) => announce(`${documents.find(d => d.boardKey === start.draggableId)?.title || '서류'}을 잡았습니다.`)}>
+          <div className={`ws-board ${stage !== 'all' ? 'is-filtered' : ''}`}>
+            {columns.map(column => {
+              const items = documents.filter(d => d.status === column.key);
+              return <section key={column.key} className={`ws-lane ws-lane--${column.key}`} aria-label={column.title}>
+                <header><h3><i />{column.title}<span>{items.length}</span>{column.key === 'draft' && onAdd && <button type="button" className="ws-lane-add" onClick={onAdd} aria-label="포트폴리오 만들기" title="포트폴리오 만들기"><Plus size={15} /></button>}</h3><p>{column.description}</p></header>
+                <Droppable droppableId={column.key} isDropDisabled={!canMove}>
+                  {(provided, snapshot) => <div className={`ws-lane-scroll ${snapshot.isDraggingOver ? 'is-drag-over' : ''}`} ref={provided.innerRef} {...provided.droppableProps}>
+                    <ul>
+                      {items.map((d, index) => <Draggable key={d.boardKey} draggableId={d.boardKey} index={index} isDragDisabled={!canMove} disableInteractiveElementBlocking>
+                        {(drag, dragState) => {
+                          const card = <li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style} className={dragState.isDragging ? 'ws-card-dragging' : ''}>
+                            <BoardCard doc={d} onOpen={() => onOpen(d)} actions={actionsOf(d)} dragHandleProps={canMove ? drag.dragHandleProps : null} dragging={dragState.isDragging} canMove={canMove} onMove={state => onMove(d, state)} />
+                          </li>;
+                          return dragState.isDragging ? createPortal(card, document.body) : card;
+                        }}
+                      </Draggable>)}
+                      {provided.placeholder}
+                      {!items.length && <li className="ws-lane-empty"><FileText size={23} strokeWidth={1.3} /><p>{column.key === 'draft' ? '새 서류를 준비해 보세요' : column.key === 'done' ? '완성한 서류를 옮겨두세요' : '제출한 서류를 옮겨두세요'}</p><small>서류를 이곳에 놓아주세요</small></li>}
+                    </ul>
+                  </div>}
+                </Droppable>
+              </section>;
+            })}
+          </div>
+        </DragDropContext>
+      )}
     </div>
   );
 }
 
-function ClosedHint() {
-  return <p className="py-10 text-center text-[13.5px] text-bluewood-300">폴더를 누르면 안에 든 내용이 열려요.</p>;
+function BoardCard({ doc: d, onOpen, actions, dragHandleProps, dragging, canMove, onMove }) {
+  const Icon = d.icon;
+  const changeState = event => {
+    const focused = document.activeElement === event.currentTarget;
+    const hub = event.currentTarget.closest('.ws');
+    const focusMovedCard = () => {
+      if (!hub?.isConnected) return;
+      const card = [...hub.querySelectorAll('.ws-board-card')].find(node => node.dataset.documentKey === d.boardKey);
+      const target = card?.querySelector('.ws-card-status select') || hub.querySelector('.ws-stages [aria-pressed="true"]');
+      target?.focus({ preventScroll: true });
+      const scroller = card?.closest('.ws-lane-scroll');
+      if (scroller) {
+        const viewport = scroller.getBoundingClientRect();
+        const rect = card.getBoundingClientRect();
+        if (rect.top < viewport.top) scroller.scrollTop -= viewport.top - rect.top;
+        else if (rect.bottom > viewport.bottom) scroller.scrollTop += rect.bottom - viewport.bottom;
+      }
+    };
+    const saved = onMove(event.target.value);
+    // Moving between columns remounts the card. Keep keyboard navigation with it.
+    if (focused) {
+      requestAnimationFrame(focusMovedCard);
+      Promise.resolve(saved).then(() => {
+        if (document.activeElement === document.body) requestAnimationFrame(focusMovedCard);
+      });
+    }
+  };
+  return (
+    <div className={`ws-board-card ${dragging ? 'is-dragging' : ''}`} data-document-key={d.boardKey} data-document-type={d.docType} data-status={d.status}>
+      <button type="button" className="ws-board-card-main" onClick={onOpen}>
+        <span className="ws-board-card-top">
+          <span className={`ws-document-icon ws-document-icon--${d.docType}`}><Icon size={21} strokeWidth={1.5} aria-hidden="true" /></span>
+          <span>{d.label}</span>
+          {d.favorite && <Star size={13} className="ws-card-star" aria-label="즐겨찾기" />}
+        </span>
+        <strong title={d.title}>{d.title}</strong>
+        {d.meta && <span className="ws-board-company">{d.meta}</span>}
+        <ArrowUpRight size={14} className="ws-card-open-arrow" aria-hidden="true" />
+      </button>
+      {dragHandleProps && <button type="button" {...dragHandleProps} className={`ws-card-drag-handle ${actions ? '' : 'ws-card-drag-handle--solo'}`} aria-label={`${d.title} 이동`} title="끌어서 이동"><GripVertical size={16} /></button>}
+      {actions && <CardMenu title={d.title} actions={actions} />}
+      <div className="ws-card-status"><label><span>상태</span><select aria-label={`${d.title} 상태`} value={d.status} disabled={!canMove} onChange={changeState}>{COLUMNS.map(column => <option key={column.key} value={column.key}>{column.title}</option>)}</select></label>{d.portfolio?.isPublic && <span className="ws-link-live" title="공유 링크가 공개되어 있어요"><Globe size={11} /> 링크 공개 중</span>}</div>
+    </div>
+  );
 }
 
-/* ── 폴더 안 파일 카드 ──
-   문서 모양 썸네일 · 제목/회사 · 대표 동작(링크 내보내기 또는 PPT 다운로드) · 편집/즐겨찾기/삭제 */
-function PortfolioFileCard({ portfolio: p, kind, exportMode, downloading, onOpen, onEdit, onShare, onDownload, onMakePpt, onToggleFavorite, onDelete }) {
-  const Icon = kind.icon;
-  const company = p.targetCompany ? `${p.targetCompany}${p.targetPosition ? ` · ${p.targetPosition}` : ''}` : '지원 회사 미설정';
-  const hasDeck = !!p.pptDeck?.slides?.length;
-  const slideCount = p.pptDeck?.slides?.length || 0;
-  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
-  const iconBtn = 'flex h-8 w-8 items-center justify-center rounded-lg text-bluewood-400 hover:bg-surface-100 hover:text-bluewood-700 transition-colors';
+/* ── 카드 ⋯ 메뉴 — 서류함이 넘치는 부분을 잘라내므로 화면 기준(fixed)으로 띄운다 ── */
+function CardMenu({ title, actions }) {
+  const [pos, setPos] = useState(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!pos) return undefined;
+    const close = () => setPos(null);
+    menuRef.current?.querySelector('button')?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { close(); buttonRef.current?.focus(); }
+      if (e.key === 'Tab') close();
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+        e.preventDefault();
+        const items = [...(menuRef.current?.querySelectorAll('button') || [])];
+        const index = items.indexOf(document.activeElement);
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[next]?.focus();
+      }
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [pos]);
+
+  const toggle = () => {
+    if (pos) { setPos(null); return; }
+    const r = buttonRef.current.getBoundingClientRect();
+    const { clientWidth, clientHeight } = document.documentElement;
+    const right = Math.max(8, Math.min(clientWidth - 190, clientWidth - r.right));
+    setPos(clientHeight - r.bottom < 220 ? { bottom: clientHeight - r.top + 4, right } : { top: r.bottom + 4, right });
+  };
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
-      }}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-surface-200 bg-white cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-    >
-      {/* 문서 모양 썸네일 */}
-      <div className="relative h-32 px-6 pt-5" style={{ background: kind.sheet }}>
-        <div className="relative mx-auto h-full max-w-[210px] rounded-t-lg bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1">
-          {/* 접힌 모서리 */}
-          <div className="absolute right-0 top-0 h-5 w-5 rounded-bl-md" style={{ background: `linear-gradient(225deg, ${kind.sheet} 50%, #E5E9F0 50%)` }} />
-          <div className="px-4 pt-4">
-            <div className="flex items-center gap-1.5" style={{ color: kind.folder.ink }}>
-              <Icon size={13} />
-              <span className="text-[10.5px] font-bold tracking-wide">{kind.id === 'ppt' && slideCount ? `슬라이드 ${slideCount}장` : kind.label}</span>
-            </div>
-            <div className="mt-2.5 space-y-1.5">
-              <div className="h-1.5 w-4/5 rounded-full bg-surface-200" />
-              <div className="h-1.5 w-3/5 rounded-full bg-surface-200" />
-              <div className="h-1.5 w-2/3 rounded-full bg-surface-100" />
-            </div>
+    <>
+      <button ref={buttonRef} type="button" className="ws-card-menu" aria-label={`${title} 메뉴`} aria-haspopup="menu" aria-expanded={!!pos} onClick={toggle}>
+        <MoreHorizontal size={16} />
+      </button>
+      {pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[90]" onClick={() => setPos(null)} />
+          <div ref={menuRef} role="menu" aria-label={`${title} 작업`} className="ws-card-menu-list" style={pos}>
+            {actions.map(a => (
+              <button key={a.label} type="button" role="menuitem" className={a.danger ? 'is-danger' : ''} onClick={() => { setPos(null); buttonRef.current?.focus(); a.run(); }}>
+                <a.icon size={14} /> {a.label}
+              </button>
+            ))}
           </div>
-        </div>
-        {p.isPublic && kind.id !== 'ppt' && (
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 shadow-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 공개 중
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={stop(onToggleFavorite)}
-          aria-label="즐겨찾기"
-          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm hover:bg-white"
-        >
-          <Star size={13} className={p.isFavorite ? 'fill-amber-300 text-amber-300' : 'text-bluewood-300'} />
-        </button>
-      </div>
-
-      {/* 정보 */}
-      <div className="flex flex-1 flex-col px-4 pt-3.5 pb-3">
-        <p className="line-clamp-2 text-[15px] font-bold leading-snug text-bluewood-800">{p.title || '제목 없음'}</p>
-        <p className="mt-1 truncate text-[12.5px] text-bluewood-400">{company}</p>
-        <p className="mt-0.5 text-[12px] text-bluewood-300">{formatDate(p.updatedAt || p.createdAt)}</p>
-
-        {/* 동작 */}
-        <div className="mt-3.5 flex items-center gap-1 border-t border-surface-100 pt-3">
-          {exportMode ? (
-            <button type="button" onClick={stop(onOpen)} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-[13px] font-semibold text-white hover:bg-emerald-700">
-              <Plus size={14} /> 여기에 추가
-            </button>
-          ) : (
-            <>
-              {kind.id === 'ppt' ? (
-                hasDeck ? (
-                  <button type="button" onClick={stop(onDownload)} disabled={downloading} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-2 text-[13px] font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
-                    {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                    PPT 다운로드
-                  </button>
-                ) : (
-                  <button type="button" onClick={stop(onMakePpt)} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-primary-200 py-2 text-[13px] font-semibold text-primary-600 hover:bg-primary-50">
-                    <Wand2 size={14} /> PPT 만들기
-                  </button>
-                )
-              ) : (
-                <button type="button" onClick={stop(onShare)} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-2 text-[13px] font-semibold text-white hover:bg-primary-700">
-                  <Link2 size={14} /> 링크 내보내기
-                </button>
-              )}
-              <button type="button" onClick={stop(onEdit)} aria-label="내용 편집" title="내용 편집" className={iconBtn}>
-                <Edit size={15} />
-              </button>
-              <button type="button" onClick={stop(onDelete)} aria-label="삭제" title="삭제" className={`${iconBtn} hover:!bg-red-50 hover:!text-red-500`}>
-                <Trash2 size={15} />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+        </>, document.body
+      )}
+    </>
   );
 }
 

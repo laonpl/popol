@@ -32,7 +32,7 @@ export async function importFromUrl(source, url, targetType) {
 }
 
 /** 가져온 원본 데이터를 경험/포트폴리오 구조로 변환. */
-export async function structureImportedData(importedData, targetType) {
-  const { data } = await api.post('/import/structure', { importedData, targetType }, { timeout: 60000 });
+export async function structureImportedData(importedData, targetType, { preferLocal = false } = {}) {
+  const { data } = await api.post('/import/structure', { importedData, targetType, preferLocal }, { timeout: 60000 });
   return data;
 }

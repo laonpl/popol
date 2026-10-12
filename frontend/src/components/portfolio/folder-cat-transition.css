@@ -1,0 +1,182 @@
+/* A brief decorative handoff in the folder heading, independent of board movement. */
+.folder-cat-transition {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 1;
+  width: 106px;
+  height: 72px;
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: folder-cat-appear var(--folder-cat-duration) ease both;
+}
+
+.folder-cat-transition__scene {
+  position: relative;
+  width: 106px;
+  height: 72px;
+}
+
+.folder-cat-transition--backward .folder-cat-transition__scene {
+  transform: scaleX(-1);
+}
+
+.folder-cat-transition__ground {
+  position: absolute;
+  right: 0;
+  bottom: 5px;
+  left: 6px;
+  height: 4px;
+  border-radius: 50%;
+  background: #dadad5;
+  opacity: .55;
+}
+
+.folder-cat-transition__carrier {
+  position: absolute;
+  top: 3px;
+  left: -3px;
+  width: 68px;
+  height: 68px;
+  animation: folder-cat-carry var(--folder-cat-duration) ease both;
+}
+
+.folder-cat-transition__pose {
+  position: absolute;
+  inset: 0;
+}
+
+.folder-cat-transition .filecat {
+  width: 68px;
+  height: 68px;
+}
+
+/* FileCat's normal idle loops must not outlive this one-shot interaction. */
+.folder-cat-transition .folder-cat-transition__pose .filecat,
+.folder-cat-transition .folder-cat-transition__pose .filecat * {
+  animation: none;
+}
+
+.folder-cat-transition .filecat-loose-files,
+.folder-cat-transition .filecat-shadow,
+.folder-cat-transition .filecat text {
+  display: none;
+}
+
+.folder-cat-transition__pose--collect {
+  animation: folder-cat-collect-pose var(--folder-cat-duration) linear both;
+}
+
+.folder-cat-transition__pose--offer {
+  animation: folder-cat-offer-pose var(--folder-cat-duration) linear both;
+}
+
+.folder-cat-transition__pose--collect .filecat .filecat-reach {
+  transform-origin: 85px 158px;
+  animation: folder-cat-reach var(--folder-cat-duration) ease both;
+}
+
+.folder-cat-transition__folder-back,
+.folder-cat-transition__folder-front {
+  position: absolute;
+  top: 31px;
+  right: 0;
+  width: 44px;
+  height: 36px;
+}
+
+.folder-cat-transition__folder-front {
+  z-index: 3;
+  transform-origin: 50% 90%;
+  animation: folder-cat-open var(--folder-cat-duration) ease both;
+}
+
+.folder-cat-transition__paper {
+  position: absolute;
+  z-index: 2;
+  top: 33px;
+  left: 47px;
+  width: 18px;
+  height: 23px;
+  opacity: 0;
+  animation: folder-cat-file var(--folder-cat-duration) ease both;
+}
+
+.folder-cat-transition__paper svg,
+.folder-cat-transition__folder-back svg,
+.folder-cat-transition__folder-front svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes folder-cat-appear {
+  0% { opacity: 0; }
+  10%, 86% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes folder-cat-carry {
+  0% { transform: translate(0, 3px) rotate(-4deg); }
+  22% { transform: translate(1px, -2px) rotate(-7deg); }
+  42% { transform: translate(9px, -4px) rotate(0); }
+  59% { transform: translate(18px, 0) rotate(1deg); }
+  76%, 100% { transform: translate(18px, 2px) rotate(0); }
+}
+
+@keyframes folder-cat-reach {
+  0% { transform: rotate(0); }
+  18% { transform: rotate(12deg); }
+  32%, 100% { transform: rotate(-4deg); }
+}
+
+@keyframes folder-cat-collect-pose {
+  0%, 44% { opacity: 1; }
+  54%, 100% { opacity: 0; }
+}
+
+@keyframes folder-cat-offer-pose {
+  0%, 44% { opacity: 0; }
+  54%, 74% { opacity: 1; }
+  86%, 100% { opacity: 0; }
+}
+
+@keyframes folder-cat-open {
+  0%, 26% { transform: scaleY(1) rotate(0); }
+  45%, 72% { transform: scaleY(.66) rotate(-4deg); }
+  90%, 100% { transform: scaleY(1) rotate(0); }
+}
+
+@keyframes folder-cat-file {
+  0%, 56% { opacity: 0; transform: translate(0, 0) rotate(-12deg); }
+  62% { opacity: 1; transform: translate(0, -2px) rotate(-8deg); }
+  76% { opacity: 1; transform: translate(25px, 7px) rotate(0); }
+  86%, 100% { opacity: 0; transform: translate(25px, 21px) rotate(0); }
+}
+
+@media (max-width: 640px) {
+  .folder-cat-transition {
+    width: 78px;
+    height: 62px;
+  }
+
+  .folder-cat-transition__scene {
+    transform: translate(-14px, -6px) scale(.78);
+    transform-origin: 50% 50%;
+  }
+
+  .folder-cat-transition--backward .folder-cat-transition__scene {
+    transform: translate(-14px, -6px) scale(-.78, .78);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-cat-transition {
+    display: none;
+  }
+
+  .folder-cat-transition,
+  .folder-cat-transition * {
+    animation: none !important;
+  }
+}

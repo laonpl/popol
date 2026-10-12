@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "nodemon --delay 500ms src/index.js",
     "start": "node src/index.js",
+    "test:import": "node --test src/services/localExperienceParser.test.js src/services/resumeImport.test.js src/services/importSegmentation.test.js",
     "postinstall": "puppeteer browsers install chrome",
     "capture:reel": "node scripts/capture-eng-reel.mjs",
     "capture:intro": "node scripts/render-site-intro.mjs"
@@ -15,6 +16,7 @@
   "dependencies": {
     "@google/genai": "^1.51.0",
     "@notionhq/client": "^5.16.0",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

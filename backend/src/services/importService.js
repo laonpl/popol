@@ -2,6 +2,8 @@ import { callGeminiModel, callGitHubModelsFallback, acquireSemaphore, releaseSem
 import { createWorker } from 'tesseract.js';
 import JSZip from 'jszip';
 import { clampMaterial } from '../utils/materialText.js';
+import { parseExperiencesLocally, analyzeBlock, toLines } from './localExperienceParser.js';
+import { segmentExperiencesWithAI, generateImportOnce } from './importSegmentation.js';
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -617,19 +619,16 @@ export async function importFromFile(buffer, mimeType, fileName) {
       console.log('[Import] OCR_PREFER_VISION=true → Tesseract 생략, Gemini Vision OCR 사용');
       extractedText = await extractWithGeminiVision(buffer, mimeType);
     } else {
-    // 이미지 → Tesseract OCR (무료/로컬)
-    console.log('[Import] 이미지 감지, Tesseract OCR 시도');
-    try {
-      extractedText = await extractWithTesseractOCR(buffer);
-      // 만약 Tesseract가 너무 짧게 추출하거나 실패하면 안전망으로 Gemini Vision 폴백
+      // 이미지 → Tesseract OCR (무료/로컬). Vision 실패를 여기서 재시도하지 않는다.
+      console.log('[Import] 이미지 감지, Tesseract OCR 시도');
+      try {
+        extractedText = await extractWithTesseractOCR(buffer);
+      } catch (e) {
+        console.warn('Tesseract OCR 실패, Gemini Vision으로 대체합니다:', e.message);
+      }
       if (extractedText.trim().length < 10) {
-        console.log('[Import] Tesseract 결과물 부족, Gemini Vision OCR 시도');
         extractedText = await extractWithGeminiVision(buffer, mimeType);
       }
-    } catch (e) {
-      console.warn('Tesseract OCR 실패, Gemini Vision으로 대체합니다:', e.message);
-      extractedText = await extractWithGeminiVision(buffer, mimeType);
-    }
     }
   } else if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -694,9 +693,12 @@ export async function importFromFile(buffer, mimeType, fileName) {
  */
 async function extractWithTesseractOCR(buffer) {
   const worker = await createWorker('kor+eng');
-  const { data: { text } } = await worker.recognize(buffer);
-  await worker.terminate();
-  return text;
+  try {
+    const { data: { text } } = await worker.recognize(buffer);
+    return text;
+  } finally {
+    await worker.terminate();
+  }
 }
 
 /**
@@ -712,7 +714,7 @@ async function extractWithGeminiVision(buffer, mimeType) {
     throw new Error(`이미지·스캔 문서는 ${Math.floor(VISION_MAX_BYTES / 1024 / 1024)}MB까지 읽을 수 있습니다. 파일을 압축하거나 나눠서 올려주세요.`);
   }
   const base64 = buffer.toString('base64');
-  return await geminiGenerate([
+  return await generateImportOnce([
     {
       inlineData: {
         mimeType,
@@ -723,7 +725,7 @@ async function extractWithGeminiVision(buffer, mimeType) {
 - 표가 있으면 표 구조를 텍스트로 보존해주세요
 - 제목, 소제목, 본문을 구분해주세요
 - 추출된 텍스트만 반환하세요 (부가 설명 없이)`,
-  ]);
+  ], { responseMimeType: 'text/plain', maxOutputTokens: 16000 });
 }
 
 // 프론트 constants/competencies.js EXPERIENCE_CATEGORIES, stores/experienceStore.js JOB_CATEGORIES와 같은 값
@@ -759,6 +761,7 @@ function attachSourceSections(experiences, anchors, sourceText) {
   const starts = anchors.map(anchor => findAnchor(source, anchor));
   const sorted = starts.filter(pos => pos >= 0).sort((a, b) => a - b);
   experiences.forEach((exp, i) => {
+    if (exp.sourceText) return;
     const start = starts[i];
     if (start < 0) { exp.sourceText = ''; return; }
     const next = sorted.find(pos => pos > start) ?? source.length;
@@ -797,6 +800,7 @@ export function normalizeResumeExperiences(raw, sourceText = '') {
       result: text(item.result),
       learning: text(item.learning),
       keywords: (Array.isArray(item.keywords) ? item.keywords : []).map(text).filter(Boolean).slice(0, 6),
+      ...(text(item.sourceText) ? { sourceText: text(item.sourceText).slice(0, RESUME_SOURCE_LIMIT) } : {}),
     });
     anchors.push(text(item.startsWith));
     if (experiences.length >= RESUME_MAX_EXPERIENCES) break;
@@ -805,16 +809,61 @@ export function normalizeResumeExperiences(raw, sourceText = '') {
   return { experiences };
 }
 
+/* 규칙 기반 파서 결과를 경험 한 건(STRUCTURED) 형식으로 옮긴다 — 원문 문장만 담고 없는 칸은 비운다. */
+function localStructuredExperience(importedData) {
+  const lines = toLines(importedData.content);
+  const exp = analyzeBlock(importedData.title || '가져온 경험', lines);
+  return {
+    title: exp.title,
+    framework: 'STRUCTURED',
+    content: {
+      intro: '',
+      overview: exp.context,
+      task: exp.action,
+      process: exp.role ? `역할: ${exp.role}` : '',
+      output: exp.result,
+      growth: exp.learning,
+      competency: '',
+    },
+    suggestedKeywords: exp.keywords,
+    processing: { method: 'local', needsReview: true },
+  };
+}
+
+// 경험 정리용 구조화는 무료 규칙 기반 파서를 먼저 쓴다 (AI 크레딧 0).
+export const LOCAL_FIRST_TYPES = new Set(['resume', 'experience']);
+
 /**
- * AI를 사용하여 임포트된 내용을 경험/포트폴리오/자소서 형식으로 구조화
+ * 임포트된 내용을 경험/포트폴리오/자소서 형식으로 구조화.
+ * resume·experience는 규칙 기반으로 먼저 처리하고, 경험 구분이 불확실할 때만
+ * AI에 구간 번호를 한 번 묻는다. preferLocal=false는 사용자가 요청한 AI 문장 정리다.
  */
-export async function structureImportedContent(importedData, targetType) {
+export async function structureImportedContent(importedData, targetType, { preferLocal = true, segment = segmentExperiencesWithAI } = {}) {
+  if (preferLocal && targetType === 'experience') return localStructuredExperience(importedData);
+  if (preferLocal && targetType === 'resume') {
+    const local = parseExperiencesLocally(importedData.content, importedData.title);
+    if (local.confident || !local.experiences.length) return { ...normalizeResumeExperiences(local, importedData.content), processing: { method: 'local', needsReview: true } };
+    try {
+      const separated = await segment(importedData.content);
+      if (separated?.experiences?.length) return { ...normalizeResumeExperiences(separated, importedData.content), processing: { method: 'ai_boundaries', needsReview: true } };
+    } catch (err) {
+      console.warn('경험 구간 분리 생략, 원문 초안 사용:', err.code || err.status || 'AI_UNAVAILABLE');
+    }
+    return {
+      ...normalizeResumeExperiences(local, importedData.content),
+      processing: {
+        method: 'local', needsReview: true,
+        warning: '경험 구분을 완료하지 못해 원문 기반 초안으로 가져왔어요. 서로 다른 경험이 섞이거나 빠진 부분이 없는지 확인해주세요.',
+      },
+    };
+  }
+
   // 5,000자에서 자르면 문서 앞부분(표지·목차)만 보고 구조화된다 — 본문·성과까지 담기게 상향.
   // 포트폴리오는 프로젝트가 문서 전체에 흩어져 있어 가운데를 생략하면 중간 프로젝트가 통째로 빠진다.
   const rawText = clampMaterial(importedData.content || '', targetType === 'resume' ? 120000 : 40000);
 
   const prompts = {
-    experience: `당신은 실리콘밸리 탑티어 기업의 수석 채용 담당자이자, 취준생의 파편화된 경험을 '합격률 1%의 직무 맞춤형 포트폴리오'로 변환해 주는 최고의 커리어 컨설턴트입니다.
+    experience: `당신은 원문 근거를 바탕으로 취업 경험을 정리하는 커리어 편집자입니다.
 사용자가 업로드한 원본 데이터를 분석하여 희망 직무를 유추하고, 아래 원칙에 따라 재구성하세요.
 
 [핵심 원칙]
@@ -822,6 +871,7 @@ export async function structureImportedContent(importedData, targetType) {
 2. Why-How 연결: '왜(Why)'와 '어떻게(How)'를 논리적으로 연결, What의 단순 나열 금지
 3. 명확한 기여도: 팀 프로젝트라면 본인 역할과 기여도(%)를 명확히 분리
 4. 문체: 프로페셔널한 비즈니스 톤, 개조식 문장(~함, ~구축, ~달성)
+5. 원문에 없는 수치·역할·기여도·성과·배운 점은 만들지 마세요. 확인할 수 없는 항목은 빈 문자열로 두고, 팀 성과를 개인 성과로 바꾸지 마세요.
 
 [출력 JSON 스키마 - 반드시 이 형식으로만 응답]
 {
@@ -942,11 +992,11 @@ ${rawText}`,
   try {
     const text = await geminiGenerate(prompt);
     const parsed = parseGeminiJson(text, 'AI 구조화 응답 파싱 실패');
-    return targetType === 'resume' ? normalizeResumeExperiences(parsed, importedData.content) : parsed;
+    const structured = targetType === 'resume' ? normalizeResumeExperiences(parsed, importedData.content) : parsed;
+    return { ...structured, processing: { method: 'ai', needsReview: true } };
   } catch (err) {
     console.error('Gemini 구조화 실패:', err.message?.substring(0, 100));
-    // 문장을 기계적으로 쪼개 경험 목록을 지어내면 검토할 가치가 없다 — 빈 목록으로 실패를 알린다.
-    if (targetType === 'resume') return { experiences: [] };
+    if (!preferLocal) throw err; // 명시적 AI 요청 실패를 성공으로 표시하지 않는다.
     console.warn('Gemini 실패, 템플릿 폴백 사용');
     return structureFallback(importedData, targetType);
   }

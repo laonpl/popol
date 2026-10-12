@@ -13,7 +13,7 @@ export default function ExperiencePortfolioGuide({ experiences = [], onAdd }) {
     <aside className="fp-experience-guide" aria-label="다음 단계 안내">
       <span className="fp-guide-kicker">FITPOLY / NEXT STEP</span>
       <button type="button" className="fp-guide-cat-wrap" onClick={canBuild ? () => navigate('/app/portfolio/plan') : onAdd} aria-label={canBuild ? '포트폴리오 만들기 화면으로 이동' : '새 경험 만들기 화면으로 이동'}>
-        <FileCat variant={canBuild ? 'happy' : 'thinking'} file="portfolio" withDocuments className="fp-guide-cat" />
+        <FileCat variant={canBuild ? 'offering' : 'collecting'} file="portfolio" withDocuments className="fp-guide-cat" />
       </button>
       <div className="fp-guide-message">
         <span className="fp-guide-step">{canBuild ? '준비 완료!' : '차근차근 모아봐요'}</span>

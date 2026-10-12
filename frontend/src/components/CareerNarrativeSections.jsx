@@ -1,3 +1,5 @@
+import FileCat from './FileCat';
+import './career-dashboard.css';
 /**
  * CareerNarrativeSections — 대시보드의 "나를 알아가는" 영역.
  *
@@ -16,44 +18,17 @@ import {
 } from '../utils/careerNarrative';
 
 /* ── 장(章) 헤더 — 큰 숫자를 배경 삼아 구간 전환을 분명히 ── */
-const CHAPTER_TONE = {
-  navy:      { num: 'text-primary-100',   label: 'text-primary-600',   rule: 'bg-primary-200' },
-  caribbean: { num: 'text-caribbean-100', label: 'text-caribbean-700', rule: 'bg-caribbean-200' },
-  amber:     { num: 'text-amber-100',     label: 'text-amber-600',     rule: 'bg-amber-200' },
-};
-
-function Chapter({ numeral, label, caption, tone = 'navy' }) {
-  const t = CHAPTER_TONE[tone];
-  return (
-    <div className="relative mt-12 mb-5 first:mt-0">
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none absolute -left-1 -top-6 select-none font-black leading-none ${t.num}`}
-        style={{ fontSize: '76px' }}
-      >
-        {numeral}
-      </span>
-      <div className="relative pl-1">
-        <p className={`text-[12px] font-black uppercase tracking-[0.18em] ${t.label}`}>{label}</p>
-        <p className="mt-1 text-[13.5px] font-medium text-bluewood-500">{caption}</p>
-        <span className={`mt-3 block h-[3px] w-10 rounded-full ${t.rule}`} />
-      </div>
-    </div>
-  );
+function Chapter({ numeral, label, caption }) {
+  return <div className="fp-narrative-chapter"><span aria-hidden="true">{numeral}</span><div><h3>{label}</h3><p>{caption}</p></div></div>;
 }
 
-/* ── 카드 — 모든 블록의 공통 껍데기 ── */
 function Card({ title, desc, icon: Icon, children, className = '', accent = 'default' }) {
   if (!children) return null;
-  const ring = accent === 'primary' ? 'border-primary-200 bg-primary-50/30'
-    : accent === 'good' ? 'border-caribbean-200 bg-caribbean-50/30'
-    : accent === 'warn' ? 'border-amber-200 bg-amber-50/30'
-    : 'border-surface-200 bg-white';
   return (
-    <section className={`rounded-2xl border ${ring} p-5 transition-shadow hover:shadow-[0_4px_20px_rgba(0,47,108,0.06)] ${className}`}>
+    <section className={`fp-narrative-card ${className}`}>
       <div className="mb-3.5 flex items-start gap-2.5">
         {Icon && (
-          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white text-primary-500 shadow-sm">
+          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white text-neutral-900 shadow-sm">
             <Icon size={15} />
           </span>
         )}
@@ -67,14 +42,7 @@ function Card({ title, desc, icon: Icon, children, className = '', accent = 'def
   );
 }
 
-const Chip = ({ children, tone = 'default' }) => (
-  <span className={`inline-block rounded-lg px-2.5 py-1 text-[12.5px] font-semibold ${
-    tone === 'primary' ? 'bg-primary-500 text-white'
-      : tone === 'good' ? 'bg-caribbean-50 text-caribbean-700 ring-1 ring-caribbean-200'
-      : tone === 'warn' ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-      : 'bg-surface-100 text-bluewood-600'
-  }`}>{children}</span>
-);
+const Chip = ({ children, tone = 'default' }) => <span className={`fp-narrative-chip fp-narrative-chip--${tone}`}>{children}</span>;
 
 const Empty = ({ children }) => (
   <p className="rounded-xl border border-dashed border-surface-300 bg-surface-50/50 px-3.5 py-3 text-[12.5px] leading-relaxed text-bluewood-400">
@@ -84,8 +52,8 @@ const Empty = ({ children }) => (
 
 /* 패턴 확신도 — 색으로 단계를 읽히게 */
 const STATUS_STYLE = {
-  '검증됨':   'bg-caribbean-500',
-  '관찰 중':  'bg-primary-400',
+  '검증됨':   'bg-neutral-900',
+  '관찰 중':  'bg-neutral-900',
   '가설':     'bg-bluewood-200',
 };
 
@@ -118,46 +86,18 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
   ].filter(Boolean);
 
   return (
-    <div className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-
-      {/* ══════ 히어로 ══════ */}
-      <div className="relative overflow-hidden bg-primary-500 px-7 py-8 sm:px-9 sm:py-10">
-        {/* 배경 장식 — 은은한 원형 글로우 */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.18]"
-          style={{ backgroundImage: 'radial-gradient(circle at 82% 15%, #ffffff 0%, transparent 45%), radial-gradient(circle at 8% 95%, #87add5 0%, transparent 50%)' }} />
-        <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-44 w-44 rounded-full border border-white/10" />
-        <div aria-hidden="true" className="pointer-events-none absolute -right-2 top-6 h-28 w-28 rounded-full border border-white/10" />
-
-        <div className="relative">
-          <p className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.22em] text-primary-200">
-            <Sparkles size={13} /> Who I Am
-          </p>
-          <h3 className="mt-2.5 max-w-xl text-[26px] font-extrabold leading-[1.25] tracking-[-0.02em] text-white sm:text-[30px]"
-            style={{ wordBreak: 'keep-all' }}>
-            경험이 쌓일수록<br className="hidden sm:block" /> 선명해지는 것들
-          </h3>
-          <p className="mt-3 max-w-lg text-[13.5px] leading-relaxed text-primary-100" style={{ wordBreak: 'keep-all' }}>
-            경험 하나는 취향이지만, 여러 경험에서 반복되면 패턴입니다.
-            아래는 지금까지 정리한 {experiences.length}개에서 뽑아낸 것들이에요.
-          </p>
-
-          {/* 요약 지표 */}
-          <dl className="mt-7 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/15 pt-5">
-            {stats.map(s => (
-              <div key={s.label}>
-                <dt className="text-[11.5px] font-semibold tracking-wide text-primary-200">{s.label}</dt>
-                <dd className="mt-0.5 flex items-baseline gap-0.5 text-white">
-                  <span className="text-[26px] font-extrabold leading-none tabular-nums">{s.value}</span>
-                  <span className="text-[13px] font-bold text-primary-200">{s.unit}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
+    <div className="fp-narrative">
+      <header className="fp-narrative-hero">
+        <div className="fp-narrative-intro">
+          <span className="fp-career-eyebrow">WHO I AM / MY EXPERIENCE NOTES</span>
+          <h2>경험을 모았더니,<br />내 모습이 보이기 시작했어요.</h2>
+          <p>정리한 {experiences.length}개의 경험 속에서 발견한 나의 선택, 성장, 가능성.<br />흩어져 있던 이야기를 한 장씩 함께 읽어볼까요?</p>
         </div>
-      </div>
+        <div className="fp-narrative-mascot"><span>이 안에, 나다운 이야기가 있어요.</span><FileCat variant="reading" file="document" withDocuments /></div>
+        <dl className="fp-narrative-stats">{stats.map(s => <div key={s.label}><dt>{s.label}</dt><dd>{s.value}<small>{s.unit}</small></dd></div>)}</dl>
+      </header>
+      <div className="fp-narrative-body">
 
-      {/* ══════ 본문 ══════ */}
-      <div className="px-6 pb-9 pt-2 sm:px-8">
 
         {/* ─────── Ⅰ. 나는 어떤 사람인가 ─────── */}
         <Chapter numeral="Ⅰ" tone="navy"
@@ -166,11 +106,11 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
 
         {/* 대표 문장 — 이 섹션의 주인공이므로 가장 크게 */}
         {(identity.sentences.length || identity.patterns.length) ? (
-          <section className="relative overflow-hidden rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50/80 to-white p-6">
+          <section className="fp-narrative-quote relative overflow-hidden p-6">
             <Quote aria-hidden="true" size={78} strokeWidth={1}
-              className="pointer-events-none absolute -right-3 -top-3 text-primary-100" />
+              className="pointer-events-none absolute -right-3 -top-3 text-neutral-200" />
             <div className="relative">
-              <p className="mb-4 text-[12px] font-black uppercase tracking-[0.16em] text-primary-400">
+              <p className="mb-4 text-[12px] font-black uppercase tracking-[0.16em] text-neutral-600">
                 나를 보여주는 한 문장
               </p>
 
@@ -186,7 +126,7 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
               </div>
 
               {identity.patterns.length > 0 && (
-                <div className="mt-5 border-t border-primary-100 pt-4">
+                <div className="mt-5 border-t border-neutral-300 pt-4">
                   <p className="mb-2.5 text-[12px] font-bold text-bluewood-500">반복 관찰된 행동 패턴</p>
                   <div className="flex flex-wrap gap-2">
                     {identity.patterns.map(p => (
@@ -214,7 +154,7 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                 {principles.map((p, i) => (
                   <li key={i} className="flex gap-3 rounded-xl bg-surface-50/70 px-3.5 py-3">
                     <span aria-hidden="true"
-                      className="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-primary-500 font-mono text-[11px] font-black text-white">
+                      className="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-neutral-900 font-mono text-[11px] font-black text-white">
                       {i + 1}
                     </span>
                     <span className="min-w-0">
@@ -240,7 +180,7 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                       </span>
                       <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface-100">
                         <div
-                          className={`h-full rounded-full ${i === 0 ? 'bg-primary-500' : 'bg-primary-300'}`}
+                          className={`h-full rounded-full ${i === 0 ? 'bg-neutral-900' : 'bg-neutral-100'}`}
                           style={{ width: `${Math.max(8, (c.count / criteria[0].count) * 100)}%` }}
                         />
                       </div>
@@ -279,11 +219,11 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                 {growth.map(g => (
                   <li key={g.label} className="relative pl-6">
                     <span aria-hidden="true"
-                      className="absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 border-white bg-caribbean-500 shadow-sm" />
+                      className="absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 border-white bg-neutral-900 shadow-sm" />
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <span className="font-mono text-[11.5px] font-bold text-bluewood-300">{g.when}</span>
                       <span className="text-[13.5px] font-bold text-bluewood-800">{g.label}</span>
-                      <span className="rounded bg-caribbean-50 px-1.5 py-px text-[11px] font-bold text-caribbean-700">
+                      <span className="rounded bg-neutral-100 px-1.5 py-px text-[11px] font-bold text-neutral-900">
                         누적 {g.cumulative}
                       </span>
                     </div>
@@ -310,9 +250,9 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                     </div>
                     {t.after && (
                       <>
-                        <ArrowRight aria-hidden="true" size={13} className="my-1.5 ml-2.5 rotate-90 text-primary-300" />
+                        <ArrowRight aria-hidden="true" size={13} className="my-1.5 ml-2.5 rotate-90 text-neutral-600" />
                         <div className="flex items-start gap-2">
-                          <span className="mt-px w-9 flex-shrink-0 rounded bg-primary-500 py-0.5 text-center text-[11px] font-black text-white">
+                          <span className="mt-px w-9 flex-shrink-0 rounded bg-neutral-900 py-0.5 text-center text-[11px] font-black text-white">
                             지금
                           </span>
                           <p className="min-w-0 text-[13px] font-medium leading-relaxed text-bluewood-800" style={{ wordBreak: 'keep-all' }}>
@@ -336,7 +276,7 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                     title={`${r.label} · ${r.count}개`}>
                     <span className="text-[11px] font-bold tabular-nums text-bluewood-400">{r.count}</span>
                     <div
-                      className="w-full rounded-md bg-gradient-to-t from-primary-500 to-primary-300"
+                      className="w-full rounded-md bg-neutral-800"
                       style={{ height: `${Math.max(8, (r.count / density.max) * 64)}px` }}
                     />
                     <span className="text-[10.5px] text-bluewood-300">{r.label.slice(2)}</span>
@@ -351,7 +291,7 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
               <div>
                 <p className="mb-2.5 rounded-lg bg-surface-50 px-3 py-2 text-[12.5px] text-bluewood-500">
                   전체 {revision.total}개 중{' '}
-                  <strong className="text-[14px] font-extrabold text-primary-600 tabular-nums">{revision.revisited}개</strong>
+                  <strong className="text-[14px] font-extrabold text-neutral-900 tabular-nums">{revision.revisited}개</strong>
                   를 작성 후 다시 수정했어요.
                 </p>
                 <ul className="space-y-1.5">
@@ -377,9 +317,9 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
             {targetCompetencies.length ? (
               <div className="space-y-3.5">
                 {gaps.have.length > 0 && (
-                  <div className="rounded-xl border border-caribbean-200 bg-caribbean-50/40 p-3.5">
-                    <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-caribbean-700">
-                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-caribbean-500" />
+                  <div className="rounded-xl border border-neutral-300 bg-neutral-100/40 p-3.5">
+                    <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-neutral-900">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-neutral-900" />
                       갖춘 역량 {gaps.have.length}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -388,9 +328,9 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                   </div>
                 )}
                 {gaps.missing.length > 0 && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3.5">
-                    <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-amber-600">
-                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <div className="rounded-xl border border-neutral-300 bg-neutral-100/40 p-3.5">
+                    <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-neutral-900">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-neutral-900" />
                       아직 비어 있는 역량 {gaps.missing.length}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -411,15 +351,15 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                 {/* 큰 숫자 + 진행 바 */}
                 <div className="flex items-end gap-3">
                   <p className="flex items-baseline gap-0.5">
-                    <span className="text-[34px] font-extrabold leading-none tabular-nums text-caribbean-700">
+                    <span className="text-[34px] font-extrabold leading-none tabular-nums text-neutral-900">
                       {evidence.securedPct}
                     </span>
-                    <span className="text-[15px] font-bold text-caribbean-600">%</span>
+                    <span className="text-[15px] font-bold text-neutral-900">%</span>
                   </p>
                   <p className="pb-1 text-[12.5px] font-medium text-bluewood-400">증거 확보</p>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-surface-100">
-                  <div className="h-full rounded-full bg-gradient-to-r from-caribbean-500 to-caribbean-600 transition-[width] duration-500"
+                  <div className="h-full rounded-full bg-neutral-800 transition-[width] duration-500"
                     style={{ width: `${evidence.securedPct}%` }} />
                 </div>
 
@@ -430,8 +370,8 @@ export default function CareerNarrativeSections({ experiences = [], targetCompet
                 </div>
 
                 {evidence.bare.length > 0 && (
-                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/40 px-3.5 py-2.5">
-                    <p className="text-[12px] font-bold text-amber-700">증거가 하나도 없는 경험</p>
+                  <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-100/40 px-3.5 py-2.5">
+                    <p className="text-[12px] font-bold text-neutral-900">증거가 하나도 없는 경험</p>
                     <p className="mt-1 text-[12px] leading-relaxed text-bluewood-500">
                       {evidence.bare.join(' · ')}
                     </p>

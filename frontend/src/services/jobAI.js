@@ -57,6 +57,7 @@ export async function recommendLiveJobs(options = {}) {
     targetRoles: Array.isArray(options.targetRoles) ? options.targetRoles : [],
     locations: Array.isArray(options.locations) ? options.locations : [],
     preferences: options.preferences || {},
+    search: options.search,
     limit: options.limit || 6,
   };
   const { data } = await api.post('/job/recommend-live-postings', payload, { timeout: 240000 });

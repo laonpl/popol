@@ -7,3 +7,5 @@ serviceAccountKey.json
 *.traineddata
 build/motion-masters/
 __pycache__/
+backend/data/job-index.json
+backend/data/job-index.json.*.tmp

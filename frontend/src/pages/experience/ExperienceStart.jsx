@@ -6,9 +6,9 @@ import ResumeImportModal from '../../components/ResumeImportModal';
 import useAuthGate from '../../hooks/useAuthGate';
 
 const METHODS = [
-  { id: 'chat', number: '01', icon: MessageCircle, title: '대화로 정리', hint: '기억나는 이야기부터', description: '자료가 없어도 괜찮아요. 질문에 답하며 내가 한 일과 성과를 찾아가요.', tags: ['자료 없이 시작', '질문으로 차근차근'], action: '이야기 시작하기', variant: 'curious', file: 'document' },
-  { id: 'materials', number: '02', icon: FolderOpen, title: '자료로 만들기', hint: '흩어진 파일을 한곳에', description: '메모, 프로젝트 파일, 링크를 모아주세요. 경험에 필요한 내용을 함께 정리해요.', tags: ['파일 · 메모 · 링크', '프로젝트별 정리'], action: '자료 모으기', variant: 'happy', file: 'image' },
-  { id: 'resume', number: '03', icon: FileText, title: '이력서 가져오기', hint: '이미 적어둔 경험이 있다면', description: '이력서나 포트폴리오에서 경험을 찾아요. 가져올 항목을 직접 고를 수 있어요.', tags: ['이력서 · 포트폴리오', '여러 경험 한 번에'], action: '문서 가져오기', variant: 'thinking', file: 'pdf' },
+  { id: 'chat', number: '01', icon: MessageCircle, title: '대화로 정리', hint: '기억나는 이야기부터', description: '자료가 없어도 괜찮아요. 질문에 답하며 내가 한 일과 성과를 찾아가요.', tags: ['자료 없이 시작', '질문으로 차근차근'], action: '이야기 시작하기', variant: 'welcome', file: 'document' },
+  { id: 'materials', number: '02', icon: FolderOpen, title: '자료로 만들기', hint: '흩어진 파일을 한곳에', description: '메모, 프로젝트 파일, 링크를 모아주세요. 경험에 필요한 내용을 함께 정리해요.', tags: ['파일 · 메모 · 링크', '프로젝트별 정리'], action: '자료 모으기', variant: 'collecting', file: 'image' },
+  { id: 'resume', number: '03', icon: FileText, title: '이력서 가져오기', hint: '이미 적어둔 경험이 있다면', description: '이력서나 포트폴리오에서 경험을 찾아요. 가져올 항목을 직접 고를 수 있어요.', tags: ['이력서 · 포트폴리오', '여러 경험 한 번에'], action: '문서 가져오기', variant: 'reading', file: 'pdf' },
 ];
 
 export default function ExperienceStart() {
@@ -38,7 +38,7 @@ export default function ExperienceStart() {
         </div>
         <div className="fp-start-companion" aria-hidden="true">
           <span className="fp-cat-bubble">흩어진 경험, 제가 모아올게요!</span>
-          <FileCat variant="curious" file="document" withDocuments />
+          <FileCat variant={importing ? 'reading' : 'welcome'} file="document" withDocuments />
         </div>
       </section>
       {importing ? <>
