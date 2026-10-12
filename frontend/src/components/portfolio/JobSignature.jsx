@@ -148,7 +148,7 @@ export function DoubleDiamond({ steps, accent }) {
               <text x={d2.m} y={mid + half + 20} fontSize="9.5" fill="#94a3b8" textAnchor="middle">수렴</text>
             </svg>
             {/* 페이즈별 실제 수행 단계 */}
-            <div className="mt-2 grid grid-cols-4 gap-2">
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
               {cols.map((col, ci) => (
                 <div key={ci} className="space-y-1.5">
                   {col.map((st, si) => (

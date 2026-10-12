@@ -28,24 +28,29 @@ function BrandIcon({ name, className = '' }) {
   return <img src={BRAND_ICONS[name]} alt={name} className={className} loading="lazy" decoding="async" />;
 }
 
-const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
+// minScale: 이보다 더 작게 줄이지 않는다 — 대신 넘치는 부분은 옆으로 밀어서 본다(모바일에서 글자가 너무 작아지는 것 방지)
+const ResponsiveScaleWrapper = ({ children, minWidth = 1000, minScale = 0 }) => {
   const containerRef = useRef(null);
   const contentRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState('auto');
+  const [swipe, setSwipe] = useState(false);
 
   const handleResize = useCallback(() => {
     if (!containerRef.current || !contentRef.current) return;
     const containerW = containerRef.current.clientWidth;
     if (containerW < minWidth) {
-      const newScale = containerW / minWidth;
+      const fit = containerW / minWidth;
+      const newScale = Math.max(fit, minScale);
       setScale(newScale);
       setHeight(contentRef.current.offsetHeight * newScale);
+      setSwipe(newScale > fit);
     } else {
       setScale(1);
       setHeight('auto');
+      setSwipe(false);
     }
-  }, [minWidth]);
+  }, [minWidth, minScale]);
 
   useEffect(() => {
     const observer = new ResizeObserver(handleResize);
@@ -57,7 +62,7 @@ const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   }, [handleResize]);
 
   return (
-    <div ref={containerRef} className="w-full relative origin-top-left" style={{ height }}>
+    <div ref={containerRef} className={`w-full relative origin-top-left ${swipe ? 'overflow-x-auto overflow-y-hidden scrollbar-none' : ''}`} style={{ height }}>
       <div 
         ref={contentRef} 
         className="origin-top-left w-full" 
@@ -801,7 +806,9 @@ export default function Landing() {
                 어떤 파일이든, <span className="text-primary-500">숨겨진 경험을 꺼냅니다</span>
               </h3>
             </div>
-            <ResponsiveScaleWrapper minWidth={900}>
+            {/* 휴대폰 화면 3개가 나란한 도식 — 모바일에서는 0.62배 아래로 줄이지 않고 옆으로 밀어서 본다 */}
+            <p className="lg:hidden -mt-2 mb-3 text-[13px] font-semibold text-bluewood-400">옆으로 밀어서 보기 →</p>
+            <ResponsiveScaleWrapper minWidth={900} minScale={0.62}>
               <div className="flex flex-row gap-0 items-start w-full">
 
                 {/* ── Panel 1: 카카오톡 모바일 ── */}
@@ -1148,9 +1155,8 @@ export default function Landing() {
 
           {/* 핵심 추출 */}
           <div data-label="02 / FIND THE POINT" className="fp-feature-panel bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
-            <ResponsiveScaleWrapper minWidth={1000}>
-              <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
+              <div className="flex flex-col lg:flex-row-reverse gap-6 lg:gap-10 items-start w-full">
+                <div className="w-full lg:w-[380px] lg:shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[13px] font-bold rounded mb-4 sm:mb-6">AI 핵심 추출</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
                   중요한 건,<br />
@@ -1168,6 +1174,7 @@ export default function Landing() {
               </div>
 
               <div className="flex-1 w-full min-w-0">
+                <ResponsiveScaleWrapper minWidth={580}>
                 <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 text-left p-5 sm:p-7">
                   <div className="flex items-center justify-between border-b border-surface-100 pb-3 mb-4">
                     <h4 className="text-[16px] sm:text-[18px] font-extrabold text-[#1B264F]">핵심 경험</h4>
@@ -1197,16 +1204,15 @@ export default function Landing() {
                     ))}
                   </div>
                 </div>
+                </ResponsiveScaleWrapper>
               </div>
             </div>
-            </ResponsiveScaleWrapper>
           </div>
 
           {/* 완성된 결과물 — 이력서 */}
           <div data-label="03 / MAKE IT YOURS" className="fp-feature-panel bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
-            <ResponsiveScaleWrapper minWidth={900}>
-              <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
+              <div className="flex flex-col lg:flex-row gap-6 lg:gap-10 items-start w-full">
+                <div className="w-full lg:w-[380px] lg:shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[13px] font-bold rounded mb-3 sm:mb-4">완성된 결과물</span>
                 <h3 className="text-[22px] sm:text-[26px] font-extrabold text-primary-600 leading-[1.35] mb-3 sm:mb-4" style={{ wordBreak: 'keep-all' }}>
                   흩어진 경험이,<br />
@@ -1229,6 +1235,7 @@ export default function Landing() {
               </div>
 
               <div className="flex-1 w-full mt-0 lg:mt-4 min-w-0">
+                <ResponsiveScaleWrapper minWidth={580}>
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden p-5 sm:p-7 md:p-9 text-left">
                   {/* Resume Header */}
                   <div className="flex items-start justify-between gap-4 mb-7 sm:mb-9">
@@ -1316,9 +1323,9 @@ export default function Landing() {
                     </div>
                   </div>
                 </div>
+                </ResponsiveScaleWrapper>
               </div>
             </div>
-            </ResponsiveScaleWrapper>
           </div>
         </div>
       </section>
@@ -1346,9 +1353,8 @@ export default function Landing() {
 
           {/* 채용공고 분석 */}
           <div data-label="04 / READ THE JOB" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
-            <ResponsiveScaleWrapper minWidth={900}>
-              <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
+              <div className="flex flex-col lg:flex-row gap-6 lg:gap-10 items-start w-full">
+                <div className="w-full lg:w-[380px] lg:shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">채용공고 분석</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   링크 하나면,<br />
@@ -1362,6 +1368,7 @@ export default function Landing() {
               </div>
 
               <div className="flex-1 w-full min-w-0">
+                <ResponsiveScaleWrapper minWidth={580}>
                 <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden">
                   <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2 mb-3">
@@ -1418,16 +1425,15 @@ export default function Landing() {
                     </div>
                   </div>
                 </div>
+                </ResponsiveScaleWrapper>
               </div>
             </div>
-            </ResponsiveScaleWrapper>
           </div>
 
           {/* 포트폴리오 자동 생성 */}
           <div data-label="05 / BUILD YOUR STORY" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
-            <ResponsiveScaleWrapper minWidth={1000}>
-              <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
+              <div className="flex flex-col lg:flex-row-reverse gap-6 lg:gap-10 items-start w-full">
+                <div className="w-full lg:w-[380px] lg:shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">포트폴리오 에디터</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   당신의 경험이,<br />
@@ -1442,6 +1448,7 @@ export default function Landing() {
 
               {/* Mock Portfolio Editor */}
               <div className="flex-1 w-full min-w-0">
+                <ResponsiveScaleWrapper minWidth={580}>
                 <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden p-4 sm:p-6 md:p-8">
                   <div className="mb-4 sm:mb-6">
                     <h4 className="text-[22px] sm:text-[28px] font-extrabold text-primary-600 mb-1 tracking-tight">XX기업 포트폴리오</h4>
@@ -1569,16 +1576,15 @@ export default function Landing() {
 
                   </div>
                 </div>
+                </ResponsiveScaleWrapper>
               </div>
             </div>
-            </ResponsiveScaleWrapper>
           </div>
 
           {/* 산출물 쇼케이스 — 웹사이트 · 노션형 문서 · PPT */}
           <div data-label="06 / SHARE ANYWHERE" className="fp-feature-panel bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mt-6 sm:mt-8">
-            <ResponsiveScaleWrapper minWidth={1000}>
-              <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
+              <div className="flex flex-col lg:flex-row gap-6 lg:gap-10 items-start w-full">
+                <div className="w-full lg:w-[380px] lg:shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">웹 · 노션 · PPT</span>
                   <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
                     문서 하나로 끝나지 않고,<br />
@@ -1600,10 +1606,11 @@ export default function Landing() {
                 </div>
 
                 <div className="flex-1 w-full min-w-0">
+                  <ResponsiveScaleWrapper minWidth={580}>
                   <OutputShowcase />
+                  </ResponsiveScaleWrapper>
                 </div>
               </div>
-            </ResponsiveScaleWrapper>
           </div>
         </div>
       </section>

@@ -8,6 +8,8 @@ import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import toast from 'react-hot-toast';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
+import { roleEditorFields } from '../../utils/roleExperienceIntake';
+import { RoleExperienceGuide } from './RoleExperienceIntake';
 
 export default function ExperienceEditor() {
   const { id, framework: paramFramework } = useParams();
@@ -36,6 +38,7 @@ export default function ExperienceEditor() {
   const [hasImageChanges, setHasImageChanges] = useState(false);
 
   const fw = FRAMEWORKS[framework];
+  const specializedFields = roleEditorFields(jobCategory, JOB_SPECIFIC_FIELDS[jobCategory], content);
 
   // 저장 시점의 상태 스냅샷 — 변경 여부(dirty) 판단 기준선
   const editableSnapshot = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
@@ -326,6 +329,8 @@ export default function ExperienceEditor() {
         </div>
       </div>
 
+      <RoleExperienceGuide role={jobCategory} />
+
       {/* ── 필수 7개 섹션 (공통) ── */}
       <div className="mb-2 flex items-center gap-2 px-1">
         <span className="text-[11.5px] font-bold uppercase tracking-widest text-gray-300">필수 섹션</span>
@@ -357,7 +362,7 @@ export default function ExperienceEditor() {
       </div>
 
       {/* ── 직군별 특화 섹션 ── */}
-      {JOB_SPECIFIC_FIELDS[jobCategory]?.length > 0 && (
+      {specializedFields?.length > 0 && (
         <>
           <div className="mb-2 flex items-center gap-2 px-1">
             <span className="text-[11.5px] font-bold uppercase tracking-widest text-primary-400">
@@ -366,7 +371,7 @@ export default function ExperienceEditor() {
             <div className="flex-1 h-px bg-primary-100" />
           </div>
           <div className="space-y-4 mb-6">
-            {JOB_SPECIFIC_FIELDS[jobCategory].map(field => (
+            {specializedFields.map(field => (
               <div key={field.key} className={`rounded-2xl border p-6 ${field.color}`}>
                 <label className="block text-sm font-bold mb-1 text-gray-700">
                   {field.label}

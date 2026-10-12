@@ -1,12 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe, FileText } from 'lucide-react';
+import { Search, X, ChevronDown, ChevronUp, Globe, FileText } from 'lucide-react';
 import api from '../services/api';
-
-const JOB_SITES = [
-  { name: '잡코리아', domain: 'jobkorea.co.kr', color: 'bg-blue-500', url: 'https://www.jobkorea.co.kr/starter/calendar' },
-  { name: '사람인', domain: 'saramin.co.kr', color: 'bg-green-500', url: 'https://calendar.saramin.co.kr' },
-  { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
-];
+import JobSiteLinks, { JOB_SITES } from './JobSiteLinks';
 
 /* AI 응답 항목이 객체({value, description} 등)이거나 JSON 문자열로 직렬화된 경우에도 표시용 텍스트만 추출.
    문자열인 후보만 채택해 숫자 점수 등이 새어나오지 않게 한다. */
@@ -212,7 +207,6 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
   const [deadline, setDeadline] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showSites, setShowSites] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('');
 
@@ -305,34 +299,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
       )}
 
       {!compact && mode === 'url' && (
-        <div className="relative flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowSites(!showSites)}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-400 border border-surface-200 rounded-lg hover:border-bluewood-300 hover:text-bluewood-700 bg-white transition-colors"
-          >
-            <Search size={13} />
-            지원할 공고 찾아보기
-            {showSites ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
-          {showSites && (
-            <div className="absolute top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 min-w-[200px]">
-              {JOB_SITES.map(site => (
-                <a
-                  key={site.name}
-                  href={site.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-50 text-[13px] text-bluewood-700 transition-colors"
-                >
-                  <span className={`w-2 h-2 rounded-full ${site.color}`} />
-                  {site.name} 공채달력
-                  <ExternalLink size={12} className="text-bluewood-300 ml-auto" />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
+        <JobSiteLinks />
       )}
 
       {mode === 'url' && (

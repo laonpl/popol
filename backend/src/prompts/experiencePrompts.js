@@ -15,6 +15,7 @@ import {
 import { clampMaterial } from '../utils/materialText.js';
 import { PM_EVIDENCE_GUIDE, PM_JOB_DATA_SCHEMA } from './pmEvidencePrompts.js';
 import { MARKETER_EVIDENCE_GUIDE, MARKETER_JOB_DATA_SCHEMA } from './marketerEvidencePrompts.js';
+import { roleInterviewGuidance, roleMomentGuidance } from './roleExperienceGuidance.js';
 
 const PR_GUIDELINES = `
 [10가지 성과 공식 — 가장 잘 맞는 유형으로 분류]
@@ -893,7 +894,7 @@ ${NO_HALLUCINATION_RULES}
 ${WRITING_QUALITY_RULES}
 
 ${buildHumanVoiceRules(careerStage)}
-${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
+${part === 'keyExperiences' ? '' : `${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}`}
 [초안 작성 규칙]
 - 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 항목에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
 - 자료에 단서가 조금이라도 있으면 그것을 요약·재구성해 2~3문장으로 채우세요. 무엇을 했는지·왜 했는지·어떻게 했는지 같은 정성적 내용은 적극적으로 풀어 쓰세요.
@@ -919,6 +920,7 @@ ${contentText}
 - 수치만 남기지 마세요. 수치는 metric에 넣고, context/action/result/learning에는 문제 전후상황, 실행 과정, 결과 해석, 배운 점을 각각 1~3문장으로 보존하세요.
 - 각 keyExperience는 서로 다른 "판단이 필요했던 사건"이어야 합니다. 같은 프로젝트의 행동을 억지로 3개로 쪼개지 마세요.
 - "인터뷰구조화" 입력이 있으면 그 안의 context/action/result/learning을 우선 사용하되 자연스럽게 다듬으세요.
+${isPm || isMarketer ? '- 초안부터 직군 고유의 실제 작업을 jobData에 보존하세요. 공통 context/action/result 문장만 반환하지 마세요. 대표 경험별로 자료가 충분한 산출물 2~4종을 먼저 깊이 정리하고, 근거가 없는 배열은 생략하거나 []로 두세요. 제목·요약보다 실제 정책/문안/판단/관찰 내용을 우선하며 같은 내용을 여러 배열에 복제하지 마세요.' : ''}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
@@ -1358,7 +1360,7 @@ export function buildInterviewQuestionsPrompt(braindump = '', jobCategory = 'com
   return `당신은 FitPoly의 저부담 경험 인터뷰어입니다.
 사용자가 새 글을 길게 쓰게 하지 말고, 이미 제공한 초안을 먼저 이해한 뒤 결과물 가치가 큰 빈칸만 질문하세요.
 대상 직군: ${jobInfo.label}
-직군 렌즈: ${jobLens.guide}
+직군 렌즈: ${roleInterviewGuidance(jobCategory) || jobLens.guide}
 
 ${NO_HALLUCINATION_RULES}
 ${buildLowBurdenInterviewGuide(interviewMode)}
@@ -1418,7 +1420,9 @@ ${JSON.stringify(experiences, null, 2).slice(0, 18000)}
 // ============================================================
 // 경험 순간 추출 (extractMoments) — 이미 작은 prompt
 // ============================================================
-export function buildExtractMomentsPrompt(rawText, title) {
+export function buildExtractMomentsPrompt(rawText, title, jobCategory = 'common') {
+  const roleGuide = roleMomentGuidance(jobCategory);
+  const countRule = roleGuide ? '자료에 실제로 있는 서로 다른 판단 사례만 최대 10개까지 추출하세요. 하나뿐이면 1개도 정상이며, 근거가 없으면 빈 배열을 반환하세요.' : '최소 3개 필수, 최대 10개까지 — 임팩트 있는 경험을 모조리 추출하세요';
   return `당신은 Google·Amazon·Meta·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가입니다.
 아래 자료에서 포트폴리오에 실제로 쓸 수 있는 핵심 경험 순간들을 추출하세요.
 인사담당자가 "이 사람 면접 불러야 해"라고 느낄 수준의 내용만, 국내외 대기업 합격 기법을 적용해 추출합니다.
@@ -1435,8 +1439,10 @@ ${GLOBAL_PORTFOLIO_TECHNIQUES}
 
 ${DECISION_RECORD_GUIDE}
 
-★ 최소 3개 필수, 최대 10개까지 — 임팩트 있는 경험을 모조리 추출하세요 ★
+★ ${countRule} ★
 프로젝트명: ${title || '(미상)'}
+대상 직군: ${getJobInfo(jobCategory).label}
+${roleGuide}
 
 [추출 원칙 — 판단 사건 단위]
 1. 10가지 성과 공식 중 가장 잘 맞는 유형을 'type'에 기재
@@ -1479,7 +1485,7 @@ ${clampMaterial(rawText, 48000)}
 - 단일 수치만 있으면(예: "40% 단축") metric에만 넣고 before/after는 비워두세요.
 - 원본에 수치 없으면 절대 지어내지 마세요.
 
-moments 배열은 반드시 3개 이상, 가능한 최대 10개까지 추출하세요.`;
+moments 배열: ${countRule}`;
 }
 
 // ============================================================

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "FitPoly 지원서 문항 연결",
+  "description": "직접 연 지원서에서 자기소개서 문항과 글자 수 제한만 확인해 FitPoly로 가져옵니다.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "102",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxlnH3DxKbkOuVThr02AzqsUVCP96cgrfh2YTjcpuQ+IHEXMLl6ltMG+OjyjxgS9x713qoy2l70sHYSpq2E6wy5XkPIjSL0oMRU76/+7lsPsfECtX/qNBf/V7zH1qvoFtlnVyfjP+0FXuUA1kfrECHj1wyAqVVzoWCwEJSBrrw2op74hCHqihUBuzKoiJe+r8IFTSUug3BdQAvWcRxcZ3iPyd6nZejRZvn1/JpbZph9XlHJr6YV75Gpo4QEh68GtBA4atQBbmDDZNPaWm0kNWe415BEhELUSR3C5nFpwQTcpLNdWABrPBNSGeCwTmXhE29cwq17O1PsaIrE4RAj77DQIDAQAB",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "FitPoly로 지원서 문항 가져오기", "default_popup": "popup.html" },
+  "externally_connectable": {
+    "matches": ["https://fitpoly.kr/*", "https://www.fitpoly.kr/*", "http://localhost/*", "http://127.0.0.1/*"]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'"
+  }
+}

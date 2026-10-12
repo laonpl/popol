@@ -94,9 +94,12 @@ try {
   assert.equal(await page.$('.mk-view-nav'), null);
   assert.equal(await page.$('.mk-campaign-brief'), null);
   assert.doesNotMatch(await page.$eval('.mk-campaign:not(.mk-hidden)', el => el.textContent), /A-|B\+|적합도/);
+  // The authoring studio can place lazily loaded work samples below the fold.
+  await page.$eval('.role-artifact-preview img', element => element.scrollIntoView({ block: 'center' }));
+  await page.waitForFunction(() => document.querySelector('.role-artifact-preview img')?.complete);
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: path.join(output, 'marketer-desktop.png'), fullPage: true });
   await page.screenshot({ path: path.join(output, 'marketer-desktop-top.png') });
-  await page.waitForFunction(() => document.querySelector('.role-artifact-preview img')?.complete);
   await page.click('.ma-outline a[href$="-creative"]');
   assert.match(await page.$eval('.ma-copy-library', el => el.textContent), /검토 문안|가격안/);
   assert.match(await page.$eval('.ma-copy-library', el => el.textContent), /원본 디자인 아님/);
@@ -134,7 +137,7 @@ try {
   assert.ok(await page.$$eval('.ma-copy-grid>article, .mk-channel-table tbody tr', els => els.every(el => el.getBoundingClientRect().height > 0)));
   assert.ok(await page.$$eval('.ma-measure-detail dl', els => els.every(el => el.getBoundingClientRect().height > 0)));
   assert.ok(await page.$eval('.marketing-print-context', el => el.getBoundingClientRect().height > 0));
-  assert.ok(await page.$$eval('.mk-source blockquote', els => els.every(el => el.getBoundingClientRect().height > 0)), 'print includes closed source excerpts');
+  assert.ok(await page.$$eval('.ma-case-body .mk-source blockquote', els => els.every(el => el.getBoundingClientRect().height > 0)), 'print includes document source excerpts; the interactive studio is omitted');
   const exported = await page.evaluate(async () => {
     const { experienceDraftBlocks } = await import('/src/utils/projectSections.js');
     return JSON.stringify(experienceDraftBlocks({ title: '마케터 QA', jobCategory: 'marketer', structuredResult: window.roleData }));
@@ -165,9 +168,11 @@ try {
   assert.match(await page.$eval('.ma-measurement', el => el.textContent), /독자의 질문이 구체적으로 바뀌었다/);
   assert.equal(await page.$('.ma-result-grid'), null, 'narrative feedback is not a fabricated numeric KPI');
   assert.equal(await page.$('.ma-originals'), null, 'legacy copy is not a fabricated original');
-  assert.equal(await page.$('.ma-activation'), null, 'do not force an unsupported channel plan');
+  assert.match(await page.$eval('.ma-activation', el => el.textContent), /소개 콘텐츠를 제작했다/, 'keep the actual legacy activity');
+  assert.equal(await page.$('.mk-channel-table'), null, 'do not invent a channel plan from a legacy activity');
   await page.evaluate(() => { const next = structuredClone(window.marketingFixture); next.deliverables[0].url = '/__missing_preview__.png'; window.renderRole(next, true); });
   await page.waitForSelector('.ma-originals');
+  await page.$eval('.role-artifact-preview img', element => element.scrollIntoView({ block: 'center' }));
   await page.waitForFunction(() => document.querySelector('.role-artifact-preview')?.textContent.includes('미리보기를 불러오지 못했습니다'));
   assert.equal(await page.$eval('.role-artifact-preview', el => el.getAttribute('href')), '/__missing_preview__.png');
   mockUploads = true;

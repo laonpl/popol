@@ -13,6 +13,7 @@ import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
 import { clampMaterial } from '../utils/materialText.js';
 import { groundPmEvidence } from './pmEvidence.js';
 import { groundMarketerEvidence } from './marketerEvidence.js';
+import { roleFollowUpQuestions } from '../prompts/roleExperienceGuidance.js';
 import {
   buildExtractMomentsPrompt,
   buildOverviewPrompt,
@@ -1190,7 +1191,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     },
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
-    followUpQuestions: [
+    followUpQuestions: roleFollowUpQuestions(jobCategory) || [
       '이 경험에 붙일 수 있는 측정 가능한 결과(수치)는 무엇인가요?',
       '팀에서 본인이 직접 담당한 부분은 어디인가요?',
       '어떤 대안이 있었고 왜 이 방법을 선택했나요?',
@@ -1862,6 +1863,7 @@ export async function generateExperienceTags(text = '') {
  */
 export async function generateInterviewQuestions(braindump, jobCategory = 'common', interviewMode = 'basic') {
   const maxQuestions = interviewMode === 'quick' ? 3 : 5;
+  const roleQuestions = roleFollowUpQuestions(jobCategory);
   const fallbackPlan = {
     mode: interviewMode,
     understanding: {
@@ -1883,7 +1885,11 @@ export async function generateInterviewQuestions(braindump, jobCategory = 'commo
         valueScore: 100,
         quickChoices: [],
       },
-      {
+      ...(roleQuestions ? roleQuestions.map((question, index) => ({
+        id: `${jobCategory}-work-${index + 1}`, kind: index === roleQuestions.length - 1 ? 'evidence' : 'essential',
+        question, why: jobCategory === 'pm' ? '고객 문제와 제품 판단을 실제 산출물에 연결할 수 있어요.' : '타깃·메시지·채널 선택을 실제 작업과 반응에 연결할 수 있어요.',
+        target: index === roleQuestions.length - 1 ? 'evidence' : 'decision', valueScore: 95 - index * 5, quickChoices: [],
+      })) : [{
         id: 'judgment',
         kind: 'essential',
         question: '이 프로젝트에서 가장 판단하기 어려웠던 순간은 언제였나요?',
@@ -1900,7 +1906,7 @@ export async function generateInterviewQuestions(braindump, jobCategory = 'commo
         target: 'evidence',
         valueScore: 90,
         quickChoices: [],
-      },
+      }]),
     ].slice(0, maxQuestions),
     skippedReasons: [],
   };
@@ -2040,13 +2046,13 @@ export async function generateIdentityPatternCandidates(experiences = []) {
  * rawText는 프롬프트에서 48,000자로 캡핑되고 output도 최대 10개 moments로 제한되므로
  * 별도 분할 없이 단일 호출. Pro 실패 시 Lite로 폴백.
  */
-export async function extractMoments(rawText, title) {
+export async function extractMoments(rawText, title, jobCategory = 'common') {
   if (!rawText || rawText.trim().length === 0) {
     throw new Error('분석할 텍스트가 비어있습니다');
   }
 
   try {
-    const prompt = buildExtractMomentsPrompt(rawText, title);
+    const prompt = buildExtractMomentsPrompt(rawText, title, jobCategory);
     // 총 소요 시간 상한. callProFirst는 Pro 4회 + Lite 4회 재시도라 상한이 없으면
     // 수 분간 매달려 있다가 커넥션이 끊긴다(프론트 타임아웃 120초). 90초를 넘기면
     // 아래 결정론적 폴백으로 내려가 200으로 응답한다.
@@ -2058,6 +2064,10 @@ export async function extractMoments(rawText, title) {
       console.log(`[ExtractMoments] ✓ ${moments.length}개 추출 완료`);
       return groundMomentMetrics(moments, rawText);
     }
+
+    // An intentional empty role extraction is not an AI outage. In particular,
+    // code-only input must not turn into made-up PM/marketing work via fallback.
+    if (Array.isArray(parsed.moments) && ['pm', 'marketer'].includes(jobCategory)) return [];
 
     console.warn('[ExtractMoments] AI returned no moments. Using deterministic fallback.');
   } catch (err) {

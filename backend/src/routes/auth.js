@@ -10,15 +10,17 @@ function normalizeEmail(email) {
 }
 
 async function countUserDocs(uid) {
-  const [experiences, portfolios, jobMatches] = await Promise.all([
+  const [experiences, portfolios, jobMatches, coverLetters] = await Promise.all([
     adminDb.collection('experiences').where('userId', '==', uid).count().get(),
     adminDb.collection('portfolios').where('userId', '==', uid).count().get(),
     adminDb.collection('jobMatches').where('userId', '==', uid).count().get(),
+    adminDb.collection('coverLetters').where('userId', '==', uid).count().get(),
   ]);
   return {
     experiences: experiences.data().count || 0,
     portfolios: portfolios.data().count || 0,
     jobMatches: jobMatches.data().count || 0,
+    coverLetters: coverLetters.data().count || 0,
   };
 }
 
@@ -42,7 +44,7 @@ async function findLegacyAccountCandidates(email, currentUid) {
   const result = [];
   for (const [uid, sources] of candidates.entries()) {
     const counts = await countUserDocs(uid);
-    const total = counts.experiences + counts.portfolios + counts.jobMatches;
+    const total = counts.experiences + counts.portfolios + counts.jobMatches + counts.coverLetters;
     if (total > 0) {
       result.push({ uid, sources: [...sources], counts, total });
     }
@@ -52,8 +54,8 @@ async function findLegacyAccountCandidates(email, currentUid) {
 }
 
 async function reassignUserDocs(fromUid, toUid, email) {
-  const collections = ['experiences', 'portfolios', 'jobMatches'];
-  const totals = { experiences: 0, portfolios: 0, jobMatches: 0 };
+  const collections = ['experiences', 'portfolios', 'jobMatches', 'coverLetters'];
+  const totals = { experiences: 0, portfolios: 0, jobMatches: 0, coverLetters: 0 };
 
   for (const collectionName of collections) {
     const snap = await adminDb.collection(collectionName).where('userId', '==', fromUid).get();
@@ -132,25 +134,32 @@ router.post('/reset-password', generalRateLimiter, async (req, res) => {
 router.delete('/account', authMiddleware, async (req, res) => {
   const { uid } = req.user;
   try {
-    const batch = adminDb.batch();
+    const deletionRefs = [];
 
     // 1. 개인 경험 데이터 삭제
     const expSnap = await adminDb.collection('experiences').where('userId', '==', uid).get();
-    expSnap.docs.forEach(d => batch.delete(d.ref));
+    expSnap.docs.forEach(d => deletionRefs.push(d.ref));
 
     // 2. 포트폴리오 데이터 삭제
     const portSnap = await adminDb.collection('portfolios').where('userId', '==', uid).get();
-    portSnap.docs.forEach(d => batch.delete(d.ref));
+    portSnap.docs.forEach(d => deletionRefs.push(d.ref));
 
     // 3. 채용 매칭 데이터 삭제
     const jobSnap = await adminDb.collection('jobMatches').where('userId', '==', uid).get();
-    jobSnap.docs.forEach(d => batch.delete(d.ref));
+    jobSnap.docs.forEach(d => deletionRefs.push(d.ref));
+
+    const letterSnap = await adminDb.collection('coverLetters').where('userId', '==', uid).get();
+    letterSnap.docs.forEach(d => deletionRefs.push(d.ref));
 
     // 제품 행동 이벤트에도 사용자 식별자가 있으므로 계정 삭제 시 함께 제거한다.
     const eventSnap = await adminDb.collection('productEvents').where('userId', '==', uid).get();
-    eventSnap.docs.forEach(d => batch.delete(d.ref));
+    eventSnap.docs.forEach(d => deletionRefs.push(d.ref));
 
-    await batch.commit();
+    for (let offset = 0; offset < deletionRefs.length; offset += 450) {
+      const batch = adminDb.batch();
+      deletionRefs.slice(offset, offset + 450).forEach(ref => batch.delete(ref));
+      await batch.commit();
+    }
 
     // 4. 탈퇴 기록 저장 (관리자 대시보드 이탈율 집계용 — 계정 삭제 후엔 복구 불가)
     const authUser = await adminAuth.getUser(uid).catch(() => null);

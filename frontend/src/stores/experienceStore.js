@@ -351,9 +351,9 @@ const useExperienceStore = create((set, get) => ({
   },
 
   /** 자료 텍스트에서 핵심 경험(moments)을 추출. TemplateSelect 자료 수집 플로우용. */
-  extractMoments: async (rawText, title) => {
+  extractMoments: async (rawText, title, jobCategory = 'common') => {
     const { data } = await api.post('/experience/extract-moments', {
-      rawText, title,
+      rawText, title, jobCategory,
     }, { timeout: 120000 });
     return data; // { moments: [...] }
   },

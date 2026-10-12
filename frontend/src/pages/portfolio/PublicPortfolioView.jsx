@@ -722,7 +722,7 @@ export default function PublicPortfolioView() {
           {(p.experiences || []).length > 0 && (
             <div className="px-10 pb-8">
               <h3 className="font-bold text-lg text-[#2d2a26] mb-4">🎨 프로젝트</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {p.experiences.map((e, i) => {
                   const sr = e.structuredResult || {};
                   const overview = sr.projectOverview || {};

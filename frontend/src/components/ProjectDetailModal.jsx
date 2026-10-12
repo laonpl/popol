@@ -185,7 +185,7 @@ function JobArtifactCover({ exp }) {
         <div className="relative mt-8 grid grid-cols-4 gap-2 before:absolute before:left-[8%] before:right-[8%] before:top-3 before:h-0.5 before:bg-primary-200">
           {timeline.map((item, index) => <div key={`${item.phase}-${index}`} className="relative min-w-0 pt-8"><span className="absolute left-1/2 top-0 z-[1] flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white text-[8px] font-black text-white" style={{ backgroundColor: item.color || '#002F6C' }}>{index + 1}</span><p className="truncate text-center font-mono text-[8px] font-bold tracking-wide text-primary-500">{item.phase}</p><p className="mt-1 text-center text-[12px] font-extrabold text-bluewood-900">{item.label}</p><p className="mt-1 line-clamp-2 text-center text-[10.5px] leading-relaxed text-bluewood-400">{item.value}</p></div>)}
         </div>
-        <div className="mt-6 grid grid-cols-3 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-surface-200 bg-white px-3 py-2"><p className="truncate text-[10.5px] font-bold text-bluewood-300">{metric.label}</p><p className="mt-0.5 text-[15px] font-black text-bluewood-900">{metric.value}</p></div>)}</div>
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2">{metrics.map((metric, index) => <div key={index} className="rounded-lg border border-surface-200 bg-white px-3 py-2"><p className="truncate text-[10.5px] font-bold text-bluewood-300">{metric.label}</p><p className="mt-0.5 text-[15px] font-black text-bluewood-900">{metric.value}</p></div>)}</div>
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { Settings, X, Gift, Menu, LogOut, User, WalletCards } from 'lucide-react
 import useCreditStore from '../stores/creditStore';
 import useExperienceStore from '../stores/experienceStore';
 import usePortfolioStore from '../stores/portfolioStore';
+import useCoverLetterStore from '../stores/coverLetterStore';
 import CreditDepletedModal from './CreditDepletedModal';
 import FeedbackModal from './FeedbackModal';
 import JourneyResumeBanner from './JourneyResumeBanner';
@@ -12,6 +13,7 @@ import JourneyResumeBanner from './JourneyResumeBanner';
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
   { to: '/app/portfolio', label: '포트폴리오' },
+  { to: '/app/coverletter', label: '자기소개서' },
 ];
 
 // 이 아래로 떨어지면 헤더 칩이 경고색으로 바뀐다 (작업 중 갑자기 막히는 상황 예방)
@@ -22,6 +24,7 @@ export default function Layout() {
   const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
   const clearExperiences = useExperienceStore(s => s.clearExperiences);
   const clearPortfolios = usePortfolioStore(s => s.clearPortfolios);
+  const clearCoverLetters = useCoverLetterStore(s => s.clearCoverLetters);
   const navigate = useNavigate();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -38,6 +41,7 @@ export default function Layout() {
     clearWallet();
     clearExperiences();
     clearPortfolios();
+    clearCoverLetters();
     navigate('/');
   };
 

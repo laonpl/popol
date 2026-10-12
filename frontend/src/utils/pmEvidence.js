@@ -1,5 +1,6 @@
 import { normalizePmWorkProducts, pmWorkProductExport } from './pmWorkProducts.js';
 import { artifactExport } from './roleArtifacts.js';
+import { validRoleSelfReport } from '../../../shared/roleSelfReport.mjs';
 
 export const PM_DIMENSIONS = [
   { key: 'discovery', label: '고객 문제 발견', question: '어떤 사용자 발화나 행동을 보고 이 문제를 먼저 풀기로 했나요?', material: '인터뷰 원문 · VOC · 행동/퍼널 기록' },
@@ -16,6 +17,8 @@ const array = value => Array.isArray(value) ? value : [];
 const compact = value => string(value).normalize('NFKC').replace(/\s+/g, ' ');
 
 function currentBasis(row, sourceText) {
+  if (validRoleSelfReport(row)) return 'self_report';
+  if (row.manuallyAdded && row.selfReportVersion) return 'unlocated';
   if (!['source_excerpt', 'self_report'].includes(row.basis) || compact(row.quote).length < 12) return 'unlocated';
   // When editing the experience, a removed or changed source invalidates its old match.
   // Export consumers without raw material use the server's persisted comparison result.

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FitPoly 지원서 문항 연결</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header><span class="brand">FitPoly</span><span class="tag">지원서 문항 연결</span></header>
+    <main>
+      <h1>실제 지원서 문항을 가져와요</h1>
+      <p class="intro">로그인한 지원서에서 자기소개서 입력 화면을 열어주세요.</p>
+      <section id="connection" class="connection" hidden>
+        <strong id="company"></strong>
+        <span id="position"></span>
+        <span id="site"></span>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite">FitPoly 연결을 확인하고 있어요.</p>
+      <button id="read" class="primary" disabled>이 화면의 문항 확인</button>
+      <section id="preview" hidden>
+        <div class="preview-heading"><h2>가져올 문항을 선택해주세요</h2><span id="count"></span></div>
+        <div id="questions"></div>
+        <p id="warning" class="note" hidden></p>
+        <button id="import" class="primary" disabled>FitPoly로 가져오기</button>
+      </section>
+      <p class="privacy">문항과 글자 수 제한만 읽습니다. 이름·연락처·작성한 답변·로그인 정보는 가져오지 않습니다.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

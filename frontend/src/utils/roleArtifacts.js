@@ -1,10 +1,13 @@
+import { collectRoleSelfReports } from '../../../shared/roleSelfReport.mjs';
+
 const list = value => Array.isArray(value) ? value : [];
 const str = value => typeof value === 'string' ? value.trim() : '';
 export function roleSourceText(sr, sourceText) {
   const assets = roleArtifacts(sr);
   const additions = list(sr.additionalMaterials).filter(row => row && assets.some(asset => asset.id === row.assetId) && str(row.text));
-  if (sourceText === undefined && !additions.length) return undefined;
-  return [sourceText || '', ...additions.map(row => `--- ${row.name} ---\n${row.text}`)].filter(Boolean).join('\n\n');
+  const selfReports = collectRoleSelfReports(sr);
+  if (sourceText === undefined && !additions.length && !selfReports.length) return undefined;
+  return [sourceText || '', ...additions.map(row => `--- ${row.name} ---\n${row.text}`), ...selfReports.map(row => `--- ${row.name} ---\n${row.text}`)].filter(Boolean).join('\n\n');
 }
 export function safeArtifactUrl(value) {
   const url = str(value);

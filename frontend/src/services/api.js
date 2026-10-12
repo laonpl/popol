@@ -116,4 +116,24 @@ api.interceptors.response.use(
   }
 );
 
+// Cover letter requests share the authenticated API and credit/rate-limit handling.
+export const coverLetterAPI = {
+  analyze: async (payload) => (await api.post('/coverletter/analyze', payload, { timeout: 300000 })).data,
+  importQuestions: async (payload) => (await api.post('/coverletter/questions/import', payload)).data,
+  generate: async (payload) => (await api.post('/coverletter/generate', payload, { timeout: 300000 })).data,
+  list: async () => (await api.get('/coverletter/list')).data,
+  get: async (id) => (await api.get(`/coverletter/${encodeURIComponent(id)}`)).data,
+  create: async (payload) => (await api.post('/coverletter', payload)).data,
+  update: async (id, payload) => (await api.patch(`/coverletter/${encodeURIComponent(id)}`, payload)).data,
+  remove: async (id) => (await api.delete(`/coverletter/${encodeURIComponent(id)}`)).data,
+};
+
+export const questionCatalogAPI = {
+  lookup: async (payload) => (await api.post('/coverletter-catalog/lookup', payload)).data,
+  list: async () => (await api.get('/coverletter-catalog/admin')).data,
+  preview: async (payload) => (await api.post('/coverletter-catalog/admin/preview', payload)).data,
+  publish: async (payload) => (await api.post('/coverletter-catalog/admin/entries', payload)).data,
+  deactivate: async (id) => (await api.patch(`/coverletter-catalog/admin/entries/${encodeURIComponent(id)}`, { active: false })).data,
+};
+
 export default api;

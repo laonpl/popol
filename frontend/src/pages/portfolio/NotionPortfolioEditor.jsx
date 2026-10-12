@@ -3229,7 +3229,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-lg font-bold text-[#2d2a26]">프로젝트 / 경험</h4>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {cards.map((card, ci) => (
                         <div key={ci} className="group/card relative bg-[#f7f5f0] rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-md transition-all cursor-pointer"
                           onClick={() => setExpDetailIdx({ blockIdx: i, cardIdx: ci })}>
@@ -7290,7 +7290,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                     <InputField label="제목" value={exp.title} onChange={v => updateArrayItem('experiences', i, { title: v })} placeholder="프로젝트명 / 활동명" />
                     <InputField label="기간" value={exp.date} onChange={v => updateArrayItem('experiences', i, { date: v })} placeholder="2025.03. ~ 2025.06." />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <InputField label="역할" value={exp.role} onChange={v => updateArrayItem('experiences', i, { role: v })} placeholder="팀장 / 개발자" />
                     <InputField label="링크 (선택)" value={exp.link} onChange={v => updateArrayItem('experiences', i, { link: v })} placeholder="https://..." />
                     <InputField label="썸네일 URL (선택)" value={exp.thumbnailUrl} onChange={v => updateArrayItem('experiences', i, { thumbnailUrl: v })} placeholder="https://...jpg" />
@@ -7658,7 +7658,7 @@ function CurricularSection({ portfolio, update, updateNested, templateId, jobAna
         <div className="space-y-2">
           {(curr.courses || []).map((c, i) => (
             <div key={i} className="flex items-center gap-3 p-3 bg-surface-50 rounded-xl">
-              <div className="grid grid-cols-3 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
                 <InputField label="학기" value={c.semester} onChange={v => updateCourse(i, { semester: v })} placeholder="2024-1" />
                 <InputField label="과목명" value={c.name} onChange={v => updateCourse(i, { name: v })} placeholder="이산수학" />
                 <InputField label="성적" value={c.grade} onChange={v => updateCourse(i, { grade: v })} placeholder="A+" />

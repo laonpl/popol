@@ -1,4 +1,4 @@
-import api from './api';
+import api, { coverLetterAPI } from './api';
 
 function makeSnap(id, data) {
   return {
@@ -25,6 +25,10 @@ export function query(collectionRef, ...constraints) {
 }
 
 export async function getDoc(ref) {
+  if (ref.collectionName === 'coverLetters') {
+    const data = await coverLetterAPI.get(ref.id);
+    return makeSnap(data.id || ref.id, data);
+  }
   if (ref.collectionName === 'experiences') {
     const { data } = await api.get(`/experience/${ref.id}`);
     return makeSnap(data.id || ref.id, data);
@@ -45,6 +49,11 @@ export async function getDoc(ref) {
 }
 
 export async function getDocs(ref) {
+  if (ref.collectionName === 'coverLetters') {
+    const data = await coverLetterAPI.list();
+    const docs = (Array.isArray(data) ? data : []).map(item => makeSnap(item.id, item));
+    return { empty: docs.length === 0, docs };
+  }
   if (ref.collectionName === 'experiences') {
     const { data } = await api.get('/experience/list');
     return { empty: !data?.length, docs: (data || []).map(item => makeSnap(item.id, item)) };
@@ -67,6 +76,9 @@ export async function getDocs(ref) {
 }
 
 export async function updateDoc(ref, data) {
+  if (ref.collectionName === 'coverLetters') {
+    return coverLetterAPI.update(ref.id, data);
+  }
   if (ref.collectionName === 'experiences') {
     await api.patch(`/experience/${ref.id}`, data);
     return;
@@ -75,5 +87,18 @@ export async function updateDoc(ref, data) {
     await api.patch(`/portfolio/${ref.id}`, data);
     return;
   }
+  throw new Error(`Unsupported collection: ${ref.collectionName}`);
+}
+
+export async function addDoc(ref, data) {
+  if (ref.collectionName === 'coverLetters') {
+    const created = await coverLetterAPI.create(data);
+    return { ...doc(null, ref.collectionName, created.id), data: created };
+  }
+  throw new Error(`Unsupported collection: ${ref.collectionName}`);
+}
+
+export async function deleteDoc(ref) {
+  if (ref.collectionName === 'coverLetters') return coverLetterAPI.remove(ref.id);
   throw new Error(`Unsupported collection: ${ref.collectionName}`);
 }

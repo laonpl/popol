@@ -219,7 +219,7 @@ function JobCoreSidebar({ exp, sr, jobCategory, editing = false, onChange }) {
       <h3 className="mt-3 text-[22px] font-black leading-[1.22] tracking-tight text-bluewood-900">{title}</h3>
       {summary && <p className="mt-2 whitespace-pre-line text-[12.5px] leading-[1.65] text-bluewood-500">{summary}</p>}
 
-      <div className="mt-5 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
         {info.map(item => (
           <div key={item.label} className="min-w-0">
             <p className="mb-0.5 text-[9.5px] font-bold uppercase tracking-wide text-bluewood-300">{item.label}</p>

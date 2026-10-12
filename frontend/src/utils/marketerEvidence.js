@@ -1,6 +1,7 @@
 import { MARKETER_WORK_PRODUCTS } from './marketerWorkProducts.js';
 import { artifactExport } from './roleArtifacts.js';
 import { marketingCaseSections } from './marketerCaseStudy.js';
+import { validRoleSelfReport } from '../../../shared/roleSelfReport.mjs';
 export const MARKETER_DIMENSIONS = [
   { key: 'conversion', label: '사업 · 브랜드 목표' }, { key: 'targeting', label: '고객 선택 근거' },
   { key: 'creative', label: '표현과 채널 선택' }, { key: 'activation', label: '캠페인 집행과 운영' },
@@ -15,6 +16,8 @@ const str = value => typeof value === 'string' || typeof value === 'number' ? St
 const arr = value => Array.isArray(value) ? value : [];
 const norm = value => str(value).normalize('NFKC').replace(/\s+/g, ' ');
 function currentBasis(row, sourceText) {
+  if (validRoleSelfReport(row)) return 'self_report';
+  if (row.manuallyAdded && row.selfReportVersion) return 'unlocated';
   if (!['source_excerpt', 'self_report'].includes(row.basis) || norm(row.quote).length < 12) return 'unlocated';
   if (sourceText !== undefined && !norm(sourceText).includes(norm(row.quote))) return 'unlocated';
   return row.basis;
@@ -41,7 +44,7 @@ export function buildMarketerEvidenceModel(sr = {}, { sourceText } = {}) {
     const workProducts = Object.fromEntries(MARKETER_WORK_PRODUCTS.map(group => [group.key, arr(jd.marketerWorkProducts?.[group.key]).map((row, sourceRowIndex) => row && ({ ...row, sourceRowIndex })).filter(Boolean).slice(0, group.limit).map(row => {
       const basis = currentBasis(row, sourceText), stage = basis === 'unlocated' ? 'unknown' : row.stage;
       const values = Object.fromEntries(group.fields.map(([field]) => [field, str(row[field]).slice(0, 600)]));
-      if (basis === 'unlocated' || stage === 'planned') {
+      if (basis === 'unlocated' || (stage === 'planned' && !validRoleSelfReport(row))) {
         if ('observation' in values) values.observation = '';
         if (group.key === 'experiments') values.decision = '';
         if (group.key === 'operations') { values.myAction = ''; values.agreement = ''; }

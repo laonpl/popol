@@ -593,7 +593,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
         <p className="text-sm text-gray-500">6가지 레이아웃 중 하나를 고르면 AI가 그 구조에 맞게 내용을 생성합니다. 이후 색상 팔레트를 선택할 수 있습니다.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {SLIDE_LAYOUTS.map(layout => (
           <button
             key={layout.id}

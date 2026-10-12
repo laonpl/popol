@@ -1,11 +1,14 @@
 ﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import FileCat from '../../components/FileCat';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, Star, ArrowUpDown,
   RotateCcw, Save, Mail, ExternalLink, RefreshCw, Briefcase,
   MapPin, CalendarDays, Sparkles, AlertCircle, FileText,
+  Download, FolderInput, Loader2,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
@@ -18,12 +21,16 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useAuthGate from '../../hooks/useAuthGate';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
+import usePortfolioStore from '../../stores/portfolioStore';
+import api from '../../services/api';
+import { buildResumePdf } from '../../utils/resumePdf';
+import './resumePdf.css';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ExperiencePortfolioGuide from '../../components/ExperiencePortfolioGuide';
-import { stripMd } from '../../utils/textUtils';
+import { stripMd, stripFormulaArtifacts } from '../../utils/textUtils';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import { recommendLiveJobs } from '../../services/jobAI';
@@ -1439,22 +1446,6 @@ function ProfileResumeSection({ title, children }) {
   );
 }
 
-function ProfileRows({ rows, emptyText = '입력된 내용이 없습니다' }) {
-  if (!rows.length) {
-    return <p className="text-[15px] font-medium text-gray-300">{emptyText}</p>;
-  }
-  return (
-    <div className="space-y-4">
-      {rows.map((row, index) => (
-        <div key={row.id || `${row.label || row.date || row.value}-${index}`} className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)] sm:gap-5">
-          <p className="min-w-0 whitespace-normal break-words text-[15px] font-extrabold tabular-nums leading-relaxed text-gray-900">{row.label || row.date || ''}</p>
-          <p className="min-w-0 text-[15px] font-medium leading-relaxed text-gray-800" style={{ overflowWrap: 'anywhere', wordBreak: 'keep-all' }}>{row.value}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function EditableProfileRows({
   rows,
   onChange,
@@ -1518,6 +1509,40 @@ function normalizeProfileRows(rows, prefix) {
   }));
 }
 
+/* 직접 입력한 경력(직장·학교 등) — 기간 · 이름 · 부서/직책 · 한 줄 설명 */
+function normalizeCareerRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row, index) => ({
+    id: cleanProfileText(row?.id) || `career-${index}`,
+    date: cleanProfileText(row?.date),
+    value: cleanProfileText(row?.value),
+    role: cleanProfileText(row?.role),
+    summary: cleanProfileText(row?.summary),
+  }));
+}
+
+function EditableCareerRows({ rows, onChange, onAdd, onRemove }) {
+  const field = 'min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300';
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => (
+        <div key={row.id || index} className="grid min-w-0 gap-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_minmax(0,1fr)_32px]">
+          <input value={row.date || ''} onChange={e => onChange(index, 'date', e.target.value)} placeholder="기간 (예: 2023.03 ~ 현재)" className={`${field} tabular-nums`} />
+          <input value={row.value || ''} onChange={e => onChange(index, 'value', e.target.value)} placeholder="회사·학교명" className={`${field} font-bold`} />
+          <input value={row.role || ''} onChange={e => onChange(index, 'role', e.target.value)} placeholder="부서·직책 / 전공" className={field} />
+          <button type="button" onClick={() => onRemove(index)} aria-label="경력 삭제" className="flex h-9 w-8 items-center justify-center rounded-lg text-gray-300 hover:bg-red-50 hover:text-red-500">
+            <Trash2 size={14} />
+          </button>
+          <input value={row.summary || ''} onChange={e => onChange(index, 'summary', e.target.value)} placeholder="한 줄 설명 (선택)" className={`${field} sm:col-span-3`} />
+        </div>
+      ))}
+      <button type="button" onClick={onAdd} className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-[12px] font-bold text-gray-400 hover:border-primary-300 hover:text-primary-600">
+        + 직장·학교 경력 추가
+      </button>
+    </div>
+  );
+}
+
 function seedEducationRows(profile) {
   return (profile?.education || []).map((edu, index) => ({
     id: `education-${index}`,
@@ -1527,18 +1552,34 @@ function seedEducationRows(profile) {
 }
 
 function seedCertificateRows(profile) {
-  return [
-    ...(profile?.languageScores || []).map((item, index) => ({
-      id: `language-${index}`,
-      date: cleanProfileText(item.date),
-      value: joinProfileParts([item.name, item.score]),
-    })),
-    ...(profile?.others || []).map((item, index) => ({
-      id: `certificate-${index}`,
-      date: '',
-      value: cleanProfileText(item),
-    })),
-  ].filter(row => row.date || row.value);
+  return (profile?.others || []).map((item, index) => ({
+    id: `certificate-${index}`,
+    date: '',
+    value: cleanProfileText(item),
+  })).filter(row => row.date || row.value);
+}
+
+function seedLanguageRows(profile) {
+  return (profile?.languageScores || []).map((item, index) => ({
+    id: `language-${index}`,
+    date: cleanProfileText(item.date),
+    value: joinProfileParts([item.name, item.score]),
+  })).filter(row => row.date || row.value);
+}
+
+/* 예전 저장본은 어학 점수가 자격 목록(id 'language-*')에 섞여 있다 → 언어 목록으로 분리 */
+function splitSavedCertificates(saved, profile) {
+  const certs = Array.isArray(saved?.certificateRows) ? normalizeProfileRows(saved.certificateRows, 'certificate') : null;
+  if (Array.isArray(saved?.languageRows)) {
+    return { certificateRows: certs ?? seedCertificateRows(profile), languageRows: normalizeProfileRows(saved.languageRows, 'language') };
+  }
+  if (certs) {
+    return {
+      certificateRows: certs.filter(row => !row.id.startsWith('language-')),
+      languageRows: certs.filter(row => row.id.startsWith('language-')),
+    };
+  }
+  return { certificateRows: seedCertificateRows(profile), languageRows: seedLanguageRows(profile) };
 }
 
 function seedAwardRows(profile) {
@@ -1549,6 +1590,61 @@ function seedAwardRows(profile) {
   })).filter(row => row.date || row.value);
 }
 
+/* 이력서 기간 — 경험에 적힌 실제 날짜가 있으면 'YYYY.MM ~ YYYY.MM', 없으면 연도만 */
+function resumePeriodOf(exp, start, end) {
+  const period = String(exp.period || exp.structuredResult?.projectOverview?.duration || '');
+  const months = [...period.matchAll(/(\d{4})[.\-/](\d{1,2})/g)].map(m => `${m[1]}.${m[2].padStart(2, '0')}`);
+  if (months.length >= 2) return `${months[0]} ~ ${months[1]}`;
+  if (months.length === 1) return /현재|진행/.test(period) ? `${months[0]} ~ 현재` : months[0];
+  return start.getFullYear() === end.getFullYear()
+    ? `${start.getFullYear()}`
+    : `${start.getFullYear()} - ${end.getFullYear()}`;
+}
+
+/* 이력서용 문장 — AI 작성 지시 표기(X/Y/Z·【】·원본에 없음)만 지운다. 글자 수로 자르지 않는다. */
+function resumeText(value) {
+  return cleanProfileText(stripFormulaArtifacts(stripMd(String(value || ''))));
+}
+// [x]% 처럼 숫자를 아직 안 채운 문장은 이력서에 넣지 않는다
+const UNFILLED = /[[(（]\s*[xyz]\s*[\])）]\s*%|\[\s*(작성|검증|확인)\s*필요\s*\]/i;
+
+// 인턴십·직무경험은 경력, 나머지는 프로젝트로 나눈다 (편집에서 경험마다 바꿀 수 있다)
+const CAREER_CATEGORIES = ['인턴십', '직무경험'];
+
+/* 경험 한 건 → 이력서 항목. 편집에서 고친 값(override)이 있으면 그 값을 쓴다.
+   자동으로 채우는 값은 핵심만: 요약 한 문장 + 핵심 경험 2줄. */
+function resumeExperienceOf(exp, start, end, override = {}) {
+  const sr = exp.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const firstSentence = String(ov.summary || '').split(/(?<=[.!?])\s/)[0];
+  const summary = UNFILLED.test(firstSentence) ? '' : resumeText(firstSentence);
+  const bullets = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
+    .map(ke => String(ke?.title || ''))
+    .filter(t => t && !UNFILLED.test(t))
+    .map(t => resumeText(t))
+    .filter(Boolean)
+    .slice(0, 2);
+  // 소속·역할은 짧은 이름만 — 문장으로 적힌 값(20자 넘는 것)은 뺀다
+  const role = [ov.team, ov.role].map(v => resumeText(v)).filter(v => v && v.length <= 20).join(' / ');
+  return {
+    id: exp.id,
+    kind: override.kind ?? (CAREER_CATEGORIES.includes(readCategory(exp)) ? 'career' : 'project'),
+    title: override.value ?? resumeText(exp.title),
+    period: override.date ?? resumePeriodOf(exp, start, end),
+    role: override.role ?? role,
+    summary: override.summary ?? summary,
+    bullets: override.bullets !== undefined
+      ? String(override.bullets).split('\n').map(s => s.trim()).filter(Boolean)
+      : bullets,
+  };
+}
+
+// 이력서 레이아웃 선택은 보는 사람 기기에만 기억한다
+const RESUME_LAYOUT_KEY = 'fitpoly.resumeLayout';
+function readResumeLayout() {
+  try { return localStorage.getItem(RESUME_LAYOUT_KEY) === 'horizontal' ? 'horizontal' : 'vertical'; } catch { return 'vertical'; }
+}
+
 function ResumeView({ experiences, user, profile }) {
   const navigate = useNavigate();
   const uid = user?.uid;
@@ -1557,8 +1653,8 @@ function ResumeView({ experiences, user, profile }) {
   const settingsIntro = useMemo(() => {
     const essay = cleanProfileText(profile?.valuesEssay);
     if (essay) {
-      const firstLine = essay.split('\n')[0].split(/[.!?…]/)[0].trim();
-      return firstLine.length > 60 ? `${firstLine.slice(0, 60).trim()}…` : firstLine;
+      // 이력서에 그대로 실리므로 글자 수로 자르지 않는다
+      return essay.split('\n')[0].split(/[.!?…]/)[0].trim();
     }
     const vals = (profile?.values || [])
       .map(v => cleanProfileText(v?.keyword))
@@ -1576,6 +1672,14 @@ function ResumeView({ experiences, user, profile }) {
   const [iconPickerFor, setIconPickerFor] = useState(null); // 아이콘 선택 중인 스킬명
   const [pickerOpen, setPickerOpen] = useState(false);      // 경험 선택 패널
   const [pickIds, setPickIds] = useState([]);               // 이력서에 넣을 경험
+  const [downloading, setDownloading] = useState(false);    // 이력서 PDF 만드는 중
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false); // 이력서 저장함(기업 폴더) 선택
+  const [layout, setLayout] = useState(readResumeLayout);   // vertical: 세로형(기본) | horizontal: 가로형(두 쪽 펼침)
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const changeLayout = (next) => {
+    setLayout(next);
+    try { localStorage.setItem(RESUME_LAYOUT_KEY, next); } catch { /* 저장 못 해도 이번 화면에는 적용 */ }
+  };
 
   // 저장된 프로필 로드
   useEffect(() => {
@@ -1594,10 +1698,16 @@ function ResumeView({ experiences, user, profile }) {
   // 로드 완료 후 편집 폼 초기화 (저장본 우선, 없으면 초안)
   useEffect(() => {
     if (!loaded || form) return;
+    // 예전에는 소개를 60자에서 '…'로 잘라 저장했다 → 원문 앞부분과 같으면 원문으로 되돌린다
+    const savedOneLiner = saved?.oneLiner;
+    const wasCut = typeof savedOneLiner === 'string' && savedOneLiner.endsWith('…')
+      && settingsIntro.startsWith(savedOneLiner.slice(0, -1).trim());
     setForm({
-      oneLiner: saved?.oneLiner ?? (settingsIntro || draft.oneLiner),
+      oneLiner: wasCut ? settingsIntro : (savedOneLiner ?? (settingsIntro || draft.oneLiner)),
+      careerRows: normalizeCareerRows(saved?.careerRows),   // 직접 입력한 직장·학교 경력
       competencies: (saved?.competencies?.length ? saved.competencies : draft.competencies).slice(0, 3),
       hiddenIds: saved?.hiddenExperienceIds ?? [],   // 이력서에서 숨긴 경험
+      photoUrl: saved?.photoUrl ?? '',
       basic: {
         name: saved?.basic?.name ?? (profile?.nameKo || user?.displayName || ''),
         birthDate: saved?.basic?.birthDate ?? cleanProfileText(profile?.birthDate),
@@ -1606,9 +1716,7 @@ function ResumeView({ experiences, user, profile }) {
       educationRows: Array.isArray(saved?.educationRows)
         ? normalizeProfileRows(saved.educationRows, 'education')
         : seedEducationRows(profile),
-      certificateRows: Array.isArray(saved?.certificateRows)
-        ? normalizeProfileRows(saved.certificateRows, 'certificate')
-        : seedCertificateRows(profile),
+      ...splitSavedCertificates(saved, profile),   // certificateRows · languageRows
       awardRows: Array.isArray(saved?.awardRows)
         ? normalizeProfileRows(saved.awardRows, 'award')
         : seedAwardRows(profile),
@@ -1651,6 +1759,21 @@ function ResumeView({ experiences, user, profile }) {
     }));
     setDirty(true);
   };
+  const uploadPhoto = async (file) => {
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
+      setForm(f => ({ ...f, photoUrl: data.url }));
+      setDirty(true);
+    } catch (e) {
+      toast.error(e?.response?.data?.error || '사진을 올리지 못했습니다');
+    }
+    setPhotoUploading(false);
+  };
+  const removePhoto = () => { setForm(f => ({ ...f, photoUrl: '' })); setDirty(true); };
   const updateComp = (i, field, v) => {
     setForm(f => ({ ...f, competencies: f.competencies.map((c, idx) => idx === i ? { ...c, [field]: v } : c) }));
     setDirty(true);
@@ -1682,6 +1805,7 @@ function ResumeView({ experiences, user, profile }) {
       oneLiner: settingsIntro || draft.oneLiner,
       competencies: draft.competencies.slice(0, 3),
       hiddenIds: [],
+      photoUrl: form?.photoUrl || '',   // 사진은 초안으로 되돌리지 않는다
       basic: {
         name: profile?.nameKo || user?.displayName || '',
         birthDate: cleanProfileText(profile?.birthDate),
@@ -1689,8 +1813,10 @@ function ResumeView({ experiences, user, profile }) {
       },
       educationRows: seedEducationRows(profile),
       certificateRows: seedCertificateRows(profile),
+      languageRows: seedLanguageRows(profile),
       awardRows: seedAwardRows(profile),
       activityOverrides: {},
+      careerRows: form?.careerRows || [],   // 직접 적은 직장·학교 경력은 초안으로 지우지 않는다
       software: seedSoftware(),
     });
     setDirty(true);
@@ -1737,6 +1863,7 @@ function ResumeView({ experiences, user, profile }) {
         oneLiner: form.oneLiner || '',
         competencies: form.competencies || [],
         hiddenExperienceIds: form.hiddenIds || [],
+        photoUrl: form.photoUrl || '',
         basic: {
           name: cleanProfileText(form.basic?.name),
           birthDate: cleanProfileText(form.basic?.birthDate),
@@ -1744,12 +1871,17 @@ function ResumeView({ experiences, user, profile }) {
         },
         educationRows: normalizeProfileRows(form.educationRows, 'education'),
         certificateRows: normalizeProfileRows(form.certificateRows, 'certificate'),
+        languageRows: normalizeProfileRows(form.languageRows, 'language'),
+        careerRows: normalizeCareerRows(form.careerRows),
         awardRows: normalizeProfileRows(form.awardRows, 'award'),
+        // 고친 칸만 남긴다 — 안 고친 칸까지 ''로 저장하면 경험의 원래 값 대신 빈칸이 보인다.
+        // 불릿은 줄마다 한 항목이라 줄바꿈을 지킨다.
         activityOverrides: Object.fromEntries(
-          Object.entries(form.activityOverrides || {}).map(([id, value]) => [id, {
-            date: cleanProfileText(value?.date),
-            value: cleanProfileText(value?.value),
-          }]),
+          Object.entries(form.activityOverrides || {}).map(([id, value]) => [id, Object.fromEntries(
+            ['date', 'value', 'kind', 'role', 'summary', 'bullets']
+              .filter(key => value?.[key] !== undefined)
+              .map(key => [key, key === 'bullets' ? String(value[key]).trim() : cleanProfileText(value[key])]),
+          )]),
         ),
         software: form.software || [],
         updatedAt: new Date().toISOString(),
@@ -1794,26 +1926,20 @@ function ResumeView({ experiences, user, profile }) {
   ].filter(row => cleanProfileText(row.value));
   const educationRows = normalizeProfileRows(form.educationRows, 'education').filter(row => row.date || row.value);
   const certificateRows = normalizeProfileRows(form.certificateRows, 'certificate').filter(row => row.date || row.value);
+  const languageRows = normalizeProfileRows(form.languageRows, 'language').filter(row => row.date || row.value);
+  const awardRows = normalizeProfileRows(form.awardRows, 'award').filter(row => row.date || row.value);
+  // 직접 입력한 직장·학교 경력 → 경력 섹션 맨 앞 (경험에서 온 경력과 같은 모양)
+  const manualCareers = normalizeCareerRows(form.careerRows)
+    .filter(row => row.value || row.date)
+    .map(row => ({ id: row.id, kind: 'career', title: row.value, period: row.date, role: row.role, summary: row.summary, bullets: [] }));
   // 이력서에 넣기로 고른 경험은 모두 보여준다 (선택은 초안 뽑기 패널에서 한다)
-  const experienceActivityRows = visibleItems.map(({ exp, start, end }) => {
-    const defaultDate = start.getFullYear() === end.getFullYear()
-      ? `${start.getFullYear()}`
-      : `${start.getFullYear()} - ${end.getFullYear()}`;
-    const override = form.activityOverrides?.[exp.id] || {};
-    return {
-      id: `experience-${exp.id}`,
-      date: override.date ?? defaultDate,
-      value: override.value ?? cleanProfileText(exp.title),
-    };
-  });
-  const activityRows = [
-    ...normalizeProfileRows(form.awardRows, 'award'),
-    ...experienceActivityRows,
-  ].filter(row => row.date || row.value);
+  const resumeExperiences = visibleItems
+    .map(({ exp, start, end }) => resumeExperienceOf(exp, start, end, form.activityOverrides?.[exp.id]))
+    .filter(item => item.title || item.period);
   /* 인사담당자 기준은 이력서 2장, 3장부터는 안 읽힌다.
      이 레이아웃에서 대략 그 경계가 되는 지점에서만 알려준다. */
   const RESUME_ROW_LIMIT = 12;
-  const totalResumeRows = basicRows.length + educationRows.length + certificateRows.length + activityRows.length;
+  const totalResumeRows = basicRows.length + educationRows.length + certificateRows.length + languageRows.length + awardRows.length + manualCareers.length + resumeExperiences.length;
   const overLength = totalResumeRows > RESUME_ROW_LIMIT;
   const introText = form.oneLiner || settingsIntro || (subtitle ? `${subtitle}을 중심으로 경험을 쌓아온 ${name}입니다.` : `${name}님의 경험을 바탕으로 정리한 이력서입니다.`);
   const software = form.software || [];
@@ -1827,6 +1953,70 @@ function ResumeView({ experiences, user, profile }) {
   const headlineLen = `${introLead}${name}${introTail}`.length;
   const headlineFontSize = Math.max(16, Math.min(25, Math.round(25 - Math.max(0, headlineLen - 14) * 0.38)));
 
+  // 화면 미리보기와 PDF가 함께 쓰는 이력서 내용
+  const resumeData = {
+    name,
+    photoUrl: form.photoUrl || '',
+    intro: introText,
+    highlights: competencies.map(c => cleanProfileText(c.keyword)).filter(Boolean).map((kw, i) => `#${i + 1}. ${kw}`),
+    contacts: [
+      { label: '이메일', value: email },
+      { label: '연락처', value: profile?.phone },
+      { label: 'GitHub', value: contact.github },
+      { label: 'LinkedIn', value: contact.linkedin },
+      { label: 'Instagram', value: contact.instagram },
+      { label: '웹사이트', value: contact.website },
+      { label: '생년월일', value: form.basic?.birthDate },
+      { label: '주소', value: form.basic?.location },
+    ].map(item => ({ ...item, value: cleanProfileText(item.value) })).filter(item => item.value),
+    careers: [...manualCareers, ...resumeExperiences.filter(item => item.kind === 'career')],
+    projects: resumeExperiences.filter(item => item.kind !== 'career'),
+    education: educationRows,
+    certificates: certificateRows,
+    languages: languageRows,
+    awards: awardRows,
+    software: software.map(sw => sw.name),
+  };
+
+  const pdfFileName = `${name}_이력서.pdf`.replace(/[\\/:*?"<>|]/g, '_');
+  const makePdf = async () => {
+    const host = document.createElement('div');
+    host.id = `resume-pdf-export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    host.className = 'resume-pdf-export';
+    host.setAttribute('aria-hidden', 'true');
+    Object.assign(host.style, {
+      position: 'fixed', left: '0', top: '0', zIndex: '-1',
+      width: layout === 'horizontal' ? `${SPREAD_W}px` : '820px',
+      visibility: 'hidden', pointerEvents: 'none',
+    });
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      flushSync(() => root.render(<ResumeSheet layout={layout} data={resumeData} exportMode />));
+      return await buildResumePdf(host, layout);
+    } finally {
+      root.unmount();
+      host.remove();
+    }
+  };
+  const downloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const url = URL.createObjectURL(await makePdf());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfFileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.error('[Resume] PDF export failed:', error);
+      toast.error('이력서 PDF를 만들지 못했습니다');
+    }
+    setDownloading(false);
+  };
+
   return (
     <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* ── 편집 툴바 ── */}
@@ -1838,6 +2028,31 @@ function ResumeView({ experiences, user, profile }) {
           }`}
         >
           <Sparkles size={12} /> 경험에서 초안 뽑기
+        </button>
+        <div role="radiogroup" aria-label="이력서 레이아웃" className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+          {[['vertical', '세로형'], ['horizontal', '가로형']].map(([value, label]) => (
+            <button
+              key={value}
+              role="radio"
+              aria-checked={layout === value}
+              onClick={() => changeLayout(value)}
+              className={`rounded-md px-2.5 py-1 text-[12px] font-bold transition-colors ${
+                layout === value ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 disabled:opacity-40 transition-colors" title="이력서 PDF 내려받기">
+          {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} 이력서 다운로드
+        </button>
+        <button
+          onClick={() => uid ? setFolderPickerOpen(true) : toast.error('로그인이 필요합니다')}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors"
+          title="포트폴리오의 기업 폴더 이력서 칸에 넣기"
+        >
+          <FolderInput size={12} /> 이력서 저장함에 넣기
         </button>
         {editing ? (
           <>
@@ -1928,6 +2143,10 @@ function ResumeView({ experiences, user, profile }) {
         </div>
       )}
 
+      {/* 보기: 고른 레이아웃(가로형/세로형) · 편집: 항목별 입력 폼 */}
+      {!editing ? (
+        <ResumeSheet layout={layout} data={resumeData} />
+      ) : (
       <div className="px-7 py-10 sm:px-12 lg:px-16">
         <div className="grid gap-x-16 gap-y-8 pb-10 md:grid-cols-[230px_1fr]">
           <div>
@@ -1935,6 +2154,23 @@ function ResumeView({ experiences, user, profile }) {
               {introLead && <>{introLead}<br /></>}
               <span className="text-primary-600">{name}</span>{introTail}
             </h2>
+            <div className="mt-6 flex items-center gap-3">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-gray-50">
+                {form.photoUrl
+                  ? <img src={form.photoUrl} alt="이력서 사진" className="h-full w-full object-cover" />
+                  : <span className="text-[11px] font-semibold text-gray-300">사진 없음</span>}
+              </div>
+              <div className="flex flex-col items-start gap-1.5">
+                <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-gray-600 hover:border-primary-300 hover:text-primary-600 ${photoUploading ? 'pointer-events-none opacity-50' : ''}`}>
+                  {photoUploading && <Loader2 size={12} className="animate-spin" />}
+                  {form.photoUrl ? '사진 바꾸기' : '사진 올리기'}
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { uploadPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+                {form.photoUrl && (
+                  <button type="button" onClick={removePhoto} className="text-[12px] font-semibold text-gray-400 hover:text-red-500">사진 빼기</button>
+                )}
+              </div>
+            </div>
           </div>
           <div>
             {primaryContact.length > 0 && (
@@ -1948,7 +2184,6 @@ function ResumeView({ experiences, user, profile }) {
               </div>
             )}
             <div className="mt-8">
-            {editing ? (
               <textarea
                 rows={4}
                 value={form.oneLiner}
@@ -1957,29 +2192,23 @@ function ResumeView({ experiences, user, profile }) {
                 className="w-full resize-none border-b border-dashed border-gray-300 bg-transparent pb-2 text-[16px] leading-[1.9] text-gray-700 outline-none transition-colors placeholder:text-gray-300 focus:border-primary-300"
                 style={{ wordBreak: 'keep-all' }}
               />
-            ) : (
-              <p className="text-[16px] font-medium leading-[1.9] text-gray-700" style={{ wordBreak: 'keep-all' }}>{introText}</p>
-            )}
             </div>
-            {editing && (
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {competencies.map((c, i) => (
-                  <input
-                    key={i}
-                    value={c.keyword}
-                    onChange={e => updateComp(i, 'keyword', e.target.value)}
-                    placeholder={`핵심 키워드 ${i + 1}`}
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-[14px] font-bold text-gray-800 outline-none focus:border-primary-300"
-                  />
-                ))}
-              </div>
-            )}
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {competencies.map((c, i) => (
+                <input
+                  key={i}
+                  value={c.keyword}
+                  onChange={e => updateComp(i, 'keyword', e.target.value)}
+                  placeholder={`핵심 키워드 ${i + 1}`}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-[14px] font-bold text-gray-800 outline-none focus:border-primary-300"
+                />
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="lg:pl-[230px]">
           <ProfileResumeSection title="기본 사항">
-            {editing ? (
               <div className="space-y-3">
                 {[
                   { field: 'name', label: '이름', placeholder: '이름' },
@@ -1997,13 +2226,9 @@ function ResumeView({ experiences, user, profile }) {
                   </label>
                 ))}
               </div>
-            ) : (
-              <ProfileRows rows={basicRows} />
-            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="학력 사항">
-            {editing ? (
               <EditableProfileRows
                 rows={form.educationRows || []}
                 onChange={(index, field, value) => updateProfileRow('educationRows', index, field, value)}
@@ -2013,66 +2238,77 @@ function ResumeView({ experiences, user, profile }) {
                 valuePlaceholder="학교·전공·학위"
                 addLabel="학력 추가"
               />
-            ) : (
-              <ProfileRows rows={educationRows} emptyText="학력 정보가 없습니다" />
-            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="자격 사항">
-            {editing ? (
               <EditableProfileRows
                 rows={form.certificateRows || []}
                 onChange={(index, field, value) => updateProfileRow('certificateRows', index, field, value)}
                 onAdd={() => addProfileRow('certificateRows', 'certificate')}
                 onRemove={index => removeProfileRow('certificateRows', index)}
                 datePlaceholder="취득일"
-                valuePlaceholder="자격증·어학명과 점수"
+                valuePlaceholder="자격증명"
                 addLabel="자격 추가"
               />
-            ) : (
-              <ProfileRows rows={certificateRows} emptyText="자격/어학 정보가 없습니다" />
-            )}
           </ProfileResumeSection>
 
-          <ProfileResumeSection title="활동 및 수상">
-            {editing ? (
+          <ProfileResumeSection title="언어">
+              <EditableProfileRows
+                rows={form.languageRows || []}
+                onChange={(index, field, value) => updateProfileRow('languageRows', index, field, value)}
+                onAdd={() => addProfileRow('languageRows', 'language')}
+                onRemove={index => removeProfileRow('languageRows', index)}
+                datePlaceholder="취득일"
+                valuePlaceholder="시험·점수 (예: TOEIC 900)"
+                addLabel="언어 추가"
+              />
+          </ProfileResumeSection>
+
+          <ProfileResumeSection title="수상">
+              <EditableProfileRows
+                rows={form.awardRows || []}
+                onChange={(index, field, value) => updateProfileRow('awardRows', index, field, value)}
+                onAdd={() => addProfileRow('awardRows', 'award')}
+                onRemove={index => removeProfileRow('awardRows', index)}
+                datePlaceholder="수상일"
+                valuePlaceholder="수상명 · 주최"
+                addLabel="수상 추가"
+              />
+          </ProfileResumeSection>
+
+          <ProfileResumeSection title="경력 · 프로젝트">
               <div className="space-y-6">
                 <div>
-                  <p className="mb-2 text-[12px] font-extrabold text-gray-500">직접 입력한 활동·수상</p>
-                  <EditableProfileRows
-                    rows={form.awardRows || []}
-                    onChange={(index, field, value) => updateProfileRow('awardRows', index, field, value)}
-                    onAdd={() => addProfileRow('awardRows', 'award')}
-                    onRemove={index => removeProfileRow('awardRows', index)}
-                    datePlaceholder="활동 기간"
-                    valuePlaceholder="활동·수상 내용"
-                    addLabel="활동·수상 추가"
+                  <p className="mb-2 text-[12px] font-extrabold text-gray-500">직장·학교 경력 (경력 섹션 맨 앞에 들어가요)</p>
+                  <EditableCareerRows
+                    rows={form.careerRows || []}
+                    onChange={(index, field, value) => updateProfileRow('careerRows', index, field, value)}
+                    onAdd={() => addProfileRow('careerRows', 'career')}
+                    onRemove={index => removeProfileRow('careerRows', index)}
                   />
                 </div>
-
-                {careerItems.length > 0 && (
+                {careerItems.length > 0 ? (
                   <div>
-                    <p className="mb-2 text-[12px] font-extrabold text-gray-500">경험에서 가져온 항목</p>
+                    <p className="mb-2 text-[12px] font-extrabold text-gray-500" style={{ wordBreak: 'keep-all' }}>경험마다 경력/프로젝트를 고르고, 이력서에는 핵심만 짧게 적으세요.</p>
                     <div className="space-y-3">
                     {careerItems.map(({ exp, start, end }) => {
-                      const defaultDate = start.getFullYear() === end.getFullYear()
-                        ? `${start.getFullYear()}`
-                        : `${start.getFullYear()} - ${end.getFullYear()}`;
                       const override = form.activityOverrides?.[exp.id] || {};
+                      const item = resumeExperienceOf(exp, start, end, override);
                       const hidden = hiddenSet.has(exp.id);
+                      const fieldClass = 'min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100';
                       return (
                         <div key={exp.id} className={`grid min-w-0 gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto] ${
                           hidden ? 'border-gray-200 bg-gray-50 opacity-65' : 'border-primary-100 bg-primary-50/30'
                         }`}>
                           <input
-                            value={override.date ?? defaultDate}
+                            value={item.period}
                             onChange={e => updateActivityOverride(exp.id, 'date', e.target.value)}
                             disabled={hidden}
                             aria-label={`${cleanProfileText(exp.title)} 기간`}
                             className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold tabular-nums text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100"
                           />
                           <input
-                            value={override.value ?? cleanProfileText(exp.title)}
+                            value={item.title}
                             onChange={e => updateActivityOverride(exp.id, 'value', e.target.value)}
                             disabled={hidden}
                             aria-label={`${cleanProfileText(exp.title)} 내용`}
@@ -2089,19 +2325,53 @@ function ResumeView({ experiences, user, profile }) {
                           >
                             {hidden ? '표시' : '숨김'}
                           </button>
+                          {!hidden && (
+                            <div className="grid min-w-0 gap-2 sm:col-span-3 sm:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)]">
+                              <select
+                                value={item.kind}
+                                onChange={e => updateActivityOverride(exp.id, 'kind', e.target.value)}
+                                aria-label={`${cleanProfileText(exp.title)} 구분`}
+                                className={`${fieldClass} font-bold`}
+                              >
+                                <option value="career">경력</option>
+                                <option value="project">프로젝트</option>
+                              </select>
+                              <input
+                                value={item.role}
+                                onChange={e => updateActivityOverride(exp.id, 'role', e.target.value)}
+                                placeholder="소속·역할 (예: 기획팀 / PM)"
+                                aria-label={`${cleanProfileText(exp.title)} 소속·역할`}
+                                className={fieldClass}
+                              />
+                              <input
+                                value={item.summary}
+                                onChange={e => updateActivityOverride(exp.id, 'summary', e.target.value)}
+                                placeholder="한 줄 요약 (50자 안팎)"
+                                aria-label={`${cleanProfileText(exp.title)} 한 줄 요약`}
+                                className={fieldClass}
+                              />
+                              <textarea
+                                rows={3}
+                                value={override.bullets ?? item.bullets.join('\n')}
+                                onChange={e => updateActivityOverride(exp.id, 'bullets', e.target.value)}
+                                placeholder="핵심 업무·성과를 한 줄에 하나씩, 2줄 이내로"
+                                aria-label={`${cleanProfileText(exp.title)} 핵심 업무·성과`}
+                                className={`${fieldClass} resize-y sm:col-span-3`}
+                              />
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                     </div>
                   </div>
+                ) : (
+                  <p className="text-[13px] font-medium text-gray-400">경험을 먼저 정리하면 여기서 경력·프로젝트로 넣을 수 있어요.</p>
                 )}
               </div>
-            ) : (
-              <ProfileRows rows={activityRows} emptyText="활동 또는 수상 정보가 없습니다" />
-            )}
           </ProfileResumeSection>
 
-          <ProfileResumeSection title="소프트웨어">
+          <ProfileResumeSection title="스킬">
             {(software.length > 0 || editing) ? (
               <div className="flex flex-wrap gap-5">
                 {software.map((sw, i) => (
@@ -2177,6 +2447,380 @@ function ResumeView({ experiences, user, profile }) {
           )}
           </ProfileResumeSection>
         </div>
+      </div>
+      )}
+
+      {folderPickerOpen && (
+        <ResumeFolderPicker uid={uid} fileName={pdfFileName} makeFile={makePdf} onClose={() => setFolderPickerOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ── 이력서 보기 레이아웃 (PDF는 이 화면을 그대로 렌더링한다) ──
+   세로형(vertical)   — 왼쪽 섹션 이름 | 항목 | 오른쪽 기간, 위아래 굵은 선 (A4 세로 한 단)
+   가로형(horizontal) — 참고 이력서처럼 A4 두 쪽을 나란히 펼친 형태 (쪽마다 이름·쪽 번호, 화면 폭에 맞춰 축소) */
+function ResumeSheet({ layout, data, exportMode = false }) {
+  const empty = ['careers', 'projects', 'education', 'certificates', 'languages', 'awards'].every(key => !data[key].length);
+  return (
+    <>
+      {layout === 'horizontal' ? <SpreadResumeSheet data={data} exportMode={exportMode} /> : <LabeledResumeSheet data={data} exportMode={exportMode} />}
+      {empty && (
+        <p className="py-6 text-center text-[13px] font-medium text-gray-400">
+          경험에서 초안 뽑기나 편집으로 경력·학력·자격을 채워보세요.
+        </p>
+      )}
+    </>
+  );
+}
+
+const keepAll = { wordBreak: 'keep-all' };
+
+/* 세로형 */
+function LResumeSection({ label, children }) {
+  return (
+    <section data-resume-pdf-break className="grid gap-3 border-b border-gray-200 py-6 last:border-b-0 md:grid-cols-[140px_minmax(0,1fr)]">
+      <h3 className="text-[14px] font-extrabold text-gray-900">{label}</h3>
+      <div className="min-w-0 divide-y divide-gray-200">{children}</div>
+    </section>
+  );
+}
+
+function LResumeItem({ period, children }) {
+  return (
+    <div data-resume-pdf-break className="flex min-w-0 items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
+      <div className="min-w-0 flex-1">{children}</div>
+      {period && <span className="shrink-0 pt-0.5 text-[13px] font-medium tabular-nums text-gray-700">{period}</span>}
+    </div>
+  );
+}
+
+function LabeledResumeSheet({ data, exportMode }) {
+  const simple = (rows) => rows.map(r => (
+    <LResumeItem key={r.id} period={r.date}><p className="text-[14.5px] font-bold text-gray-900" style={keepAll}>{r.value}</p></LResumeItem>
+  ));
+  const experienceItems = (list) => list.map(exp => (
+    <LResumeItem key={exp.id} period={exp.period}>
+      <p className="text-[17px] font-extrabold text-gray-950" style={keepAll}>{exp.title}</p>
+      {exp.role && <p className="mt-0.5 text-[14px] text-gray-700">{exp.role}</p>}
+      {(exp.summary || exp.bullets.length > 0) && (
+        <div className="mt-3 space-y-0.5 text-[13.5px] leading-relaxed text-gray-700" style={keepAll}>
+          {exp.summary && <p className="pl-3 -indent-3 font-bold text-gray-900">• {exp.summary}</p>}
+          {exp.bullets.map((b, i) => <p key={i} className="pl-3 -indent-3">• {b}</p>)}
+        </div>
+      )}
+    </LResumeItem>
+  ));
+  return (
+    <div data-resume-pdf-root className="resume-sheet-font mx-auto max-w-[820px] bg-white px-6 py-10 sm:px-12" style={exportMode ? { width: 820, maxWidth: 'none', margin: 0, paddingLeft: 48, paddingRight: 48 } : undefined}>
+      <header className="flex items-start justify-between gap-6 pb-7">
+        <div className="min-w-0">
+          <h2 className="text-[30px] font-extrabold tracking-tight text-gray-950">{data.name}</h2>
+          {data.contacts.length > 0 && (
+            <div className="mt-3 space-y-0.5 text-[13.5px] text-gray-700">
+              {data.contacts.map(c => <p key={c.label} className="break-all">{c.label}: {c.value}</p>)}
+            </div>
+          )}
+          {data.intro && <p className="mt-4 text-[14px] font-bold leading-relaxed text-gray-900" style={keepAll}>{data.intro}</p>}
+          {data.highlights.length > 0 && (
+            <div className="mt-2 space-y-0.5 text-[13.5px] text-gray-700">
+              {data.highlights.map(h => <p key={h}>{h}</p>)}
+            </div>
+          )}
+        </div>
+        {data.photoUrl && <img src={data.photoUrl} alt={`${data.name} 사진`} className="h-32 w-32 shrink-0 rounded-full object-cover" />}
+      </header>
+      <div className="border-t-2 border-gray-900">
+        {data.careers.length > 0 && <LResumeSection label="경력">{experienceItems(data.careers)}</LResumeSection>}
+        {data.education.length > 0 && <LResumeSection label="학력">{simple(data.education)}</LResumeSection>}
+        {data.projects.length > 0 && <LResumeSection label="프로젝트">{experienceItems(data.projects)}</LResumeSection>}
+        {data.certificates.length > 0 && <LResumeSection label="자격증">{simple(data.certificates)}</LResumeSection>}
+        {data.languages.length > 0 && <LResumeSection label="언어">{simple(data.languages)}</LResumeSection>}
+        {data.awards.length > 0 && <LResumeSection label="수상">{simple(data.awards)}</LResumeSection>}
+        {data.software.length > 0 && (
+          <LResumeSection label="스킬">
+            <LResumeItem><p className="text-[14px] text-gray-800">{data.software.join(', ')}</p></LResumeItem>
+          </LResumeSection>
+        )}
+      </div>
+      <div className="border-t-2 border-gray-900" />
+    </div>
+  );
+}
+
+/* 가로형 — 참고 이력서의 쪽 비율(A4, 560px 폭)과 글자 크기를 옮긴 두 쪽 펼침.
+   내용은 쪽을 정해 두지 않고 두 단으로 이어 흘려서, 양쪽 높이(아래 공백)가 비슷하게 맞춰진다.
+   항목 하나는 두 쪽에 걸쳐 쪼개지지 않고, 섹션 제목은 첫 항목과 붙어 다닌다. 글꼴은 세로형과 같다. */
+const PAGE_W_PX = 560;
+const PAGE_GAP_PX = 4;
+const PAGE_PAD_X = 60;
+const SPREAD_W = PAGE_W_PX * 2 + PAGE_GAP_PX;
+const KEEP = { breakInside: 'avoid' };   // 한 덩어리는 한 쪽 안에
+
+function SResumeHeading({ children }) {
+  return <h3 className="mb-2.5 border-b border-gray-200 pb-1 text-[12.5px] font-extrabold text-gray-950">{children}</h3>;
+}
+
+/* 섹션 — 제목+첫 항목을 한 덩어리로, 나머지 항목은 각각 한 덩어리로 */
+function SResumeSection({ title, items }) {
+  if (!items.length) return null;
+  return (
+    <>
+      <div className="pt-6" style={KEEP}>
+        <SResumeHeading>{title}</SResumeHeading>
+        {items[0]}
+      </div>
+      {items.slice(1).map((item, i) => <div key={i} className="pt-4" style={KEEP}>{item}</div>)}
+    </>
+  );
+}
+
+function SResumeBullets({ summary, bullets }) {
+  return (
+    <>
+      {summary && <p className="text-[9.5px] font-bold leading-[1.8] text-gray-900">{summary}</p>}
+      {bullets.length > 0 && (
+        <ul className="mt-0.5 list-disc space-y-0.5 pl-3.5 text-[9px] leading-[1.8] text-gray-700 marker:text-gray-500">
+          {bullets.map((b, i) => <li key={i}>{b}</li>)}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function SResumeRows({ rows }) {
+  return (
+    <div className="space-y-0.5 text-[9px] leading-[1.8]">
+      {rows.map(r => (
+        <p key={r.id} className="text-gray-800">
+          {r.value}{r.date && <span className="ml-2.5 tabular-nums text-gray-400">{r.date}</span>}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function SpreadResumeSheet({ data, exportMode }) {
+  // 두 쪽이 잘리지 않게 화면 폭에 맞춰 통째로 축소한다 (늘리지는 않음)
+  const frameRef = useRef(null);
+  const [fit, setFit] = useState(1);
+  useEffect(() => {
+    if (exportMode) return undefined;
+    const el = frameRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([entry]) => setFit(Math.min(1, entry.contentRect.width / SPREAD_W)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [exportMode]);
+
+  const careerItems = data.careers.map(exp => (
+    <div key={exp.id}>
+      <p className="text-[11.5px] font-extrabold text-gray-950">{exp.title}{exp.period && <span className="tabular-nums">({exp.period})</span>}</p>
+      {exp.role && <p className="mb-1 text-[8.5px] text-gray-400">{exp.role}</p>}
+      <SResumeBullets summary={exp.summary} bullets={exp.bullets} />
+    </div>
+  ));
+  const projectItems = data.projects.map(exp => (
+    <div key={exp.id} className="grid grid-cols-[150px_minmax(0,1fr)] gap-5">
+      <div className="min-w-0">
+        <p className="text-[10px] font-extrabold leading-snug text-gray-950">{exp.title}</p>
+        {exp.period && <p className="mt-1 text-[8.5px] tabular-nums text-gray-400">{exp.period}</p>}
+        {exp.role && <p className="text-[8.5px] text-gray-400">{exp.role}</p>}
+      </div>
+      <div className="min-w-0"><SResumeBullets summary={exp.summary} bullets={exp.bullets} /></div>
+    </div>
+  ));
+  const educationItems = data.education.length ? [(
+    <div key="education" className="space-y-0.5 text-[9px] leading-[1.8]">
+      {data.education.map(r => (
+        <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_42%] gap-3">
+          <span className="text-gray-800">{r.value}</span>
+          <span className="tabular-nums text-gray-600">{r.date}</span>
+        </div>
+      ))}
+    </div>
+  )] : [];
+  const pairLists = [
+    ['Certificate', data.certificates],
+    ['Awards', data.awards],
+    ['Language', data.languages],
+  ].filter(([, rows]) => rows.length);
+
+  return (
+    <div ref={frameRef} className="resume-sheet-font bg-neutral-400 px-4 py-6">
+      <div className="mx-auto w-max" style={{ zoom: exportMode ? 1 : fit }}>
+        <div data-resume-pdf-root className="relative" style={{ width: SPREAD_W, minHeight: 792 }}>
+          {/* 두 쪽 — 흰 종이와 꼬리말(이름 · 쪽 번호) */}
+          {[0, 1].map(i => (
+            <div key={i} className="absolute bottom-0 top-0 bg-white" style={{ left: i * (PAGE_W_PX + PAGE_GAP_PX), width: PAGE_W_PX }}>
+              <div className="absolute bottom-7 flex justify-between text-[9px] text-gray-400" style={{ left: PAGE_PAD_X, right: PAGE_PAD_X }}>
+                <span>{data.name}</span>
+                <span>{i + 1}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* 내용 — 두 단(=두 쪽)으로 이어 흐르며 높이를 맞춘다 */}
+          <div
+            className="relative"
+            style={{ ...keepAll, columnCount: 2, columnGap: PAGE_GAP_PX + PAGE_PAD_X * 2, columnFill: 'balance', padding: `64px ${PAGE_PAD_X}px 80px` }}
+          >
+            <div style={KEEP}>
+              <h2 className="text-[18px] font-extrabold text-gray-950">{data.name}</h2>
+              <div className="mt-5 flex items-start gap-5">
+                {data.photoUrl && <img src={data.photoUrl} alt={`${data.name} 사진`} className="h-[100px] w-[80px] shrink-0 object-cover" />}
+                <div className="min-w-0 text-[9px] leading-[1.9] text-gray-700">
+                  {data.intro && <p>{data.intro}</p>}
+                  {data.highlights.map(h => <p key={h}>{h}</p>)}
+                </div>
+              </div>
+              {data.contacts.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[8.5px]">
+                  {data.contacts.map(c => (
+                    <p key={c.label} className="min-w-0 break-all">
+                      <span className="mr-1.5 font-bold text-gray-900">{c.label}</span>
+                      <span className="text-gray-500">{c.value}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <SResumeSection title="Career" items={careerItems} />
+            <SResumeSection title="Education" items={educationItems} />
+            <SResumeSection title="Projects" items={projectItems} />
+
+            {/* Certificate | Awards (+ Language) — 두 칸씩 한 덩어리 */}
+            {pairLists.length > 0 && (
+              <div className="grid grid-cols-2 gap-x-8" style={KEEP}>
+                {pairLists.map(([title, rows]) => (
+                  <div key={title} className="pt-6"><SResumeHeading>{title}</SResumeHeading><SResumeRows rows={rows} /></div>
+                ))}
+              </div>
+            )}
+
+            <SResumeSection
+              title="Skills"
+              items={data.software.length ? [<p key="skills" className="text-[9px] leading-[1.8] text-gray-700">{data.software.join(', ')}</p>] : []}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* 이력서 저장함 — 포트폴리오의 기업 폴더를 골라 그 폴더의 이력서 칸에 PDF로 넣는다 */
+function ResumeFolderPicker({ uid, fileName, makeFile, onClose }) {
+  const navigate = useNavigate();
+  const { portfolios, fetchPortfolios } = usePortfolioStore();
+  const [folders, setFolders] = useState(null);   // null: 불러오는 중
+  const [newCompany, setNewCompany] = useState('');
+  const [savingTo, setSavingTo] = useState(null);
+  const [savedTo, setSavedTo] = useState(null);
+
+  useEffect(() => {
+    if (!portfolios.length) fetchPortfolios(uid);
+    api.get('/company-folders')
+      .then(({ data }) => setFolders(Array.isArray(data) ? data : []))
+      .catch(() => { setFolders([]); toast.error('기업 폴더를 불러오지 못했습니다'); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 포트폴리오 화면과 같은 기준: 포트폴리오의 지원 기업 + 직접 만든 기업 폴더
+  const companies = [...new Set([
+    ...(folders || []).map(f => f.company),
+    ...portfolios.map(p => (p.targetCompany || '').trim()),
+  ].filter(Boolean))];
+
+  const saveTo = async (rawCompany) => {
+    const company = rawCompany.trim();
+    if (!company || savingTo) return;
+    setSavingTo(company);
+    try {
+      const blob = await makeFile();
+      const fd = new FormData();
+      fd.append('file', new File([blob], fileName, { type: blob.type }));
+      const { data: uploaded } = await api.post('/upload/document', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
+      const prevFiles = (folders || []).find(f => f.company === company)?.files || [];
+      const { data: folder } = await api.put('/company-folders', {
+        company,
+        files: [...prevFiles, {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+          category: 'resume',
+          name: uploaded.originalName || fileName,
+          url: uploaded.url,
+          size: uploaded.size || blob.size,
+          uploadedAt: new Date().toISOString(),
+        }],
+      });
+      setFolders(prev => [...(prev || []).filter(f => f.company !== company), folder]);
+      setSavedTo(company);
+      setNewCompany('');
+    } catch (e) {
+      toast.error(e?.response?.data?.error || '이력서 저장함에 넣지 못했습니다');
+    }
+    setSavingTo(null);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="이력서 저장함에 넣기" className="w-full max-w-[440px] rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[17px] font-extrabold text-gray-900">이력서 저장함에 넣기</h3>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-gray-500" style={{ wordBreak: 'keep-all' }}>
+              지금 이력서를 PDF 파일({fileName})로 만들어, 고른 기업 폴더의 이력서 칸에 넣습니다.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="닫기"><X size={16} /></button>
+        </div>
+
+        {savedTo && (
+          <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+            <p className="text-[12.5px] font-semibold text-emerald-700">'{savedTo}' 폴더에 넣었어요.</p>
+            <button
+              onClick={() => navigate('/app/portfolio', { state: { openCompany: savedTo } })}
+              className="shrink-0 text-[12.5px] font-bold text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
+            >
+              폴더 열기
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 max-h-[260px] space-y-1.5 overflow-y-auto">
+          {folders === null ? (
+            <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-gray-400" /></div>
+          ) : companies.length === 0 ? (
+            <p className="py-4 text-center text-[12.5px] text-gray-400">아직 기업 폴더가 없어요. 아래에 기업명을 적어 새로 만들어 넣으세요.</p>
+          ) : companies.map(company => (
+            <button
+              key={company}
+              onClick={() => saveTo(company)}
+              disabled={!!savingTo}
+              className="flex w-full items-center gap-2.5 rounded-xl border border-gray-200 px-3.5 py-2.5 text-left transition-colors hover:border-primary-300 hover:bg-primary-50/40 disabled:opacity-50"
+            >
+              <FolderOpen size={15} className="shrink-0 text-gray-400" />
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-gray-800">{company}</span>
+              {savingTo === company
+                ? <Loader2 size={14} className="animate-spin text-primary-600" />
+                : savedTo === company && <Check size={14} className="text-emerald-600" />}
+            </button>
+          ))}
+        </div>
+
+        <form className="mt-3 flex gap-2" onSubmit={e => { e.preventDefault(); saveTo(newCompany); }}>
+          <input
+            value={newCompany}
+            onChange={e => setNewCompany(e.target.value)}
+            placeholder="새 기업명"
+            maxLength={100}
+            className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-primary-300"
+          />
+          <button type="submit" disabled={!newCompany.trim() || !!savingTo} className="shrink-0 rounded-lg bg-primary-600 px-3.5 py-2 text-[12.5px] font-bold text-white hover:bg-primary-700 disabled:opacity-40">
+            새 폴더에 넣기
+          </button>
+        </form>
       </div>
     </div>
   );

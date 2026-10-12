@@ -8,6 +8,8 @@ import portfolioRoutes from './routes/portfolio.js';
 import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
+import coverletterRoutes from './routes/coverletter.js';
+import coverletterCatalogRoutes from './routes/coverletterCatalog.js';
 import uploadRoutes from './routes/upload.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
@@ -22,6 +24,7 @@ import fileRoutes from './routes/files.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
+import { AI_UNAVAILABLE_MESSAGE } from './utils/aiError.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -134,6 +137,8 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/export', ...aiLimiters, exportRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/job', ...aiLimiters, jobRoutes);
+app.use('/api/coverletter', coverletterRoutes);
+app.use('/api/coverletter-catalog', coverletterCatalogRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/auth', authRoutes);
@@ -186,7 +191,8 @@ app.use((err, req, res, next) => {
   }
   const isProd = process.env.NODE_ENV === 'production';
   res.status(status).json({
-    error: isProd && status >= 500 ? '서버 오류가 발생했습니다.' : (err.message || '서버 오류가 발생했습니다.'),
+    error: err.code === 'AI_TEMPORARILY_UNAVAILABLE' ? AI_UNAVAILABLE_MESSAGE
+      : isProd && status >= 500 ? '서버 오류가 발생했습니다.' : (err.message || '서버 오류가 발생했습니다.'),
   });
 });
 

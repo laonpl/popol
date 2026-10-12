@@ -5,6 +5,8 @@ import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload } from '../../services/importAI';
 import { buildDraftStructuredResult, buildInterviewMoment, cleanRawText } from '../../utils/experienceDraft';
+import { getRoleExperienceIntake, roleIntakeText, roleInterviewFallback } from '../../utils/roleExperienceIntake';
+import { RoleExperienceGuide, RoleExperienceInputs } from './RoleExperienceIntake';
 
 /* 작은 CSS 스피너 (아이콘 미사용) */
 function Spinner({ light = false, size = 16 }) {
@@ -28,6 +30,7 @@ export default function ExperienceInterview() {
   const [endMonth, setEndMonth] = useState('');
   const [jobCategory, setJobCategory] = useState('common');
   const [braindump, setBraindump] = useState('');
+  const [roleNotes, setRoleNotes] = useState({});
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -56,7 +59,8 @@ export default function ExperienceInterview() {
     { label: '+ 이유', text: '그렇게 한 이유는 ' },
     { label: '+ 어려웠던 점', text: '가장 어려웠던 건 ' },
   ];
-  const EXAMPLE = "예) API 응답을 800ms → 480ms로 줄였어요. 제가 Redis 캐싱 로직을 직접 설계·구현했고, Memcached 대신 Redis를 택한 건 자료구조가 유연해서였어요. 캐시 무효화 타이밍이 가장 까다로웠는데 TTL + 이벤트 갱신으로 해결했습니다.";
+  const roleGuide = getRoleExperienceIntake(jobCategory);
+  const EXAMPLE = roleGuide?.example || "예) API 응답을 800ms → 480ms로 줄였어요. 제가 Redis 캐싱 로직을 직접 설계·구현했고, Memcached 대신 Redis를 택한 건 자료구조가 유연해서였어요. 캐시 무효화 타이밍이 가장 까다로웠는데 TTL + 이벤트 갱신으로 해결했습니다.";
   const insertStarter = (text) => {
     setAnswers(prev => {
       const cur = prev[current] || '';
@@ -93,7 +97,8 @@ export default function ExperienceInterview() {
 
   const startInterview = async () => {
     if (!title.trim()) return toast.error('경험 제목을 입력해주세요');
-    if (braindump.trim().length < 20 && files.length === 0) {
+    const writtenSource = [braindump.trim(), roleIntakeText(jobCategory, roleNotes)].filter(Boolean).join('\n\n');
+    if (writtenSource.length < 20 && files.length === 0) {
       return toast.error('경험을 조금 적거나 자료 파일을 첨부해주세요');
     }
     setGenLoading(true);
@@ -116,7 +121,7 @@ export default function ExperienceInterview() {
         }
       }
 
-      const combined = `${braindump.trim()}${fileText}`.trim();
+      const combined = `${writtenSource}${fileText}`.trim();
       if (!combined) {
         setGenLoading(false);
         return toast.error('자료에서 내용을 읽지 못했어요. 직접 조금 적어주세요');
@@ -131,7 +136,7 @@ export default function ExperienceInterview() {
         .filter(Boolean)
         .slice(0, 5);
       if (!qs || qs.length === 0) {
-        qs = [
+        qs = roleGuide ? roleInterviewFallback(jobCategory).map(item => item.question) : [
           '이 경험에서 가장 핵심적인 성과를 수치로 말한다면? (전/후, %, 시간, 규모 등)',
           '팀에서 정확히 본인이 직접 맡아서 한 부분은 무엇이었나요?',
           '여러 선택지 중 지금의 방식을 택한 이유는? 다른 대안은 무엇이었나요?',
@@ -293,7 +298,7 @@ export default function ExperienceInterview() {
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="예: 이미지 무단학습 방지 시스템 개발"
+              placeholder={roleGuide?.titlePlaceholder || '예: 이미지 무단학습 방지 시스템 개발'}
               className="w-full rounded-xl border border-surface-200 px-4 py-2.5 text-[14px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300 mb-4"
             />
 
@@ -327,7 +332,9 @@ export default function ExperienceInterview() {
               ))}
             </select>
 
-            <label className="block text-[13px] font-bold text-bluewood-700 mb-1.5">자료 파일 <span className="text-bluewood-300 font-medium">(선택 — 이력서·기획서·README 등)</span></label>
+            <RoleExperienceGuide role={jobCategory} />
+
+            <label className="block text-[13px] font-bold text-bluewood-700 mb-1.5">자료 파일 <span className="text-bluewood-300 font-medium">(선택 — {roleGuide?.materials || '이력서·기획서·README 등'})</span></label>
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -365,9 +372,11 @@ export default function ExperienceInterview() {
               value={braindump}
               onChange={e => setBraindump(e.target.value)}
               rows={5}
-              placeholder="무슨 프로젝트였고, 어떤 문제를 어떻게 해결했는지 기억나는 대로 적어주세요. 두서없어도 괜찮아요."
+              placeholder={roleGuide?.summary || '무슨 프로젝트였고, 어떤 문제를 어떻게 해결했는지 기억나는 대로 적어주세요. 두서없어도 괜찮아요.'}
               className="w-full resize-y rounded-xl border border-surface-200 px-4 py-3 text-[14px] leading-relaxed text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300"
             />
+
+            <div className="mt-4"><RoleExperienceInputs role={jobCategory} values={roleNotes} onChange={(key, value) => setRoleNotes(previous => ({ ...previous, [key]: value }))} /></div>
 
             <button
               onClick={startInterview}

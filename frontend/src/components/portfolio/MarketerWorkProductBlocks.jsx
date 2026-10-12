@@ -5,7 +5,12 @@ const text = (value, fallback = '미기록') => typeof value === 'string' && val
 function Field({ label, value }) { return <div className="mk-field"><small>{label}</small><p className={!value ? 'is-empty' : ''}>{text(value)}</p></div>; }
 function Source({ row }) {
   const located = ['source_excerpt', 'self_report'].includes(row.basis);
-  return <footer className="mk-source">{row.userEdited && <small>직접 수정한 정리 · 원문과 의미 대조 필요</small>}{row.ownership && <p>내 기여 · {row.ownership}</p>}{located ? <details><summary><FileText size={12} />{row.sourceName || MARKETER_BASIS_LABELS[row.basis]}<ChevronDown size={12} /></summary><blockquote>{row.quote}</blockquote><small>{MARKETER_BASIS_LABELS[row.basis]} · {row.location || '추출 본문'}</small></details> : <small>{MARKETER_BASIS_LABELS[row.basis] || '원문 확인 필요'}</small>}</footer>;
+  return <footer className="mk-source">
+    {row.userEdited && <small>{row.manuallyAdded ? '직접 작성한 경험' : '직접 수정한 정리 · 원문과 의미 대조 필요'}</small>}
+    {row.ownership && <p>내 기여 · {row.ownership}</p>}
+    {located ? <details><summary><FileText size={12} />{row.sourceName || MARKETER_BASIS_LABELS[row.basis]}<ChevronDown size={12} /></summary><blockquote>{row.quote}</blockquote><small>{MARKETER_BASIS_LABELS[row.basis]}{row.location ? ` · ${row.location}` : row.manuallyAdded ? '' : ' · 추출 본문'}</small></details> : <small>{MARKETER_BASIS_LABELS[row.basis] || '원문 확인 필요'}</small>}
+    {row.referenceQuote && <details><summary><FileText size={12} />함께 참고한 자료 · {row.referenceSourceName || '연결 자료'}<ChevronDown size={12} /></summary><blockquote>{row.referenceQuote}</blockquote><small>직접 기록할 때 참고한 내용{row.referenceLocation ? ` · ${row.referenceLocation}` : ''}</small></details>}
+  </footer>;
 }
 function WorkBlock({ group, rows }) {
   if (!rows.length) return null;

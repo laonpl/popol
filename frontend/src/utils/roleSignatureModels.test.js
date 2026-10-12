@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPmDecisionStages, buildMarketingStudioStages, stageEvidenceLabel } from './roleSignatureModels.js';
+import { buildPmDecisionStages, buildMarketingStudioStages, stageEvidenceLabel, ROLE_STAGE_GROUPS, stageWorkCount, stageRecordLabel } from './roleSignatureModels.js';
 import { buildPmEvidenceModel } from './pmEvidence.js';
 import { buildMarketerEvidenceModel } from './marketerEvidence.js';
 import { appendReviewedWorkProduct } from './roleProofMap.js';
@@ -36,16 +36,46 @@ test('marketing studio separates creative, distribution and measured reaction', 
   assert.equal(stages[4].fields.some(row => row.value.includes('3%')), false);
 });
 
-test('PM can manually add a missing policy as an unverified draft', () => {
+test('PM can manually record a missing policy as their own account', () => {
   const sr = { keyExperiences: [{ title: '정책 설계', jobData: {} }] };
   const item = buildPmEvidenceModel(sr).cases[0];
   const group = PM_WORK_PRODUCTS.find(row => row.key === 'requirements');
   const updated = appendReviewedWorkProduct(sr, item, 'pm', group, { requirement: '예외 상태 안내', rule: '실패 시 재시도' }, null);
   const row = updated.keyExperiences[0].jobData.pmWorkProducts.requirements[0];
-  assert.equal(row.basis, 'unlocated');
+  assert.equal(row.basis, 'self_report');
   assert.equal(row.stage, 'unknown');
   assert.equal(row.manuallyAdded, true);
   assert.equal(buildPmDecisionStages(buildPmEvidenceModel(updated).cases[0])[2].fields.find(field => field.label === '처리 정책').value, '실패 시 재시도');
+});
+
+test('a rejected alternative is never presented as the chosen direction', () => {
+  const item = buildPmEvidenceModel({ keyExperiences: [{ jobData: { pmWorkProducts: {
+    alternatives: [{ option: '검색 기능', disposition: '기각', reason: '일정 초과' }],
+  } } }] }).cases[0];
+  const decision = buildPmDecisionStages(item).find(stage => stage.key === 'decision');
+  assert.equal(decision.fields.some(field => field.label === '선택한 방향'), false);
+  assert.equal(decision.choices[0].option, '검색 기능');
+});
+
+test('content operations and CRM remain accessible together', () => {
+  const item = buildMarketerEvidenceModel({ keyExperiences: [{ jobData: { marketerWorkProducts: {
+    contentSystem: [{ pillar: '입문 가이드', distribution: '블로그' }],
+    crm: [{ segment: '가입 고객', trigger: '첫 가입', exit: '구매 완료' }],
+  } } }] }).cases[0];
+  const lifecycle = buildMarketingStudioStages(item).find(stage => stage.key === 'lifecycle');
+  assert.equal(lifecycle.choices.length, 2);
+  assert.equal(lifecycle.choices[0].pillar, '입문 가이드');
+  assert.equal(lifecycle.choices[1].segment, '가입 고객');
+  assert.equal(stageWorkCount(item, 'marketer', 'lifecycle'), 2);
+  assert.equal(stageRecordLabel(item, 'marketer', lifecycle), '작업 기록 2건');
+});
+
+test('every typed work product has a relevant place to write in its role workspace', async () => {
+  const { MARKETER_WORK_PRODUCTS } = await import('./marketerWorkProducts.js');
+  for (const [role, groups] of [['pm', PM_WORK_PRODUCTS], ['marketer', MARKETER_WORK_PRODUCTS]]) {
+    assert.deepEqual(Object.values(ROLE_STAGE_GROUPS[role]).flat().sort(), groups.map(group => group.key).sort());
+  }
+  assert.equal(stageRecordLabel({ workProducts: {} }, 'pm', { key: 'design', fields: [] }), '직접 기록하기');
 });
 
 test('a fallback claim keeps its own source status when another work product is present', () => {

@@ -116,7 +116,7 @@ export default function PortfolioHub() {
   const [sortMode, setSortMode] = useState('recent');
   const [exportConfig, setExportConfig] = useState(location.state?.exportConfig || null);
   const [viewMode, setViewMode] = useState('company');          // company: 기업별 | kind: 형식별
-  const [openCompany, setOpenCompany] = useState(undefined);    // undefined: 첫 폴더 자동 열림, null: 모두 접힘
+  const [openCompany, setOpenCompany] = useState(location.state?.openCompany); // undefined: 첫 폴더 자동 열림, null: 모두 접힘 (이력서 저장함에서 오면 그 폴더)
   const [openKind, setOpenKind] = useState('notion');
   const [folders, setFolders] = useState([]);                   // 기업 폴더(이력서·자소서)
   const [sortDropOpen, setSortDropOpen] = useState(false);

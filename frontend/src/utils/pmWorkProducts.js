@@ -1,3 +1,5 @@
+import { validRoleSelfReport } from '../../../shared/roleSelfReport.mjs';
+
 export const PM_WORK_PRODUCTS = [
   { key: 'research', label: '고객 인사이트 맵', fields: [['segment', '조사 대상'], ['observation', '관찰'], ['insight', '해석'], ['opportunity', '제품 기회'], ['limitation', '반례 · 한계']], limit: 3 },
   { key: 'businessModel', label: '가치 교환 구조', fields: [['customer', '사용자'], ['payer', '비용 부담 주체'], ['value', '전달 가치'], ['revenue', '사업 기여 경로'], ['cost', '비용 · 운영 부담'], ['tradeoff', '가치 충돌 · 선택']], limit: 2 },
@@ -20,8 +22,8 @@ export function normalizePmWorkProducts(data, basisFor) {
       const basis = basisFor(row);
       const values = Object.fromEntries(group.fields.map(([key]) => [key, typeof row[key] === 'string' ? row[key].trim().slice(0, 600) : '']));
       const stage = basis !== 'unlocated' && ['planned', 'executed', 'observed', 'changed'].includes(row.stage) ? row.stage : 'unknown';
-      if (group.key === 'experiments' && (basis === 'unlocated' || stage === 'planned')) { values.observation = ''; values.decision = ''; }
-      if (['troubleshooting', 'risks'].includes(group.key) && stage === 'planned') values.result = '';
+      if (group.key === 'experiments' && (basis === 'unlocated' || (stage === 'planned' && !validRoleSelfReport(row)))) { values.observation = ''; values.decision = ''; }
+      if (['troubleshooting', 'risks'].includes(group.key) && stage === 'planned' && !validRoleSelfReport(row)) values.result = '';
       if (basis === 'unlocated') {
         if (group.key === 'requirements') values.owner = '';
         if (group.key === 'collaboration') values.myAction = '';

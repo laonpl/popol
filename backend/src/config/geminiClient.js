@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 import { assertHasCredits, getBillingStore, recordAiUsage } from '../services/billingService.js';
+import { getAiErrorStatus } from '../utils/aiError.js';
 
 let genAIClient = null;
 let _cachedGeminiConfig = null;
@@ -194,11 +195,7 @@ export function getModelHealthStats() {
 }
 
 function extractStatus(err) {
-  if (typeof err?.status === 'number') return err.status;
-  if (typeof err?.response?.status === 'number') return err.response.status;
-  const m = String(err?.message || '').match(/\[(\d{3})\s/);
-  if (m) return parseInt(m[1], 10);
-  return null;
+  return getAiErrorStatus(err);
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -262,7 +259,7 @@ function extractUsageMetadata(response) {
     || null;
 }
 
-export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore()) {
+export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore(), returnMetadata = false) {
   await assertHasCredits();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
@@ -276,7 +273,7 @@ export async function callGeminiModel(modelName, contents, timeoutMs = 90000, co
         try {
           text = extractGeminiText(r);
           await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
-          resolve(text);
+          resolve(returnMetadata ? { text, groundingMetadata: r.candidates?.[0]?.groundingMetadata || null } : text);
         } catch (error) {
           try {
             await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
@@ -302,6 +299,8 @@ export async function callGeminiModel(modelName, contents, timeoutMs = 90000, co
  * @param {boolean}  [options.preferPro] Pro 우선 모드 — 503 발생해도 Pro 내에서 재시도, 회로차단기 무시.
  * @param {number}   [options.callTimeoutMs] 모델 1회 호출 당 타임아웃(ms). 기본 90000.
  * @param {object}   [options.config] Gemini generateContent config. 예: tools 설정.
+ * @param {number}   [options.queueTimeoutMs] Maximum queue wait. Existing callers retain 600000ms.
+ * @param {boolean}  [options.returnMetadata] Return text plus search grounding metadata instead of text alone.
  */
 export async function generateWithRetry(prompt, options = {}) {
   const {
@@ -314,6 +313,8 @@ export async function generateWithRetry(prompt, options = {}) {
     config = null,
     githubFallback = true,
     billingStore: explicitBillingStore = null,
+    returnMetadata = false,
+    queueTimeoutMs = 600000,
   } = options;
 
   const billingStore = explicitBillingStore || getBillingStore();
@@ -321,7 +322,7 @@ export async function generateWithRetry(prompt, options = {}) {
 
   // 세마포어 획득 — 동시 호출 수 제한
   try {
-    await acquireSemaphore();
+    await acquireSemaphore(queueTimeoutMs);
   } catch (err) {
     if (err.message === 'QUEUE_FULL') {
       throw new Error('서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요.');
@@ -342,13 +343,13 @@ export async function generateWithRetry(prompt, options = {}) {
       // Pro 우선 모드에서는 회로차단기 무시 (Pro 강제 시도)
       if (!preferPro && isModelTemporarilyBlocked(modelName)) {
         console.warn(`[Gemini] ${modelName} 일시 차단 상태 → 다음 모델로 이동`);
-        lastError = new Error(`${modelName}이(가) 일시 차단됨`);
+        lastError = Object.assign(new Error(`${modelName}이(가) 일시 차단됨`), { status: 503 });
         continue;
       }
 
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config, billingStore);
+          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config, billingStore, returnMetadata);
           recordModelSuccess(modelName);
           return result;
         } catch (err) {
@@ -356,6 +357,8 @@ export async function generateWithRetry(prompt, options = {}) {
           const status = extractStatus(err);
           const msg = err?.message || '';
           console.warn(`[Gemini] ${modelName} 실패 (시도 ${attempt + 1}/${retries}, status=${status}): ${msg.slice(0, 120)}`);
+
+          if (status === 402 || /CREDIT|BILLING/i.test(String(err?.code || ''))) throw err;
 
           if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
             console.error('[Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요');
@@ -390,6 +393,12 @@ export async function generateWithRetry(prompt, options = {}) {
           if (status === 503 || status === 500) {
             recordModelError(modelName, status);
 
+            // Try another configured model promptly before retrying the last one.
+            if (!preferPro && status === 503 && models.indexOf(modelName) < models.length - 1) {
+              console.warn(`[Gemini] ${modelName} 503 → 다음 모델로 전환`);
+              break;
+            }
+
             const isPro = modelName.includes('pro');
 
             // Pro 우선 모드: 503이어도 Pro 내에서 지수 백오프로 끝까지 재시도
@@ -412,12 +421,11 @@ export async function generateWithRetry(prompt, options = {}) {
 
             // Lite 모델이나 500 에러: 지수 백오프로 재시도
             if (attempt < retries - 1) {
-              const wait = delayMs * Math.pow(2, attempt);
+              const wait = Math.min(delayMs * Math.pow(2, attempt), 30000) * (0.8 + Math.random() * 0.4);
               console.warn(`[Gemini] ${status} 과부하 - ${wait}ms 대기 후 재시도`);
               await sleep(wait);
               continue;
             } else {
-              await sleep(2000);
               break;
             }
           }
@@ -446,7 +454,8 @@ export async function generateWithRetry(prompt, options = {}) {
       }
       console.error('[Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
       try {
-        return await callGitHubModelsFallback(prompt, billingStore);
+        const fallbackText = await callGitHubModelsFallback(prompt, billingStore);
+        return returnMetadata ? { text: fallbackText, groundingMetadata: null } : fallbackText;
       } catch (fallbackErr) {
         console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
         throw lastError;

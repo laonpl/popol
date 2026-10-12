@@ -7,7 +7,7 @@ const STAGES = new Set(['planned', 'executed', 'observed', 'changed', 'unknown']
 const text = value => typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
 const compact = value => text(value).normalize('NFKC').replace(/\s+/g, ' ');
 const list = value => Array.isArray(value) ? value : [];
-const selfReport = /직접\s*입력|^인터뷰$|AI\s*채팅\s*보완|사용자\s*답변|보강\s*메모|회상/;
+const selfReport = /직접\s*(?:입력|작성)|^인터뷰$|AI\s*채팅\s*보완|추가인터뷰_보강자료|사용자\s*답변|보강\s*메모|회상/;
 const generated = /핵심\s*경험|인터뷰구조화|AI\s*(?:초안|추론|분석)|작성\s*가이드/;
 const unread = /(?:직접\s*읽지\s*못|내용을?\s*(?:확인|불러오|읽)지\s*못|접근\s*불가)/;
 
@@ -27,7 +27,7 @@ export function collectPmSources(content = {}) {
       if (!part.body.trim() || generated.test(part.name)) continue;
       sources.push({
         id: `PM-S${sources.length + 1}`, name: part.name.slice(0, 240),
-        text: /AI\s*채팅\s*보완/.test(part.name) ? part.body.replace(/^Q\..*$/gm, '').replace(/^→\s*/gm, '').trim() : part.body.trim(),
+        text: /AI\s*채팅\s*보완|추가인터뷰_보강자료/.test(part.name) ? part.body.replace(/^Q\..*$/gm, '').replace(/^→\s*/gm, '').trim() : part.body.trim(),
         kind: unread.test(part.body) && part.body.trim().length < 500 ? 'unread'
           : !part.artifact || selfReport.test(part.name) ? 'self_report' : 'artifact',
       });

@@ -2962,7 +2962,7 @@ export const VisualTemplate5 = ({ portfolio, ec, onOpenExpDetail }) => {
         <p className="text-gray-500 font-medium mb-6 text-center">
           {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-gray-500 font-medium" /> : <VHtml value={data.title} />}
         </p>
-        {!isHidden5('contact') && <div className="w-full grid grid-cols-3 gap-3 mb-10 group/section relative">
+        {!isHidden5('contact') && <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 mb-10 group/section relative">
           {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
           {ec ? (
             <>

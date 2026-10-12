@@ -122,7 +122,7 @@ export default function CreditSettings() {
 
       <section className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <h2 className="font-bold text-bluewood-800 mb-4">충전할 크레딧</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {options.packages.map(item => (
             <button key={item.id} onClick={() => { setPackageId(item.id); setRequested(false); }}
               className={`relative text-left p-4 rounded-xl border-2 transition-colors ${packageId === item.id ? 'border-primary-500 bg-primary-50' : 'border-surface-100 hover:border-primary-200'}`}>

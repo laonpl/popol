@@ -497,7 +497,11 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
 
     // 인터뷰 답변을 추가 자료로 content에 합쳐 재분석 (원본은 유지, 답변만 보강 근거로)
     const interviewText = answered.map(item => `Q. ${item.question}\n→ ${item.answer}`).join('\n\n');
-    const augmentedContent = { ...(data.content || {}), 추가인터뷰_보강자료: interviewText };
+    const originalContent = typeof data.content === 'string' ? { rawInput: data.content } : { ...(data.content || {}) };
+    const savedContent = { ...originalContent, 추가인터뷰_보강자료: [originalContent.추가인터뷰_보강자료, interviewText].filter(Boolean).join('\n\n') };
+    const augmentedContent = roleAnalysisContent({ ...data, content: savedContent });
+    const hasRoleExperience = ['pm', 'marketer'].includes(data.jobCategory || data.structuredResult?.jobCategory)
+      && data.structuredResult?.keyExperiences?.length > 0;
 
     const structuredMoments = Array.isArray(data.structuredResult?.keyExperiences) && data.structuredResult.keyExperiences.length > 0
       ? data.structuredResult.keyExperiences
@@ -514,7 +518,9 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
       const errMsg = aiError.message || '';
       const hasFallbackInput = (moments && moments.length > 0)
         || Object.values(augmentedContent || {}).some(value => String(value || '').trim());
-      if (hasFallbackInput) {
+      if (hasRoleExperience) {
+        analysis = { ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' };
+      } else if (hasFallbackInput) {
         analysis = buildFallbackExperienceAnalysis(
           augmentedContent,
           count,
@@ -526,24 +532,19 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
             reason: errMsg.slice(0, 240),
           }
         );
-        await docRef.update({
-          structuredResult: analysis,
-          keywords: analysis.keywords || [],
-          highlights: analysis.highlights || [],
-          followupAnswers: answered,
-          lifecycleStatus: 'needs_confirmation',
-          confirmedAt: null,
-          updatedAt: new Date(),
-        });
-        return res.json(analysis);
-      }
-      if (errMsg.includes('요청 한도') || errMsg.includes('429') || errMsg.includes('quota')) {
+      } else if (errMsg.includes('요청 한도') || errMsg.includes('429') || errMsg.includes('quota')) {
         return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+      } else {
+        return res.status(502).json({ error: 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
       }
-      return res.status(502).json({ error: 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
     }
 
+    if (analysis?._fallback && hasRoleExperience) {
+      analysis = { ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' };
+    }
+    analysis = preserveRolePresentation(analysis, data.structuredResult);
     await docRef.update({
+      content: savedContent,
       structuredResult: analysis,
       keywords: analysis.keywords || [],
       highlights: analysis.highlights || [],
@@ -561,11 +562,11 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
 // POST /api/experience/extract-moments - 핵심 경험 순간 추출 (검토 단계용)
 router.post('/extract-moments', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
-    const { rawText, title } = req.body;
+    const { rawText, title, jobCategory = 'common' } = req.body;
     if (!rawText || rawText.trim().length === 0) {
       return res.status(400).json({ error: '분석할 텍스트가 필요합니다' });
     }
-    const moments = await extractMoments(rawText, title);
+    const moments = await extractMoments(rawText, title, jobCategory);
     res.json({ moments });
   } catch (error) {
     next(error);

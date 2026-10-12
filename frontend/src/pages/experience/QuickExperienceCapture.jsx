@@ -8,6 +8,8 @@ import { buildDraftStructuredResult } from '../../utils/experienceDraft';
 import { evaluateExperienceReadiness, PORTFOLIO_SLOT_META } from '../../utils/experienceReadiness';
 import { trackActivation } from '../../services/activationMetrics';
 import { saveActivationTask } from '../../services/activationJourney';
+import { getRoleExperienceIntake, roleQuickFields } from '../../utils/roleExperienceIntake';
+import { RoleExperienceGuide } from './RoleExperienceIntake';
 
 /* 빈 칸 다섯 개만 놓여 있으면 무엇을 어느 정도로 써야 할지 알 수 없다.
    그래서 이미 정리한 경험 하나를 옆에 띄워 같은 깊이로 쓰게 하고,
@@ -69,6 +71,8 @@ export default function QuickExperienceCapture() {
   const slotMeta = PORTFOLIO_SLOT_META[slot] || PORTFOLIO_SLOT_META.growth;
   const user = useAuthStore(state => state.user);
   const profile = useAuthStore(state => state.profile);
+  const jobCategory = profile?.jobCategory || profile?.targetJobCategory || 'common';
+  const captureFields = roleQuickFields(jobCategory, FIELDS);
   const { experiences, fetchExperiences, createExperience } = useExperienceStore();
   const [saving, setSaving] = useState(false);
   const [autoRole, setAutoRole] = useState('');
@@ -123,16 +127,12 @@ export default function QuickExperienceCapture() {
     }
     setSaving(true);
     try {
-      const rawInput = [
-        `경험: ${form.title}`,
-        `문제와 배경: ${form.context}`,
-        `나의 역할: ${form.role}`,
-        `행동과 판단: ${form.action}`,
-        `결과 또는 배운 점: ${form.outcome}`,
-      ].join('\n');
+      const rawInput = getRoleExperienceIntake(jobCategory)
+        ? captureFields.filter(field => form[field.key].trim()).map(field => `${field.label}\n${form[field.key].trim()}`).join('\n\n')
+        : [`경험: ${form.title}`, `문제와 배경: ${form.context}`, `나의 역할: ${form.role}`, `행동과 판단: ${form.action}`, `결과 또는 배운 점: ${form.outcome}`].join('\n');
       const structuredResult = buildDraftStructuredResult({
         title: form.title.trim(),
-        jobCategory: profile?.jobCategory || profile?.targetJobCategory || 'common',
+        jobCategory,
         collectedText: rawInput,
         content: { rawInput },
         moments: [{
@@ -154,7 +154,7 @@ export default function QuickExperienceCapture() {
       const id = await createExperience(user.uid, {
         title: form.title.trim(),
         framework: 'STRUCTURED',
-        jobCategory: profile?.jobCategory || profile?.targetJobCategory || 'common',
+        jobCategory,
         content: {
           rawInput,
           problem: form.context.trim(),
@@ -207,8 +207,9 @@ export default function QuickExperienceCapture() {
             <span className="shrink-0 text-[12px] font-bold text-gray-400">{completed} / 5 작성</span>
           </div>
 
+          <RoleExperienceGuide role={jobCategory} />
           <form onSubmit={saveDraft} className="mt-9">
-            {FIELDS.map(field => (
+            {captureFields.map(field => (
               <label key={field.key} className="mb-7 block">
                 <span className="flex flex-wrap items-baseline gap-2">
                   <span className="text-[13.5px] font-bold text-gray-800">{field.label}</span>

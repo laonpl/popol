@@ -381,7 +381,8 @@ function prioritizeJobPostingText(text = '') {
 }
 
 // ── HTTP 기반 스크래핑 (빠름, Chrome 불필요) ─────────
-async function fetchRawHtml(url, referer) {
+async function fetchRawHtml(url, referer, options = {}) {
+  if (options.safeFetch) return options.safeFetch(url, { headers: referer ? { Referer: referer } : {} });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
@@ -460,7 +461,7 @@ function jsonToReadableText(value, prefix = '') {
   return [];
 }
 
-async function fetchJasoseolStructuredText(url) {
+async function fetchJasoseolStructuredText(url, options = {}) {
   let parsed;
   try { parsed = new URL(url); } catch { return ''; }
   if (!/jasoseol\.com$/i.test(parsed.hostname)) return '';
@@ -475,7 +476,8 @@ async function fetchJasoseolStructuredText(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(`https://jasoseol.com/api/v1/employment_companies/${recruitId}`, {
+    const apiUrl = `https://jasoseol.com/api/v1/employment_companies/${recruitId}`;
+    const res = options.safeFetch ? null : await fetch(apiUrl, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -484,8 +486,8 @@ async function fetchJasoseolStructuredText(url) {
         'Referer': url,
       },
     });
-    if (!res.ok) return '';
-    const data = await res.json();
+    if (res && !res.ok) return '';
+    const data = options.safeFetch ? JSON.parse(await options.safeFetch(apiUrl)) : await res.json();
     const employmentFields = Array.isArray(data.employments)
       ? data.employments.map(item => item?.field).filter(Boolean).join(', ')
       : '';
@@ -550,7 +552,7 @@ function buildSaraminDetailUrls(url) {
   ].filter(candidate => candidate !== url);
 }
 
-async function fetchAdditionalDetailText(url, html) {
+async function fetchAdditionalDetailText(url, html, options = {}) {
   const candidates = [
     ...extractJobIframeUrls(html, url),
     ...buildJobkoreaDetailUrls(url),
@@ -560,7 +562,7 @@ async function fetchAdditionalDetailText(url, html) {
   const texts = [];
   for (const detailUrl of [...new Set(candidates)].slice(0, 6)) {
     try {
-      const detailHtml = await fetchRawHtml(detailUrl, url);
+      const detailHtml = await fetchRawHtml(detailUrl, url, options);
       const detailText = htmlToText(detailHtml);
       if (detailText.length > 100) texts.push(`상세 공고 URL: ${detailUrl}\n${detailText}`);
     } catch {
@@ -587,14 +589,14 @@ function extractJobIframeUrls(html, baseUrl) {
   return [...new Set(urls)].slice(0, 3);
 }
 
-async function fetchJobWithHttp(url) {
-  const html = await fetchRawHtml(url);
-  const structuredText = await fetchJasoseolStructuredText(url);
+async function fetchJobWithHttp(url, options = {}) {
+  const html = await fetchRawHtml(url, '', options);
+  const structuredText = await fetchJasoseolStructuredText(url, options);
   let text = [structuredText, htmlToText(html)].filter(Boolean).join('\n');
 
   // 본문이 짧거나 주요 채용 플랫폼이면 iframe/API/모바일 상세 후보를 함께 합친다.
   if (text.length < 2500 || /saramin\.co\.kr|jobkorea\.co\.kr/i.test(url)) {
-    const detailText = await fetchAdditionalDetailText(url, html);
+    const detailText = await fetchAdditionalDetailText(url, html, options);
     if (detailText) text += '\n' + detailText;
   }
 
@@ -637,17 +639,22 @@ function releasePuppeteer() {
   }
 }
 
-export async function scrapeJobPosting(url) {
+export async function scrapeJobPosting(url, options = {}) {
   // URL은 job.js의 validateJobUrl()에서 이미 검증됨
   // 로그에 URL 경로를 직접 출력하지 않음 (민감 정보 마스킹)
   let maskedHost;
   try { maskedHost = new URL(url).hostname; } catch { maskedHost = '[unknown]'; }
 
   try {
-    const text = await fetchJobWithHttp(url);
+    const text = await fetchJobWithHttp(url, options);
     console.log('[Job] HTTP 스크래핑 성공:', maskedHost, '길이:', text.length);
     return text;
   } catch (httpErr) {
+    if (options.allowBrowser === false) {
+      const error = new Error('공고 원문을 읽지 못했습니다. 로그인이 필요하거나 자동 수집이 제한된 공고일 수 있어요. 공고 내용을 직접 붙여넣어주세요.');
+      error.status = 422;
+      throw error;
+    }
     console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', maskedHost, httpErr.code || httpErr.message);
   }
 

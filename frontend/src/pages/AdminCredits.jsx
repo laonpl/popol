@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader2, Wallet, LogOut, RefreshCw, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -255,6 +256,7 @@ export default function AdminCredits() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-500">Admin</p>
             <h1 className="mt-1 text-2xl font-extrabold text-bluewood-900">관리자</h1>
+            <Link to="/admin/application-questions" className="mt-2 inline-block text-sm font-bold text-bluewood-500 underline">지원서 문항 관리</Link>
           </div>
           <button
             type="button"

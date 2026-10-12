@@ -18,6 +18,8 @@ import { uploadDocumentFile } from '../../services/uploadImage';
 import api from '../../services/api';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 import { stripMd } from '../../utils/textUtils';
+import { getRoleExperienceIntake, roleIntakeText, roleInterviewFallback } from '../../utils/roleExperienceIntake';
+import { RoleExperienceGuide, RoleExperienceInputs } from './RoleExperienceIntake';
 
 /* ── 값을 표시용 텍스트로 정규화 (AI 응답이 배열/객체일 수 있음) ── */
 function asText(value) {
@@ -55,7 +57,7 @@ function hasOutcomeEvidence(analysis) {
     && (/\d/.test(asText(analysis?.output)) || bundles.some(item => asText(item?.sourceRef || item?.claim)));
 }
 
-function buildLowBurdenQueue(analysis, mode = 'basic') {
+function buildLowBurdenQueue(analysis, mode = 'basic', jobCategory = analysis?.jobCategory) {
   const limit = INTERVIEW_LIMITS[mode] || 5;
   const aiQuestions = Array.isArray(analysis?.interviewPlan?.questions)
     ? analysis.interviewPlan.questions
@@ -155,7 +157,9 @@ function buildLowBurdenQueue(analysis, mode = 'basic') {
     }
   }
 
-  const deduped = [...filtered, ...fallback]
+  const roleFallback = roleInterviewFallback(jobCategory);
+  const fallbackQuestions = roleFallback.length && !normalized.length ? roleFallback : fallback;
+  const deduped = [...filtered, ...fallbackQuestions]
     .sort((a, b) => (Number(b.valueScore) || 0) - (Number(a.valueScore) || 0))
     .filter((item, index, list) => list.findIndex(candidate => candidate.id === item.id || candidate.question === item.question) === index);
   const essential = deduped.filter(item => item.kind === 'essential' || item.kind === 'evidence');
@@ -1130,6 +1134,7 @@ function MaterialsPrepWorkspace({ phase, jobCategory, marketerField, preset, onS
             <div className="mt-6">
               <FitPolyGuidePanel>{preset.intro}</FitPolyGuidePanel>
             </div>
+            <RoleExperienceGuide role={jobCategory} />
           </div>
           <aside className="fp-flow-panel rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <h2 className="text-[17px] font-bold text-bluewood-900">자료 입력</h2>
@@ -1495,6 +1500,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
   const [extraLinks, setExtraLinks] = useState([]);
   const [ghUser, setGhUser] = useState(''); // GitHub 아이디 — 내 커밋 기여도·코드 분석용
   const [text, setText] = useState('');
+  const [roleNotes, setRoleNotes] = useState({});
   const [isDragging, setIsDragging] = useState(false);
 
   const addFiles = (picked) => {
@@ -1505,7 +1511,9 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
     });
   };
 
-  const hasInput = files.length > 0 || text.trim() || Object.values(links).some(v => v?.trim()) || extraLinks.some(v => v.trim());
+  const roleText = roleIntakeText(preset.role, roleNotes);
+  const sourceText = [text.trim(), roleText].filter(Boolean).join('\n\n');
+  const hasInput = files.length > 0 || sourceText || Object.values(links).some(v => v?.trim()) || extraLinks.some(v => v.trim());
 
   return (
     <div className={bare ? 'space-y-5' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-5 animate-fadeIn'}>
@@ -1600,10 +1608,12 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
           value={text}
           onChange={e => setText(e.target.value)}
           rows={4}
-          placeholder="무슨 프로젝트였고, 어떤 문제를 어떻게 해결했는지 기억나는 대로 적어주세요."
+          placeholder={getRoleExperienceIntake(preset.role)?.summary || '무슨 프로젝트였고, 어떤 문제를 어떻게 해결했는지 기억나는 대로 적어주세요.'}
           className="mt-2 w-full resize-y rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14px] leading-relaxed text-bluewood-800 outline-none transition placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
         />
       </div>
+
+      <RoleExperienceInputs role={preset.role} values={roleNotes} onChange={(key, value) => setRoleNotes(previous => ({ ...previous, [key]: value }))} />
 
       <button
         onClick={() => {
@@ -1611,7 +1621,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
             ...preset.links.map(l => ({ ...l, url: (links[l.key] || '').trim() })),
             ...extraLinks.map((url, i) => ({ key: `extra-${i}`, label: '산출물 링크', source: 'blog', url: url.trim() })),
           ].filter(l => l.url);
-          onSubmit({ files, links: linkList, text: text.trim(), githubUsername: ghUser.trim() });
+          onSubmit({ files, links: linkList, text: sourceText, githubUsername: ghUser.trim() });
         }}
         disabled={!hasInput || busy}
         className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-[15px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-bluewood-400"
@@ -1789,7 +1799,7 @@ export default function ExperienceChat() {
     setAnswerVisibility(currentQ?.privacy === 'private' ? 'private' : 'public');
   }, [currentQ?.id, currentQ?.privacy]);
 
-  const preset = MATERIAL_PRESETS[jobCategory] || MATERIAL_PRESETS.common;
+  const preset = { ...(MATERIAL_PRESETS[jobCategory] || MATERIAL_PRESETS.common), role: jobCategory };
 
   /* ── 1) 분야 선택 (히어로) → 기본 정보(제목·기간) ── */
   const selectField = async (item) => {
@@ -2007,7 +2017,7 @@ export default function ExperienceChat() {
       let extracted = [];
       if (allText.trim()) {
         try {
-          const result = await extractMoments(allText.trim(), '');
+          const result = await extractMoments(allText.trim(), '', jobCategory);
           extracted = result?.moments || [];
         } catch (err) {
           console.warn('[ExperienceChat] 핵심 경험 추출 실패 → 자료만으로 초안 진행:', err?.message);
@@ -2101,7 +2111,7 @@ export default function ExperienceChat() {
 
       // 이미 자료에서 확인된 내용은 다시 묻지 않고, 정보 가치가 높은 질문만 남긴다.
       // quick=3개, basic/deep=5개가 세션의 절대 상한이다.
-      const q = buildLowBurdenQueue(withPeriod, interviewMode);
+      const q = buildLowBurdenQueue(withPeriod, interviewMode, jobCategory);
 
       setMessages([]);
       msgId.current = 1;
@@ -2145,7 +2155,7 @@ export default function ExperienceChat() {
   const confirmDraftUnderstanding = async () => {
     setPhase('fill');
     // 사용자가 초안에서 직접 고친 내용은 즉시 "이미 확인됨"으로 다시 판정해 중복 질문을 제거한다.
-    const refreshedQueue = buildLowBurdenQueue(draft, interviewMode);
+    const refreshedQueue = buildLowBurdenQueue(draft, interviewMode, jobCategory);
     if (refreshedQueue.length === 0) {
       setQueue([]);
       await pushAi('자료만으로 필요한 내용이 충분히 확인됐어요. 더 묻지 않고 바로 저장할 수 있습니다.');

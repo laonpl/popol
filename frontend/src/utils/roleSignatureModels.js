@@ -8,6 +8,34 @@ const fieldFrom = (label, ...candidates) => {
 const stage = (key, label, title, prompt, fields, choices = []) => ({
   key, label, title, prompt, fields: fields.filter(Boolean), choices,
 });
+
+// The same stage that displays a decision also offers the right kind of record.
+// Counts describe saved work, not skill scores or automatically verified outcomes.
+export const ROLE_STAGE_GROUPS = {
+  pm: {
+    discovery: ['problems', 'research', 'businessModel'],
+    decision: ['alternatives', 'metricLinks'],
+    design: ['requirements', 'journey', 'serviceBlueprint'],
+    execution: ['releases', 'collaboration', 'risks'],
+    validation: ['experiments', 'troubleshooting'],
+  },
+  marketer: {
+    audience: ['audiences', 'positioning'],
+    creative: ['creatives'],
+    activation: ['channels', 'operations'],
+    lifecycle: ['contentSystem', 'crm'],
+    measurement: ['experiments', 'measurement', 'optimization'],
+  },
+};
+
+export function stageWorkCount(item, role, key) {
+  return (ROLE_STAGE_GROUPS[role]?.[key] || []).reduce((count, group) => count + (item.workProducts?.[group]?.length || 0), 0);
+}
+
+export function stageRecordLabel(item, role, entry) {
+  const count = stageWorkCount(item, role, entry.key);
+  return count ? `작업 기록 ${count}건` : entry.fields.length ? '경험 서술 있음' : '직접 기록하기';
+}
 export function stageEvidenceLabel(entry) {
   const rows = [...entry.fields.map(item => item.source), ...entry.choices].filter(Boolean);
   if (!entry.fields.length && !entry.choices.length) return '기록 필요';
@@ -21,7 +49,7 @@ export function buildPmDecisionStages(item) {
   const w = item.workProducts;
   const problem = w.problems?.[0], research = w.research?.[0];
   const business = w.businessModel?.[0], metricLink = w.metricLinks?.[0];
-  const alternatives = w.alternatives || [], selected = alternatives.find(row => row.disposition === '채택') || first(alternatives, 'option');
+  const alternatives = w.alternatives || [], selected = alternatives.find(row => row.disposition === '채택');
   const discovery = record(item, 'discovery'), prioritization = record(item, 'prioritization');
   const delivery = record(item, 'delivery'), validation = record(item, 'validation');
   const outcome = record(item, 'outcome'), learning = record(item, 'learning');
@@ -105,7 +133,7 @@ export function buildMarketingStudioStages(item) {
       field('CRM 진입 조건', crm?.trigger, crm),
       field('발송·종료 조건', [crm?.timing, crm?.exit, crm?.guardrail].filter(Boolean).join(' · '), crm),
       field('직접 제작·조율한 일', operations?.myAction || operations?.deliverable, operations),
-    ], w.crm?.length ? w.crm : w.contentSystem || []),
+    ], [...(w.contentSystem || []), ...(w.crm || [])]),
     stage('measurement', '반응과 개선', '무엇을 관찰하고 다음에 무엇을 바꿨나', '목표와 실측을 구분하고 측정 조건·한계를 함께 남겨주세요.', [
       field('실측 반응', metric ? `${metric.name} ${metric.actual}` : attribution?.claim, metric || attribution),
       field('측정 정의', measurement?.definition, measurement),

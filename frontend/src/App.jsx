@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
   Outlet,
+  useLocation,
 } from 'react-router-dom';
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
@@ -35,6 +36,8 @@ const AnalysisResult        = lazy(() => import('./pages/experience/AnalysisResu
 const StructuredResult      = lazy(() => import('./pages/experience/StructuredResult'));
 const DeveloperPortfolio    = lazy(() => import('./pages/experience/DeveloperPortfolio'));
 const PortfolioHub          = lazy(() => import('./pages/portfolio/PortfolioHub'));
+const CoverLetterHub        = lazy(() => import('./pages/coverletter/CoverLetterHub'));
+const CoverLetterWorkspace  = lazy(() => import('./pages/coverletter/CoverLetterWorkspace'));
 const PortfolioPlanBuilder  = lazy(() => import('./pages/portfolio/PortfolioPlanBuilder'));
 const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTemplateSelect'));
 const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
@@ -45,6 +48,7 @@ const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport')
 const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
 const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
+const QuestionCatalogAdmin  = lazy(() => import('./pages/coverletter/QuestionCatalogAdmin'));
 const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')); // 웹사이트형 템플릿 검토용
 const SampleOutput          = lazy(() => import('./pages/SampleOutput')); // 개선된 산출물 예시 확인용
 const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
@@ -66,15 +70,17 @@ function PageLoader() {
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuthStore();
+  const location = useLocation();
   if (loading) return <PageLoader />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   return children;
 }
 
 function ProfileGuard({ children }) {
   const { user, profile, profileLoading } = useAuthStore();
+  const location = useLocation();
   if (profileLoading) return <PageLoader />;
-  if (user && !profile) return <Navigate to="/app/profile-setup" replace />;
+  if (user && !profile) return <Navigate to="/app/profile-setup" replace state={{ from: location.pathname + location.search }} />;
   return children;
 }
 
@@ -136,6 +142,7 @@ const router = createBrowserRouter(
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />
+      <Route path="/admin/application-questions" element={<PrivateRoute><QuestionCatalogAdmin /></PrivateRoute>} />
       <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
       {/* 허브 화면은 비로그인도 볼 수 있고(가입 전 제품 확인), 기능 실행 시점에만 로그인을 요구한다. */}
       <Route path="/app" element={<AppShell />}>
@@ -166,6 +173,9 @@ const router = createBrowserRouter(
         <Route path="portfolio/web-preview/:id" element={<PrivateRoute><WebPortfolioPreview /></PrivateRoute>} />
         <Route path="portfolio/ai-ppt/:id" element={<PrivateRoute><AiPptExport /></PrivateRoute>} />
         <Route path="portfolio/analytics/:id" element={<PrivateRoute><PortfolioViewAnalytics /></PrivateRoute>} />
+        <Route path="coverletter" element={<CoverLetterHub />} />
+        <Route path="coverletter/new" element={<PrivateRoute><CoverLetterWorkspace /></PrivateRoute>} />
+        <Route path="coverletter/edit/:id" element={<PrivateRoute><CoverLetterWorkspace /></PrivateRoute>} />
         <Route path="settings/credits" element={<PrivateRoute><CreditSettings /></PrivateRoute>} />
         {/* /app 하위의 잘못된 주소 */}
         <Route path="*" element={<NotFound />} />

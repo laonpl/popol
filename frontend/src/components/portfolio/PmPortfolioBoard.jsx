@@ -46,7 +46,7 @@ function FlowExplorer({ item, Source }) {
   </section>;
 }
 
-function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly }) {
+function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly, sr, onChange }) {
   const id = useId();
   const w = item.workProducts;
   const hasFlow = !!(w.serviceBlueprint?.length || w.journey?.length);
@@ -62,7 +62,7 @@ function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly
   const outcomeRecord = item.records.find(row => row.dimension === 'outcome');
   return <div className="pd-dossier">
     <header className="pd-product-brief"><div><span>PRODUCT CASE STUDY</span><h3>{item.title}</h3>{problem && <p>{problem}</p>}</div><dl>{(decision || decisionRecord) && <div><dt>선택한 방향 · {decision ? PM_STAGE_LABELS[decision.stage] : '기존 정리 · 원문 확인 필요'}</dt><dd>{decision?.option || decisionRecord.claim}</dd></div>}<div><dt>내 책임 범위</dt><dd>{owners.length ? owners.join(' / ') : '담당 범위를 확인할 원문이 필요합니다.'}</dd></div>{result ? <div><dt>기록된 결과 · {result.name}</dt><dd>{result.baseline ? result.baseline + ' → ' : ''}{result.actual}<small>{[result.period, result.population].filter(Boolean).join(' · ') || '기간·대상 확인 필요'}</small></dd></div> : outcomeRecord && <div><dt>결과 정리 · {PM_STAGE_LABELS[outcomeRecord.stage]}</dt><dd>{outcomeRecord.claim}<small>{outcomeRecord.basis === 'unlocated' ? '원문 확인 필요' : '연결된 자료에서 확인'}</small></dd></div>}</dl></header>
-    <PmDecisionStudio item={item} Source={Source} sourcesId={id + '-editor'} canEdit={!readOnly} />
+    <PmDecisionStudio item={item} Source={Source} sourcesId={id + '-editor'} canEdit={!readOnly && !!onChange} sr={sr} onChange={onChange} />
     <nav className="pd-document-index print:hidden" aria-label="제품 설계 문서 목차">{chapters.map((chapter, i) => <a key={chapter.key} href={'#' + id + '-' + chapter.key}>{String(i + 1).padStart(2, '0')} {chapter.label}</a>)}<a href={'#' + id + '-sources'}>근거 자료</a></nav>
     {chapters.map((chapter, i) => <section key={chapter.key} id={id + '-' + chapter.key} className={'pd-chapter pd-chapter-' + chapter.key}>
       <header className="pd-chapter-heading"><span>{String(i + 1).padStart(2, '0')}</span><div><small>{chapter.label}</small><h3>{chapter.title}</h3></div><FileCheck2 size={19} /></header>
@@ -76,7 +76,7 @@ function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly
   </div>;
 }
 
-export default function PmPortfolioBoard({ model, Source, renderRecord, readOnly, renderArtifacts }) {
+export default function PmPortfolioBoard({ model, Source, renderRecord, readOnly, renderArtifacts, sr, onChange }) {
   const [active, setActive] = useState(0);
   const id = useId(), cases = model.cases;
   const selected = Math.min(active, Math.max(0, cases.length - 1));
@@ -85,7 +85,7 @@ export default function PmPortfolioBoard({ model, Source, renderRecord, readOnly
     {cases.length ? <><div className="pm-proof-tabs pd-case-files print:hidden" role="tablist" aria-label="제품 의사결정 선택">{cases.map((item, i) => <button type="button" role="tab" key={item.id} id={id + '-tab-' + i} aria-selected={selected === i} tabIndex={selected === i ? 0 : -1} aria-controls={id + '-panel-' + i} onClick={() => setActive(i)} onKeyDown={event => {
       const next = event.key === 'ArrowRight' ? (i + 1) % cases.length : event.key === 'ArrowLeft' ? (i + cases.length - 1) % cases.length : event.key === 'Home' ? 0 : event.key === 'End' ? cases.length - 1 : null;
       if (next !== null) { event.preventDefault(); setActive(next); document.getElementById(id + '-tab-' + next)?.focus(); }
-    }}><code>{String(i + 1).padStart(2, '0')}</code><span>{item.title}</span></button>)}</div>{cases.map((item, i) => <article key={item.id} role="tabpanel" id={id + '-panel-' + i} aria-labelledby={id + '-tab-' + i} className={'pm-proof-case ' + (selected === i ? '' : 'pm-proof-inactive')}><DecisionDossier item={item} Source={Source} renderRecord={renderRecord} renderArtifacts={renderArtifacts} readOnly={readOnly} /></article>)}</> : <div className="pm-proof-empty"><h3>어떤 제품의 어떤 결정을 책임졌나요?</h3><p>기획서·사용자 조사·정책·실험 기록에서 시작하세요.</p></div>}
+    }}><code>{String(i + 1).padStart(2, '0')}</code><span>{item.title}</span></button>)}</div>{cases.map((item, i) => <article key={item.id} role="tabpanel" id={id + '-panel-' + i} aria-labelledby={id + '-tab-' + i} className={'pm-proof-case ' + (selected === i ? '' : 'pm-proof-inactive')}><DecisionDossier item={item} Source={Source} renderRecord={renderRecord} renderArtifacts={renderArtifacts} readOnly={readOnly} sr={sr} onChange={onChange} /></article>)}</> : <div className="pm-proof-empty"><h3>어떤 제품의 어떤 결정을 책임졌나요?</h3><p>기획서·사용자 조사·정책·실험 기록에서 시작하세요.</p></div>}
     {!readOnly && <details className="pm-reference-disclosure print:hidden"><summary>구성에 참고한 기업·공개 실무 자료 <ChevronDown size={14} /></summary><p>기업별 공통 합격 공식이 아닙니다. 공개 포트폴리오와 직무 전환 사례는 합격 제출본 확인 여부와 구분해 참고했습니다.</p><div>{[...PM_COMPANY_REFERENCES, ...PM_PORTFOLIO_REFERENCES].map(([company, role, focus, url]) => <a key={company} href={url} target="_blank" rel="noreferrer"><b>{company}</b><span>{role}</span><p>{focus}</p><ArrowUpRight size={13} /></a>)}</div></details>}
   </section>;
 }

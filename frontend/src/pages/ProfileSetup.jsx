@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards, Info, AlertCircle } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
@@ -27,6 +27,9 @@ const SELECT_CLS = `${INPUT_CLS} cursor-pointer appearance-none`;
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
+  const routeLocation = useLocation();
+  const returnTo = routeLocation.state?.from?.startsWith('/app/') && routeLocation.state.from !== '/app/profile-setup'
+    ? routeLocation.state.from : '/app';
   const { user, profile, saveProfile, changePassword, skipProfileSetup } = useAuthStore();
   const [saving, setSaving] = useState(false);
   const [skipSaving, setSkipSaving] = useState(false);
@@ -70,7 +73,7 @@ export default function ProfileSetup() {
     setSkipSaving(true);
     try {
       await skipProfileSetup();
-      navigate('/app');
+      navigate(returnTo);
     } catch {
       toast.error('건너뛰기 상태 저장에 실패했습니다');
     } finally {
@@ -314,7 +317,7 @@ export default function ProfileSetup() {
         contact: form.contact,
       });
       toast.success('프로필이 저장되었습니다!');
-      navigate('/app');
+      navigate(returnTo);
     } catch (err) {
       toast.error('프로필 저장에 실패했습니다');
     }

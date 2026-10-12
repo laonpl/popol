@@ -1,0 +1,15 @@
+@font-face {
+  font-family: 'Resume Pretendard';
+  src: url('/motion/fonts/PretendardVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+}
+
+.resume-sheet-font {
+  font-family: 'Resume Pretendard', 'Pretendard', sans-serif;
+}
+
+.resume-pdf-export section[data-resume-pdf-break] {
+  grid-template-columns: 140px minmax(0, 1fr);
+}

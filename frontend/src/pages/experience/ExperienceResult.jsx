@@ -3429,7 +3429,7 @@ export default function ExperienceResult() {
               className="mt-2 text-[14px] sm:text-[14.5px] leading-[1.55] text-bluewood-500"
             />
             {/* 메타 */}
-            <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
               {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
                 <div key={m.k} className="min-w-0">
                   <p className="text-[11.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-0.5">{m.label}</p>

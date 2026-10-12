@@ -13,7 +13,7 @@ function SourceExcerpt({ record }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`pm-proof-source ${located ? '' : 'needs-source'}`}>
-      {located ? <><button className="pm-proof-source-toggle" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}><span className="pm-proof-basis">{record.basis === 'source_excerpt' ? <FileText size={13} /> : <MessageSquare size={13} />}{record.sourceName || PM_BASIS_LABELS[record.basis]}</span><span>{open ? '원문 접기' : '원문 확인'}<ChevronDown size={13} /></span></button><div className={open ? 'pm-proof-source-body' : 'pm-proof-source-body pm-source-collapsed'}><blockquote>{record.quote}</blockquote><p>{PM_BASIS_LABELS[record.basis]}{record.location ? ` · ${record.location}` : ''}</p></div></> : <p className="pm-proof-unlocated"><Search size={13} />{record.missingEvidence || '이 판단을 뒷받침할 원문이 아직 연결되지 않았습니다.'}</p>}
+      {located ? <><button className="pm-proof-source-toggle" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}><span className="pm-proof-basis">{record.basis === 'source_excerpt' ? <FileText size={13} /> : <MessageSquare size={13} />}{record.sourceName || PM_BASIS_LABELS[record.basis]}</span><span>{record.manuallyAdded ? open ? '기록 접기' : '기록 확인' : open ? '원문 접기' : '원문 확인'}<ChevronDown size={13} /></span></button><div className={open ? 'pm-proof-source-body' : 'pm-proof-source-body pm-source-collapsed'}><blockquote>{record.quote}</blockquote><p>{PM_BASIS_LABELS[record.basis]}{record.location ? ` · ${record.location}` : ''}</p>{record.referenceQuote && <><p>함께 참고한 자료 · {record.referenceSourceName || '연결 자료'}</p><blockquote>{record.referenceQuote}</blockquote>{record.referenceLocation && <p>{record.referenceLocation}</p>}</>}</div></> : <p className="pm-proof-unlocated"><Search size={13} />{record.missingEvidence || '이 판단을 뒷받침할 원문이 아직 연결되지 않았습니다.'}</p>}
     </div>
   );
 }
@@ -27,7 +27,7 @@ function Claim({ record, onSave }) {
 
 export default function PmEvidenceCaseStudy({ sr = {}, sourceText, readOnly = false, onRecordChange, onChange }) {
   const model = useMemo(() => buildPmEvidenceModel(sr, { sourceText: sourceText === undefined ? undefined : roleSourceText(sr, sourceText) }), [sr, sourceText]);
-  return <PmPortfolioBoard model={model} Source={SourceExcerpt} readOnly={readOnly}
+  return <PmPortfolioBoard model={model} Source={SourceExcerpt} readOnly={readOnly} sr={sr} onChange={onChange}
     renderArtifacts={(item, editorId) => <>
       {!readOnly && <WorkProductReview id={editorId} sr={sr} item={item} groups={PM_WORK_PRODUCTS} role="pm" onChange={onChange} />}
       <RoleArtifactStudio sr={sr} item={item} onChange={onChange} readOnly={readOnly} />

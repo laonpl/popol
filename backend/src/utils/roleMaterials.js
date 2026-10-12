@@ -1,10 +1,16 @@
+import { collectRoleSelfReports } from '../../../shared/roleSelfReport.mjs';
 const list = value => Array.isArray(value) ? value : [];
 export function roleAnalysisContent(data) {
   const content = typeof data.content === 'string' ? { rawInput: data.content } : { ...(data.content || {}) };
   if (!['pm', 'marketer'].includes(data.jobCategory || data.structuredResult?.jobCategory)) return content;
+  // These derived source blocks are rebuilt from retained assets/current entries.
+  delete content['추가 산출물 원문'];
+  delete content['직접 작성한 산출물'];
   const sr = data.structuredResult || {}, assets = [...list(sr.deliverables), ...list(sr.pmFiles)];
   const additions = list(sr.additionalMaterials).filter(row => row && typeof row.text === 'string' && assets.some(asset => asset.id === row.assetId));
   if (additions.length) content['추가 산출물 원문'] = additions.map(row => `--- ${String(row.name || '추가 자료').replace(/[\r\n]/g, ' ')} ---\n${row.text}`).join('\n\n');
+  const selfReports = collectRoleSelfReports(sr, data.jobCategory || sr.jobCategory);
+  if (selfReports.length) content['직접 작성한 산출물'] = selfReports.map(row => `--- ${row.name} ---\n${row.text}`).join('\n\n');
   return content;
 }
 export function preserveRolePresentation(analysis, previous = {}) {
@@ -34,5 +40,10 @@ export function preserveRolePresentation(analysis, previous = {}) {
     }
     if (list(item.artifactBindings).length && !keyExperiences.some(row => row?.artifactBindings === item.artifactBindings)) archive.push({ caseId: item.id || '', title: item.title || '', bindings: item.artifactBindings });
   }
-  return { ...analysis, keyExperiences, additionalMaterials: list(previous.additionalMaterials), artifactBindingArchive: archive, ...(manualArchive.length ? { manualWorkProductArchive: manualArchive } : {}) };
+  return { ...analysis, keyExperiences,
+    deliverables: list(previous.deliverables ?? analysis.deliverables), pmFiles: list(previous.pmFiles ?? analysis.pmFiles),
+    additionalMaterials: list(previous.additionalMaterials), artifactBindingArchive: archive,
+    ...(previous.pmHypotheses ? { pmHypotheses: previous.pmHypotheses } : {}),
+    ...(previous.interviewSession ? { interviewSession: previous.interviewSession } : {}),
+    ...(manualArchive.length ? { manualWorkProductArchive: manualArchive } : {}) };
 }

@@ -137,3 +137,26 @@ export function extractFields(exp) {
     projectOverview: sr.projectOverview || {},
   };
 }
+
+/**
+ * AI가 경험 정리에 흘려 넣은 작성 지시 표기 제거 — 【XYZ 공식】, "구축함(X)", [작성 필요] 등.
+ * backend/src/utils/sanitizeText.js 의 stripFormulaArtifacts 규칙에 '(원본에 … 정보 없음)' 주석 제거를 더했다.
+ */
+export function stripFormulaArtifacts(value) {
+  if (typeof value !== 'string') return value;
+  if (!/[【[（(]/.test(value) && !/XYZ/i.test(value)) return value;
+  let s = value;
+  s = s.replace(/【[^】]*】/g, '');
+  s = s.replace(/\[[^\]]*(XYZ|공식|작성\s*필요|검증\s*필요)[^\]]*\]/gi, '');
+  s = s.replace(/XYZ\s*공식/gi, '');
+  // (원본에 없음) · (원본에 '3조' 외 정보 없음) 류 주석
+  s = s.replace(/[（(][^）)]*(원본에|정보\s*없음)[^）)]*[）)]/g, '');
+  s = s.replace(/\s*[（([]\s*[xXyYzZ]\s*[）)\]]/g, '');
+  s = s.replace(/[（(]\s*[）)]/g, '');
+  s = s.replace(/\[\s*\]/g, '');
+  s = s.replace(/[ \t]{2,}/g, ' ');
+  s = s.replace(/[ \t]+([.,)\]」』。、])/g, '$1');
+  s = s.replace(/[·:\-—]\s*$/g, '');
+  s = s.replace(/^\s*[·:\-—]\s*/g, '');
+  return s.trim();
+}

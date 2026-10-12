@@ -39,6 +39,8 @@ const OPERATION_LABELS = [
   [/\/job\/analyze$/, '채용 공고 분석'],
   [/\/job\/match$/, '직무 적합도 분석'],
   [/\/job\/generate-coverletter$/, '자기소개서 초안 생성'],
+  [/\/coverletter\/analyze$/, '자기소개서 기업·공고 분석'],
+  [/\/coverletter\/generate$/, '맞춤 자기소개서 작성·다듬기'],
   [/\/job\/generate-portfolio$/, '맞춤 포트폴리오 제안'],
   [/\/job\/tailor-experience$/, '경험 맞춤 첨삭'],
   [/\/job\/tailor-portfolio$/, '포트폴리오 맞춤 첨삭'],
