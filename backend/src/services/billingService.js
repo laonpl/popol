@@ -29,6 +29,16 @@ const MODEL_PRICING_USD_PER_MILLION = {
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'gemini-3.1-flash-lite': { input: 0.1, output: 0.4 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  // Amazon Bedrock ap-southeast-2 온디맨드 표준 단가 (AWS Price List API, 2026-10-19 조회)
+  'zai.glm-5': { input: 1.03, output: 3.3 },
+  'zai.glm-4.7': { input: 0.62, output: 2.27 },
+  'zai.glm-4.7-flash': { input: 0.07, output: 0.41 },
+  'qwen.qwen3-235b-a22b-2507-v1:0': { input: 0.2266, output: 0.9064 },
+  'qwen.qwen3-vl-235b-a22b': { input: 0.5459, output: 2.7398 },
+  'deepseek.v3.2': { input: 0.64, output: 1.91 },
+  'amazon.nova-lite-v1:0': { input: 0.063, output: 0.252 },
+  'au.anthropic.claude-haiku-4-5-20251001-v1:0': { input: 1.1, output: 5.5 },
+  'au.anthropic.claude-sonnet-4-6': { input: 3.3, output: 16.5 },
 };
 
 const OPERATION_LABELS = [

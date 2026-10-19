@@ -709,18 +709,30 @@ async function extractWithTesseractOCR(buffer) {
 // (OOM은 throw되지 않고 프로세스를 죽여 프록시 502가 된다 — 2026-08 오류로그)
 const VISION_MAX_BYTES = 12 * 1024 * 1024;
 
+// 스캔 PDF는 페이지를 PNG로 렌더링해 이미지로 보낸다. PDF를 직접 받는 Bedrock 모델(Nova)은
+// 한글 스캔본에서 원문에 없는 내용을 지어냈고, 한글을 정확히 읽은 Qwen3-VL은 PDF를 받지 않는다(2026-10 실측).
+const VISION_MAX_PDF_PAGES = 10;
+
+async function pdfToPageImages(buffer) {
+  const { PDFParse } = await import('pdf-parse');
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getScreenshot({ last: VISION_MAX_PDF_PAGES, scale: 2, imageBuffer: true, imageDataUrl: false });
+    return result.pages.map(page => ({ inlineData: { mimeType: 'image/png', data: Buffer.from(page.data).toString('base64') } }));
+  } finally {
+    try { await parser.destroy(); } catch { /* ignore */ }
+  }
+}
+
 async function extractWithGeminiVision(buffer, mimeType) {
   if (buffer.length > VISION_MAX_BYTES) {
     throw new Error(`이미지·스캔 문서는 ${Math.floor(VISION_MAX_BYTES / 1024 / 1024)}MB까지 읽을 수 있습니다. 파일을 압축하거나 나눠서 올려주세요.`);
   }
-  const base64 = buffer.toString('base64');
+  const fileParts = mimeType === 'application/pdf'
+    ? await pdfToPageImages(buffer)
+    : [{ inlineData: { mimeType, data: buffer.toString('base64') } }];
   return await generateImportOnce([
-    {
-      inlineData: {
-        mimeType,
-        data: base64,
-      },
-    },
+    ...fileParts,
     `이 문서/이미지의 모든 텍스트 내용을 정확하게 추출해주세요.
 - 표가 있으면 표 구조를 텍스트로 보존해주세요
 - 제목, 소제목, 본문을 구분해주세요

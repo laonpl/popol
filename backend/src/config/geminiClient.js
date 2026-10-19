@@ -1,70 +1,11 @@
-import { GoogleGenAI } from '@google/genai';
+// AI 호출 진입점. 이름은 기존 호출부 호환을 위해 geminiClient 로 남겨 두었지만,
+// 2026-10 부터 실제 호출은 Amazon Bedrock(bedrockClient.js)으로 간다.
+// 호출부가 넘기는 Gemini 모델명은 티어로 해석한다:
+//   options.tier 지정 → 그 티어 / 첨부 파일(inlineData) → vision / 'lite' 모델만 → fast / 그 외 → standard
 import OpenAI from 'openai';
 import { assertHasCredits, getBillingStore, recordAiUsage } from '../services/billingService.js';
 import { getAiErrorStatus } from '../utils/aiError.js';
-
-let genAIClient = null;
-let _cachedGeminiConfig = null;
-
-function getVertexProjectId() {
-  return process.env.VERTEX_AI_PROJECT_ID
-    || process.env.GOOGLE_CLOUD_PROJECT
-    || process.env.GCLOUD_PROJECT
-    || process.env.GEMINI_PROJECT_ID;
-}
-
-function getVertexLocation() {
-  return process.env.VERTEX_AI_LOCATION
-    || process.env.GOOGLE_CLOUD_LOCATION
-    || process.env.GEMINI_LOCATION
-    || 'asia-northeast3';
-}
-
-function getGeminiClientConfig() {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  const project = getVertexProjectId();
-  const location = getVertexLocation();
-  const authMode = (process.env.VERTEX_AI_AUTH_MODE || '').toLowerCase();
-  const useStandardVertex = ['adc', 'service_account', 'service-account'].includes(authMode)
-    || (!apiKey && project && location);
-
-  if (useStandardVertex) {
-    if (!project) throw new Error('VERTEX_AI_PROJECT_ID가 설정되지 않았습니다. .env 파일을 확인하세요.');
-    if (!location) throw new Error('VERTEX_AI_LOCATION이 설정되지 않았습니다. .env 파일을 확인하세요.');
-    return {
-      cacheKey: `vertex:${project}:${location}:v1`,
-      logLabel: `Vertex AI 표준 모드 (${project}/${location})`,
-      options: {
-        vertexai: true,
-        project,
-        location,
-        httpOptions: { apiVersion: 'v1' },
-      },
-    };
-  }
-
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
-  }
-
-  // AI Studio(무료) API 키 → generativelanguage.googleapis.com 사용 (Vertex는 API 키 거부)
-  return {
-    cacheKey: `ai-studio:${apiKey}`,
-    logLabel: 'Gemini API (AI Studio) API 키 모드',
-    options: { apiKey },
-  };
-}
-
-// 키/프로젝트/리전 변경 시 자동 재생성 — .env 변경 후 서버 재시작 시 새 설정 반영 보장
-function getGenAI() {
-  const config = getGeminiClientConfig();
-  if (!genAIClient || _cachedGeminiConfig !== config.cacheKey) {
-    genAIClient = new GoogleGenAI(config.options);
-    _cachedGeminiConfig = config.cacheKey;
-    console.log(`[Gemini] ${config.logLabel} 클라이언트 초기화 완료`);
-  }
-  return genAIClient;
-}
+import { AI_TIERS, AI_TIMEOUT_MESSAGE, callBedrock, getModelSlotStats, getTierModels, hasFreeModelSlot, hasInlineData } from './bedrockClient.js';
 
 let openaiClient = null;
 function getOpenAIClient() {
@@ -111,204 +52,204 @@ const MODEL_FALLBACKS = [
   'gemini-3.1-flash-lite'
 ];
 
-// 경험 분석 전용: Pro 우선 + 최후의 안전망 Lite
-// preferPro:true 모드에서는 Pro 내에서 지수백오프 재시도 → Pro가 끝까지 안 되면 Lite 폴백
-export const EXPERIENCE_MODEL_FALLBACKS = [
-  'gemini-2.5-flash',
-  'gemini-3.1-flash-lite',
-];
-
-// Pro 전용 (안전망 없음) - 반드시 Pro로만 시도
-export const PRO_ONLY_FALLBACKS = ['gemini-2.5-flash'];
-
-// ── 글로벌 API 요청 큐 ──────────────────────────────────────────────────────
-// Gemini 2.5 Flash-Lite: 30 RPM = 2000ms/req, 여유 25% → 2500ms.
-// Pro(5 RPM)·Flash(10 RPM)는 더 낮지만 429 즉시 Lite 폴백으로 대응.
-// 세마포어 타임아웃 600s: 31슬라이드 × 2.5s = 78s 큐 대기 → 충분한 여유.
-const REQUEST_INTERVAL_MS = 2500;
-const MAX_QUEUE_SIZE = 60;
-const waitQueue = [];
-let lastRequestTime = 0;
-let isProcessingQueue = false;
-let activeCount = 0; // 현재 AI가 처리중인 개수 (단순 통계용)
-
-export function acquireSemaphore(timeoutMs = 600000) {
-  return new Promise((resolve, reject) => {
-    if (waitQueue.length >= MAX_QUEUE_SIZE) {
-      return reject(new Error('QUEUE_FULL'));
-    }
-    const entry = { resolve, reject, timer: null };
-    entry.timer = setTimeout(() => {
-      const idx = waitQueue.indexOf(entry);
-      if (idx !== -1) waitQueue.splice(idx, 1);
-      reject(new Error('QUEUE_TIMEOUT'));
-    }, timeoutMs);
-
-    waitQueue.push(entry);
-    processQueue();
-  });
+function resolveTier(tier, models, contents) {
+  if (AI_TIERS.includes(tier)) return tier;
+  if (hasInlineData(contents)) return 'vision';
+  if (models.length && models.every(name => /lite/i.test(name))) return 'fast';
+  return 'standard';
 }
 
-function processQueue() {
-  if (isProcessingQueue || waitQueue.length === 0) return;
-  isProcessingQueue = true;
+// Bedrock 에는 Google 검색 그라운딩이 없다. 호출부(callProFirstWithSearch 등)가
+// 이 에러를 받고 검색 없는 경로로 넘어가도록 API 호출 전에 바로 던진다.
+function assertNoSearchTools(config) {
+  if (config?.tools?.some(tool => tool?.googleSearch || tool?.google_search)) {
+    throw Object.assign(new Error('웹 검색 그라운딩은 현재 AI 제공자에서 지원하지 않습니다.'), { status: 501, code: 'SEARCH_UNSUPPORTED' });
+  }
+}
 
-  const now = Date.now();
-  const timeSinceLast = now - lastRequestTime;
-  const timeToWait = Math.max(0, REQUEST_INTERVAL_MS - timeSinceLast);
+// ── 동시 실행 제어 ──────────────────────────────────────────────────────────
+// 전체 동시 실행 수 + 사용자별 동시 실행 수를 제한한다. 한 사용자가 PPT·경험 분석을 동시에 돌려도
+// 다른 사용자의 요청이 줄 뒤로 밀리지 않게 하려는 목적. (모델별 제한은 bedrockClient.js)
+const MAX_CONCURRENCY = Number(process.env.AI_MAX_CONCURRENCY || 40);
+const MAX_PER_USER = Number(process.env.AI_MAX_PER_USER || 4);
+const MAX_QUEUE_SIZE = Number(process.env.AI_MAX_QUEUE || 100);
 
-  setTimeout(() => {
-    if (waitQueue.length === 0) {
-      isProcessingQueue = false;
-      return;
+function createLimiter(max) {
+  const limiter = { active: 0, waiters: [] };
+  limiter.acquire = (timeoutMs) => new Promise((resolve, reject) => {
+    if (limiter.active < max) {
+      limiter.active++;
+      return resolve();
     }
-    const next = waitQueue.shift();
-    clearTimeout(next.timer);
+    if (limiter.waiters.length >= MAX_QUEUE_SIZE) return reject(new Error('QUEUE_FULL'));
+    const waiter = { resolve, timer: null };
+    waiter.timer = setTimeout(() => {
+      limiter.waiters.splice(limiter.waiters.indexOf(waiter), 1);
+      reject(new Error('QUEUE_TIMEOUT'));
+    }, timeoutMs);
+    limiter.waiters.push(waiter);
+  });
+  limiter.release = () => {
+    const next = limiter.waiters.shift();
+    if (next) {
+      clearTimeout(next.timer);
+      next.resolve(); // 슬롯을 그대로 넘겨준다 (active 유지)
+    } else {
+      limiter.active = Math.max(0, limiter.active - 1);
+    }
+  };
+  return limiter;
+}
 
-    lastRequestTime = Date.now();
-    activeCount++;
-    next.resolve(); // 요청 권한 획득!
+const globalLimiter = createLimiter(MAX_CONCURRENCY);
+const userLimiters = new Map();
 
-    isProcessingQueue = false;
-    processQueue(); // 큐에 남아있으면 예약 시작
-  }, timeToWait);
+export function acquireSemaphore(timeoutMs = 600000) {
+  return globalLimiter.acquire(timeoutMs);
 }
 
 export function releaseSemaphore() {
-  // 큐 방식에서는 release 시점에서 딜레이를 주지 않고, acquire(분출) 단계에서 철저히 4.1초를 통제함
-  activeCount = Math.max(0, activeCount - 1);
+  globalLimiter.release();
+}
+
+async function acquireUserAndGlobal(userId, timeoutMs) {
+  let userLimiter = null;
+  if (userId) {
+    userLimiter = userLimiters.get(userId);
+    if (!userLimiter) userLimiters.set(userId, userLimiter = createLimiter(MAX_PER_USER));
+    await userLimiter.acquire(timeoutMs);
+  }
+  try {
+    await globalLimiter.acquire(timeoutMs);
+  } catch (err) {
+    releaseUser(userId, userLimiter);
+    throw err;
+  }
+  return () => {
+    globalLimiter.release();
+    releaseUser(userId, userLimiter);
+  };
+}
+
+function releaseUser(userId, userLimiter) {
+  if (!userLimiter) return;
+  userLimiter.release();
+  if (userLimiter.active === 0 && userLimiter.waiters.length === 0) userLimiters.delete(userId);
 }
 
 export function getQueueStats() {
-  return { active: activeCount, waiting: waitQueue.length, maxQueue: MAX_QUEUE_SIZE };
+  return {
+    active: globalLimiter.active,
+    waiting: globalLimiter.waiters.length,
+    maxConcurrency: MAX_CONCURRENCY,
+    maxQueue: MAX_QUEUE_SIZE,
+    activeUsers: userLimiters.size,
+    models: getModelSlotStats(),
+  };
+}
+
+// ── 모델 상태 추적: 접근 불가·과부하 모델을 잠시 건너뛴다 ──
+const modelBlockedUntil = new Map();
+const ACCESS_BLOCK_MS = 10 * 60 * 1000; // 403/404: 권한·미제공 (예: Claude 사용 목적 미제출)
+const THROTTLE_BLOCK_MS = 15 * 1000;    // 429: 호출 한도 초과
+
+function blockModel(modelId, ms, reason) {
+  console.warn(`[AI] ${modelId} ${Math.round(ms / 1000)}초간 건너뜀 (${reason})`);
+  modelBlockedUntil.set(modelId, Date.now() + ms);
+}
+
+function isModelBlocked(modelId) {
+  return (modelBlockedUntil.get(modelId) || 0) > Date.now();
 }
 
 export function getModelHealthStats() {
-  return Object.entries(modelHealthTracker).reduce((acc, [name, tracker]) => {
-    acc[name] = {
-      consecutiveErrors: tracker.consecutiveErrors,
-      blockedUntil: tracker.blockedUntil > 0 ? new Date(tracker.blockedUntil).toISOString() : null,
-      isBlocked: Date.now() < tracker.blockedUntil,
-    };
-    return acc;
-  }, {});
+  return Object.fromEntries([...modelBlockedUntil]
+    .filter(([, until]) => until > Date.now())
+    .map(([id, until]) => [id, { blockedUntil: new Date(until).toISOString() }]));
 }
 
-function extractStatus(err) {
-  return getAiErrorStatus(err);
+// 키 자체가 틀렸거나 계정 정책(SCP)에 막힌 경우 — 어느 모델로 바꿔도 같으므로 즉시 중단
+function isAuthError(err) {
+  return /api key|bearer|security token|service control policy|AWS_BEARER_TOKEN_BEDROCK/i.test(err?.message || '');
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Pro 모델 503/429 에러 추적: 쿼터 초과 시 일시 건너뛰기 ──
-const modelHealthTracker = {
-  'gemini-2.5-flash': { consecutiveErrors: 0, blockedUntil: 0 },
-  'gemini-3.1-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
-};
+// 모델 체인을 순서대로 시도한다. 일시 오류는 같은 모델에서 재시도, 그 외에는 다음 모델로.
+async function callModelChain(modelIds, { contents, config, retries, delayMs, callTimeoutMs, billingStore }) {
+  let lastError;
+  const unblocked = modelIds.filter(id => !isModelBlocked(id));
+  // 전부 차단 상태면 차단을 무시하고 그래도 한 번씩은 시도한다.
+  const candidates = unblocked.length ? unblocked : modelIds;
+  // 앞 모델이 동시 실행 한도로 꽉 찼으면 기다리지 않고 자리가 빈 다음 모델부터 쓴다(순서는 유지).
+  const ordered = [...candidates.filter(hasFreeModelSlot), ...candidates.filter(id => !hasFreeModelSlot(id))];
+  for (const modelId of ordered) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        return await callBedrock({ modelId, contents, config, timeoutMs: callTimeoutMs, billingStore });
+      } catch (err) {
+        lastError = err;
+        const status = getAiErrorStatus(err);
+        console.warn(`[AI] ${modelId} 실패 (시도 ${attempt + 1}/${retries}, status=${status}): ${String(err?.message || '').slice(0, 160)}`);
 
-function isModelTemporarilyBlocked(modelName) {
-  if (!modelHealthTracker[modelName]) return false;
-  const tracker = modelHealthTracker[modelName];
-  if (Date.now() < tracker.blockedUntil) {
-    return true;
-  }
-  if (tracker.blockedUntil > 0) {
-    tracker.consecutiveErrors = 0;
-    tracker.blockedUntil = 0;
-  }
-  return false;
-}
-
-function recordModelError(modelName, status) {
-  if (!modelHealthTracker[modelName]) return;
-  const tracker = modelHealthTracker[modelName];
-
-  if (status === 503) {
-    // 503 에러만 추적 (Pro TPM 부족 신호)
-    tracker.consecutiveErrors++;
-    if (tracker.consecutiveErrors >= 2) {
-      console.warn(`[Model Health] ${modelName} 연속 503 에러 감지 → 60초간 차단`);
-      tracker.blockedUntil = Date.now() + 60000;
-    }
-  } else {
-    tracker.consecutiveErrors = 0;
-  }
-}
-
-function recordModelSuccess(modelName) {
-  if (!modelHealthTracker[modelName]) return;
-  const tracker = modelHealthTracker[modelName];
-  tracker.consecutiveErrors = 0;
-  tracker.blockedUntil = 0;
-}
-
-function extractGeminiText(response) {
-  if (typeof response?.text === 'string') return response.text;
-  const text = response?.candidates?.[0]?.content?.parts
-    ?.map(part => part?.text || '')
-    .join('');
-  if (text) return text;
-  throw new Error('Gemini 응답에 텍스트가 없습니다.');
-}
-
-function extractUsageMetadata(response) {
-  return response?.usageMetadata
-    || response?.usage_metadata
-    || response?.response?.usageMetadata
-    || response?.response?.usage_metadata
-    || null;
-}
-
-export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore(), returnMetadata = false) {
-  await assertHasCredits();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
-    const request = { model: modelName, contents };
-    if (config && Object.keys(config).length > 0) request.config = config;
-    getGenAI().models.generateContent(request).then(
-      async r => {
-        clearTimeout(timer);
-        const usageMetadata = extractUsageMetadata(r);
-        let text = '';
-        try {
-          text = extractGeminiText(r);
-          await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
-          resolve(returnMetadata ? { text, groundingMetadata: r.candidates?.[0]?.groundingMetadata || null } : text);
-        } catch (error) {
-          try {
-            await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
-          } catch (billingError) {
-            console.warn('[Billing] Gemini usage recording failed after response parse error:', billingError?.message || billingError);
-          }
-          reject(error);
+        if (status === 402 || /CREDIT|BILLING/i.test(String(err?.code || ''))) throw err;
+        if (status === 401 || isAuthError(err)) throw err;
+        if (status === 415) throw err; // 첨부 형식 문제 — 모델을 바꿔도 동일
+        if (status === 403 || status === 404) {
+          blockModel(modelId, ACCESS_BLOCK_MS, `접근 불가 ${status}`);
+          break;
         }
-      },
-      e => { clearTimeout(timer); reject(e); },
-    );
-  });
+        if (status === 429) {
+          blockModel(modelId, THROTTLE_BLOCK_MS, '호출 한도 초과');
+          break; // 다른 제공사 모델은 한도가 따로라 바로 넘어간다
+        }
+        const transient = [408, 500, 502, 503, 504].includes(status) || err?.message === AI_TIMEOUT_MESSAGE;
+        if (transient && attempt < retries - 1) {
+          await sleep(Math.min(delayMs * 2 ** attempt, 15000) * (0.8 + Math.random() * 0.4));
+          continue;
+        }
+        break; // 400(요청 형식 거부) 등은 다음 모델로
+      }
+    }
+  }
+  throw lastError || new Error('AI 호출 가능한 모델이 없습니다.');
 }
 
 /**
- * Gemini 호출 + 재시도 + 모델 폴백.
- * @param {string} prompt
+ * 모델 1개에 HTTP 요청 1번 (자료 가져오기·OCR 경로용 — 재시도·폴백은 호출부가 직접 한다).
+ * Gemini flash → 티어 체인 1번째, lite → 2번째 모델. 차단 중인 모델은 다음 모델로 대신한다.
+ */
+export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore(), returnMetadata = false) {
+  await assertHasCredits();
+  assertNoSearchTools(config);
+  const chain = getTierModels(resolveTier(null, [modelName], contents));
+  const preferred = chain.slice(/lite/i.test(modelName) ? Math.min(1, chain.length - 1) : 0);
+  const modelId = preferred.find(id => !isModelBlocked(id)) || preferred[0];
+  const text = await callModelChain([modelId], {
+    contents, config, retries: 1, delayMs: 0, callTimeoutMs: timeoutMs, billingStore,
+  });
+  return returnMetadata ? { text, groundingMetadata: null } : text;
+}
+
+/**
+ * AI 호출 + 재시도 + 모델 폴백.
+ * @param {string|Array} prompt
  * @param {object} [options]
- * @param {string[]} [options.models] 사용할 모델 폴백 순서. 생략 시 기본 MODEL_FALLBACKS.
+ * @param {string}   [options.tier] 'deep' | 'standard' | 'fast' | 'vision'. 생략 시 models·첨부로 추론.
+ * @param {string[]} [options.models] (호환용) Gemini 모델명 목록 — 티어 추론에만 쓴다.
  * @param {number}   [options.retries] 각 모델당 시도 횟수. 기본 2.
- * @param {number}   [options.delayMs] 재시도 기본 대기(백오프 기준). 기본 1500ms.
- * @param {number}   [options.rateLimitDelayMs] 429(TPM/RPM) 전용 기본 대기. 기본 4000ms.
- * @param {boolean}  [options.preferPro] Pro 우선 모드 — 503 발생해도 Pro 내에서 재시도, 회로차단기 무시.
+ * @param {number}   [options.delayMs] 일시 오류 재시도 기본 대기(지수 백오프). 기본 1500ms.
  * @param {number}   [options.callTimeoutMs] 모델 1회 호출 당 타임아웃(ms). 기본 90000.
- * @param {object}   [options.config] Gemini generateContent config. 예: tools 설정.
- * @param {number}   [options.queueTimeoutMs] Maximum queue wait. Existing callers retain 600000ms.
- * @param {boolean}  [options.returnMetadata] Return text plus search grounding metadata instead of text alone.
+ * @param {object}   [options.config] temperature·maxOutputTokens·responseMimeType 반영. googleSearch 도구는 미지원.
+ * @param {number}   [options.queueTimeoutMs] 동시 실행 대기 상한. 기본 600000ms.
+ * @param {boolean}  [options.returnMetadata] { text, groundingMetadata: null } 형태로 반환.
  */
 export async function generateWithRetry(prompt, options = {}) {
   const {
+    tier = null,
     models = MODEL_FALLBACKS,
     retries = 2,
     delayMs = 1500,
-    rateLimitDelayMs = 4000,
-    preferPro = false,
     callTimeoutMs = 90000,
     config = null,
     githubFallback = true,
@@ -319,10 +260,11 @@ export async function generateWithRetry(prompt, options = {}) {
 
   const billingStore = explicitBillingStore || getBillingStore();
   await assertHasCredits();
+  assertNoSearchTools(config);
 
-  // 세마포어 획득 — 동시 호출 수 제한
+  let release;
   try {
-    await acquireSemaphore(queueTimeoutMs);
+    release = await acquireUserAndGlobal(billingStore?.userId, queueTimeoutMs);
   } catch (err) {
     if (err.message === 'QUEUE_FULL') {
       throw new Error('서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요.');
@@ -334,136 +276,23 @@ export async function generateWithRetry(prompt, options = {}) {
   }
 
   try {
-    let lastError;
-    let skipAllGemini = false; // 월 한도 초과 시 모든 Gemini 즉시 포기 플래그
-
-    for (const modelName of models) {
-      if (skipAllGemini) break;
-
-      // Pro 우선 모드에서는 회로차단기 무시 (Pro 강제 시도)
-      if (!preferPro && isModelTemporarilyBlocked(modelName)) {
-        console.warn(`[Gemini] ${modelName} 일시 차단 상태 → 다음 모델로 이동`);
-        lastError = Object.assign(new Error(`${modelName}이(가) 일시 차단됨`), { status: 503 });
-        continue;
-      }
-
-      for (let attempt = 0; attempt < retries; attempt++) {
-        try {
-          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config, billingStore, returnMetadata);
-          recordModelSuccess(modelName);
-          return result;
-        } catch (err) {
-          lastError = err;
-          const status = extractStatus(err);
-          const msg = err?.message || '';
-          console.warn(`[Gemini] ${modelName} 실패 (시도 ${attempt + 1}/${retries}, status=${status}): ${msg.slice(0, 120)}`);
-
-          if (status === 402 || /CREDIT|BILLING/i.test(String(err?.code || ''))) throw err;
-
-          if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
-            console.error('[Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요');
-            throw err;
-          }
-
-          if (status === 403) {
-            // 키 유출 신고 / 영구 차단: 모든 Gemini 즉시 포기
-            console.warn(`[Gemini] 403 Forbidden (키 차단/유출) → 모든 Gemini 건너뜀, GitHub Models로 전환`);
-            skipAllGemini = true;
-            break;
-          }
-
-          if (status === 404) {
-            break;
-          }
-
-          if (status === 429) {
-            // 월 한도 초과: 재시도해도 소용없음 → 즉시 GitHub Models로
-            if (msg.includes('spending cap') || msg.includes('monthly spending') || msg.includes('spend cap')) {
-              console.warn('[Gemini] 월 한도 초과 감지 → 모든 Gemini 건너뜀, GitHub Models로 전환');
-              skipAllGemini = true;
-              break;
-            }
-            // RPM/TPM 쿼터 초과: 대기 없이 즉시 다음 모델로 폴백.
-            // 이유: 세마포어를 잡고 있는 시간에 대기하면 다른 슬라이드도 지연됨.
-            // Flash은 RPM 한도가 훨씬 높으므로 폴백 후 성공률 높음.
-            console.warn(`[Gemini] 429 쿼터 초과 → 대기 없이 다음 모델로 (${modelName})`);
-            break;
-          }
-
-          if (status === 503 || status === 500) {
-            recordModelError(modelName, status);
-
-            // Try another configured model promptly before retrying the last one.
-            if (!preferPro && status === 503 && models.indexOf(modelName) < models.length - 1) {
-              console.warn(`[Gemini] ${modelName} 503 → 다음 모델로 전환`);
-              break;
-            }
-
-            const isPro = modelName.includes('pro');
-
-            // Pro 우선 모드: 503이어도 Pro 내에서 지수 백오프로 끝까지 재시도
-            if (preferPro && isPro && status === 503) {
-              if (attempt < retries - 1) {
-                const wait = Math.min(delayMs * Math.pow(2, attempt), 30000);
-                console.warn(`[Gemini] Pro 우선 모드 503 - ${wait}ms 대기 후 Pro 재시도 (${attempt + 1}/${retries})`);
-                await sleep(wait);
-                continue;
-              }
-              console.warn(`[Gemini] Pro 우선 모드 재시도 소진 → 다음 모델로`);
-              break;
-            }
-
-            // 일반 모드 Pro 503: 즉시 폴백 (대기 없음)
-            if (!preferPro && isPro && status === 503) {
-              console.warn(`[Gemini] Pro 모델 503 → 즉시 Lite로 폴백 (대기 없음)`);
-              break;
-            }
-
-            // Lite 모델이나 500 에러: 지수 백오프로 재시도
-            if (attempt < retries - 1) {
-              const wait = Math.min(delayMs * Math.pow(2, attempt), 30000) * (0.8 + Math.random() * 0.4);
-              console.warn(`[Gemini] ${status} 과부하 - ${wait}ms 대기 후 재시도`);
-              await sleep(wait);
-              continue;
-            } else {
-              break;
-            }
-          }
-
-          if (msg === 'GEMINI_TIMEOUT') {
-            // 남은 시도가 있으면 재시도, 소진 시 다음 모델로 폴백
-            if (attempt < retries - 1) {
-              console.warn(`[Gemini] ${modelName} 타임아웃 → 재시도 (${attempt + 1}/${retries})`);
-              continue;
-            }
-            console.warn(`[Gemini] ${modelName} 타임아웃 ${retries}회 소진 → 다음 모델로`);
-            break;
-          }
-
-          break;
-        }
-      }
-
-      // 모델 전환 대기 없음: 세마포어 점유 시간 최소화 (특히 429 즉시 폴백 시)
+    const chain = getTierModels(resolveTier(tier, models, prompt));
+    const text = await callModelChain(chain, { contents: prompt, config, retries, delayMs, callTimeoutMs, billingStore });
+    return returnMetadata ? { text, groundingMetadata: null } : text;
+  } catch (lastError) {
+    const status = getAiErrorStatus(lastError);
+    const canFallback = githubFallback && typeof prompt === 'string'
+      && status !== 402 && status !== 415 && !/CREDIT|BILLING/i.test(String(lastError?.code || ''));
+    if (!canFallback) throw lastError;
+    console.error('[AI] 모든 Bedrock 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
+    try {
+      const fallbackText = await callGitHubModelsFallback(prompt, billingStore);
+      return returnMetadata ? { text: fallbackText, groundingMetadata: null } : fallbackText;
+    } catch (fallbackErr) {
+      console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
+      throw lastError;
     }
-
-    // 모든 Gemini 시도 실패 시 GitHub Models로 Fallback
-    if (lastError) {
-      if (!githubFallback) {
-        throw lastError;
-      }
-      console.error('[Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
-      try {
-        const fallbackText = await callGitHubModelsFallback(prompt, billingStore);
-        return returnMetadata ? { text: fallbackText, groundingMetadata: null } : fallbackText;
-      } catch (fallbackErr) {
-        console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
-        throw lastError;
-      }
-    }
-
-    throw lastError || new Error('Gemini call failed before any model attempt');
   } finally {
-    releaseSemaphore();
+    release();
   }
 }

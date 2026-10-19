@@ -16,7 +16,7 @@ import {
   buildCoverLetterLengthRevisionPrompt,
 } from '../prompts/coverLetterPrompts.js';
 
-const AI_OPTIONS = { models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'], retries: 2, delayMs: 1200, callTimeoutMs: 45000, githubFallback: false, config: { responseMimeType: 'application/json', temperature: 0.45 } };
+const AI_OPTIONS = { tier: 'deep', models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'], retries: 2, delayMs: 1200, callTimeoutMs: 45000, githubFallback: false, config: { responseMimeType: 'application/json', temperature: 0.45 } };
 
 function boundedAiRunner(generateAI) {
   const deadline = Date.now() + 240000;

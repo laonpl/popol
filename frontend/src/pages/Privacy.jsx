@@ -26,6 +26,7 @@ export default function Privacy() {
           <div>
             <h2 className="mb-2 text-lg font-bold text-gray-900">4. 제3자 제공 및 처리 위탁</h2>
             <p>서비스 제공을 위해 Firebase, Render, Vercel, AI 분석 API 등 외부 인프라와 처리 시스템을 사용할 수 있습니다. FitPoly는 서비스 제공에 필요한 범위에서만 데이터를 처리합니다.</p>
+            <p className="mt-2">AI 분석(경험 정리, 문서·이미지 글자 인식, 포트폴리오·자기소개서 작성 보조)을 요청하면, 입력한 내용과 업로드 파일이 Amazon Web Services의 Amazon Bedrock(호주 시드니 리전)으로 전송되어 처리됩니다. 전송은 AI 기능을 실행할 때마다 암호화된 네트워크로 이루어집니다.</p>
           </div>
           <div>
             <h2 className="mb-2 text-lg font-bold text-gray-900">5. 이용자의 권리</h2>

@@ -40,8 +40,9 @@ import {
   buildThemedPortfolioPrompt,
 } from '../prompts/portfolioPrompts.js';
 
-// ── Pro 우선 옵션: Pro 내에서 지수 백오프로 끝까지 재시도 ──
+// ── Pro 우선 옵션: 품질 티어(deep) 모델 체인으로 지수 백오프 재시도 ──
 const PRO_FIRST_OPTIONS = {
+  tier: 'deep',
   models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
   retries: 4,
   delayMs: 2500,
@@ -320,7 +321,8 @@ async function callProFirstWithSearch(prompt, label) {
     });
   } catch (err) {
     console.warn(`[${label}] 검색 grounding 실패 → 일반 분석으로 전환:`, err.message);
-    return await callProFirst(prompt, `${label}-NoSearch`, { callTimeoutMs: 180000 });
+    const noSearchPrompt = `${prompt}\n\n[중요] 이번 응답에서는 웹 검색을 사용할 수 없습니다. 직접 확인하지 못한 URL·출처·통계 수치는 지어내지 말고 빈 값으로 두세요.`;
+    return await callProFirst(noSearchPrompt, `${label}-NoSearch`, { callTimeoutMs: 180000 });
   }
 }
 
@@ -1226,6 +1228,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
     const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode, part);
     const text = await withTimeout(
       generateWithRetry(prompt, {
+        tier: 'deep',
         models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'],
         retries: 2,
         delayMs: 1200,

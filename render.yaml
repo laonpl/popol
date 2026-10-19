@@ -17,6 +17,11 @@ services:
         value: https://fitpoly.kr,https://www.fitpoly.kr
       - key: GEMINI_API_KEY
         sync: false
+      # 사이트 AI 호출은 Amazon Bedrock (backend/src/config/bedrockClient.js)
+      - key: AWS_BEARER_TOKEN_BEDROCK
+        sync: false
+      - key: BEDROCK_REGION
+        value: ap-southeast-2
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false   # serviceAccountKey.json 내용을 한 줄 JSON으로 붙여넣기
       - key: NOTION_INTEGRATION_TOKEN

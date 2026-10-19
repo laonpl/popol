@@ -25,15 +25,11 @@ test('paste structuring route permits local experience extraction without a cred
 });
 
 test('SDK sends only one HTTP request when the provider returns 429', async t => {
-  const previousKey = process.env.GEMINI_API_KEY;
-  const previousMode = process.env.VERTEX_AI_AUTH_MODE;
-  process.env.GEMINI_API_KEY = 'test-import-key';
-  process.env.VERTEX_AI_AUTH_MODE = 'api_key';
+  const previousKey = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  process.env.AWS_BEARER_TOKEN_BEDROCK = 'test-import-key';
   t.after(() => {
-    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
-    else process.env.GEMINI_API_KEY = previousKey;
-    if (previousMode === undefined) delete process.env.VERTEX_AI_AUTH_MODE;
-    else process.env.VERTEX_AI_AUTH_MODE = previousMode;
+    if (previousKey === undefined) delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+    else process.env.AWS_BEARER_TOKEN_BEDROCK = previousKey;
   });
   let requests = 0;
   t.mock.method(globalThis, 'fetch', async () => {
