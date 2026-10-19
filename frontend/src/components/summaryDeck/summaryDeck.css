@@ -1,0 +1,162 @@
+/* 경험 요약 슬라이드 — 1600×900 고정 좌표. 화면에서는 transform 으로 축소하고, PNG 는 원본 크기로 캡처한다.
+   html2canvas 로 캡처하므로 object-fit·backdrop-filter·clip-path 는 쓰지 않는다. */
+
+.sd-slide {
+  --sd-bg: #141518;
+  --sd-card: #222529;
+  --sd-card-2: #2a2d33;
+  --sd-line: rgba(255, 255, 255, 0.09);
+  --sd-text: #f3f4f6;
+  --sd-sub: #9aa0aa;
+  --sd-faint: #6b717c;
+  --sd-ink: #0e1013;
+  position: relative;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  background: var(--sd-bg);
+  color: var(--sd-text);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  box-sizing: border-box;
+  padding: 76px 96px 0;
+}
+.sd-slide *, .sd-slide *::before, .sd-slide *::after { box-sizing: border-box; }
+
+.sd-glow { position: absolute; right: -260px; top: -320px; width: 900px; height: 900px; border-radius: 50%; background: radial-gradient(circle, var(--sd-accent) 0%, transparent 62%); opacity: 0.16; pointer-events: none; }
+
+.sd-kicker { font-size: 20px; line-height: 1.4; font-weight: 700; color: var(--sd-accent); letter-spacing: 0.01em; }
+.sd-title { margin-top: 12px; font-size: 50px; font-weight: 800; line-height: 1.3; letter-spacing: -0.025em; color: var(--sd-text); max-width: 1180px; }
+.sd-lead { margin-top: 18px; font-size: 20px; line-height: 1.65; color: var(--sd-sub); max-width: 940px; }
+.sd-label { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 700; color: var(--sd-text); }
+.sd-dot { display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sd-label-accent { color: var(--sd-accent); }
+
+.sd-card { background: var(--sd-card); border-radius: 26px; }
+.sd-pill { flex: none; display: flex; align-items: center; justify-content: center; text-align: center; height: 76px; padding: 0 32px; border-radius: 26px; background: var(--sd-card-2); font-size: 20px; white-space: nowrap; overflow: hidden; font-weight: 700; color: var(--sd-text); line-height: 1.4; }
+
+.sd-footer { position: absolute; left: 96px; right: 96px; bottom: 34px; display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; color: var(--sd-faint); }
+
+/* ── 표지 ── */
+.sd-cover { display: flex; flex-direction: column; padding-top: 120px; }
+/* 핵심 수치가 없는 표지는 아래가 비지 않게 세로 가운데로 */
+.sd-cover-plain { justify-content: center; padding-top: 0; padding-bottom: 40px; }
+.sd-cover .sd-title { font-size: 78px; line-height: 1.25; margin-top: 18px; max-width: 1240px; }
+.sd-cover-sub { margin-top: 26px; font-size: 25px; line-height: 1.6; color: var(--sd-sub); max-width: 1120px; }
+.sd-meta { display: flex; margin-top: 40px; }
+.sd-meta-item { padding: 0 34px; border-left: 1px solid var(--sd-line); }
+.sd-meta-item:first-child { padding-left: 0; border-left: 0; }
+.sd-meta-item span { display: block; font-size: 15px; font-weight: 600; color: var(--sd-faint); }
+.sd-meta-item strong { display: block; margin-top: 8px; font-size: 21px; font-weight: 700; color: var(--sd-text); }
+.sd-kpis { position: absolute; left: 96px; right: 96px; bottom: 96px; display: flex; gap: 22px; }
+.sd-kpi { flex: 0 1 440px; padding: 32px 36px; }
+.sd-kpi strong { display: block; font-size: 58px; font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; color: var(--sd-accent); }
+.sd-kpi span { display: block; margin-top: 10px; line-height: 1.4; font-size: 19px; font-weight: 600; color: var(--sd-sub); }
+
+/* ── 문제 정의 ── */
+.sd-problem-body { position: absolute; left: 96px; right: 96px; top: 330px; bottom: 96px; display: flex; gap: 26px; }
+.sd-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.sd-chart-box { flex: 1; min-height: 0; position: relative; display: flex; align-items: flex-end; }
+.sd-voices { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 18px; }
+.sd-voice { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 24px 28px 20px; border-radius: 26px; background: var(--sd-card-2); }
+.sd-voice::after { content: ''; position: absolute; left: 22px; bottom: -11px; width: 24px; height: 24px; background: var(--sd-card-2); transform: rotate(45deg); border-radius: 0 0 6px 0; }
+.sd-voice-text { font-size: 18px; line-height: 1.6; color: #d9dce1; font-weight: 500; }
+.sd-voice-quote { font-size: 21px; font-weight: 700; color: var(--sd-accent); line-height: 1.5; }
+.sd-voice-who { align-self: flex-end; margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--sd-faint); }
+.sd-span-2 { grid-column: span 2; }
+.sd-statement { flex: 1; display: flex; align-items: center; padding: 48px 52px; }
+.sd-statement p { font-size: 28px; font-weight: 700; line-height: 1.6; color: #e4e6ea; letter-spacing: -0.02em; }
+.sd-hypo { position: relative; flex: none; width: 300px; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 34px; border-radius: 30px; background: var(--sd-accent); color: var(--sd-ink); }
+.sd-hypo::before { content: ''; position: absolute; left: -14px; top: 50%; width: 30px; height: 30px; margin-top: -15px; background: var(--sd-accent); transform: rotate(45deg); border-radius: 4px; }
+.sd-hypo-label { font-size: 24px; font-weight: 800; }
+.sd-hypo-text { font-size: 30px; font-weight: 800; line-height: 1.45; letter-spacing: -0.02em; }
+
+/* ── 배경 리서치 ── */
+.sd-center { text-align: center; }
+.sd-center .sd-title { margin-left: auto; margin-right: auto; font-size: 40px; max-width: 1100px; }
+.sd-research-grid { position: absolute; left: 96px; right: 96px; top: 300px; bottom: 96px; display: flex; gap: 24px; }
+.sd-rcard { flex: 1; display: flex; flex-direction: column; padding: 34px 36px 26px; }
+.sd-rcard-q { font-size: 22px; font-weight: 700; line-height: 1.45; color: var(--sd-text); text-align: center; }
+.sd-rcard-chart { flex: 1; display: flex; align-items: center; justify-content: center; }
+.sd-rcard-finding { font-size: 19px; font-weight: 700; color: var(--sd-accent); text-align: center; line-height: 1.45; }
+.sd-rcard-src { margin-top: 14px; font-size: 13.5px; font-weight: 600; color: var(--sd-faint); text-align: right; }
+
+/* ── 과정: 짝 카드 ── */
+.sd-pairs { position: absolute; left: 96px; right: 96px; top: 300px; bottom: 96px; display: grid; grid-template-columns: 1fr 64px 1fr; grid-auto-rows: 1fr; column-gap: 0; row-gap: 22px; }
+.sd-pairs-head { position: absolute; left: 96px; right: 96px; top: 262px; display: grid; grid-template-columns: 1fr 64px 1fr; }
+.sd-pair-l, .sd-pair-r { position: relative; display: flex; flex-direction: column; justify-content: center; padding: 26px 34px; border-radius: 22px; overflow: hidden; }
+.sd-pair-l { background: var(--sd-card-2); border: 1.5px solid rgba(255, 255, 255, 0.12); }
+.sd-pair-r { background: rgba(255, 255, 255, 0.03); border: 1.5px solid var(--sd-accent); }
+.sd-pair-r::before { content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--sd-accent); opacity: 0.1; }
+.sd-pair-title { position: relative; font-size: 23px; font-weight: 800; line-height: 1.35; }
+.sd-pair-r .sd-pair-title { color: var(--sd-accent); }
+.sd-pair-desc { position: relative; margin-top: 10px; font-size: 17px; line-height: 1.6; color: var(--sd-sub); max-width: 92%; }
+.sd-pair-no { position: absolute; right: 26px; bottom: 0; font-size: 76px; line-height: 1.2; font-weight: 800; color: rgba(255, 255, 255, 0.1); letter-spacing: -0.04em; }
+.sd-chev { display: flex; align-items: center; justify-content: center; font-size: 40px; color: var(--sd-faint); font-weight: 300; }
+
+/* ── 과정: 피라미드 ── */
+.sd-pyramid-wrap { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 90px; }
+.sd-step-row { position: absolute; left: 0; width: 600px; display: flex; flex-direction: column; justify-content: center; border-top: 1.5px dashed rgba(255, 255, 255, 0.14); }
+.sd-step-no { font-size: 17px; font-weight: 800; color: var(--sd-accent); }
+.sd-step-title { margin-top: 6px; font-size: 24px; font-weight: 800; }
+.sd-step-desc { margin-top: 6px; font-size: 16.5px; line-height: 1.55; color: var(--sd-sub); }
+
+/* ── 과정: 흐름 ── */
+.sd-flow { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 96px; display: flex; gap: 18px; }
+.sd-flow-item { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.sd-flow-card { flex: 1; margin-top: 26px; padding: 30px 28px; border-radius: 22px; background: var(--sd-card); border: 1.5px solid transparent; }
+.sd-flow-item:last-child .sd-flow-card { border-color: var(--sd-accent); }
+.sd-flow-dot { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: var(--sd-card-2); border: 2px solid var(--sd-accent); font-size: 21px; font-weight: 800; color: var(--sd-accent); }
+.sd-flow-line { position: absolute; left: 64px; right: -18px; top: 31px; height: 2px; background: rgba(255, 255, 255, 0.14); }
+.sd-flow-title { font-size: 25px; font-weight: 800; line-height: 1.35; }
+.sd-flow-desc { margin-top: 14px; font-size: 18px; line-height: 1.65; color: var(--sd-sub); }
+
+/* ── AS-IS → TO-BE ── */
+.sd-solution { display: flex; padding: 0; }
+.sd-asis { width: 520px; flex: none; padding: 76px 56px 0 96px; background: #1d1f23; position: relative; }
+.sd-tobe { flex: 1; padding: 76px 96px 0 72px; position: relative; display: flex; gap: 48px; }
+.sd-tag { display: inline-block; font-size: 17px; font-weight: 800; letter-spacing: 0.08em; color: var(--sd-faint); }
+.sd-tag-accent { color: var(--sd-accent); }
+.sd-sol-title { margin-top: 18px; font-size: 42px; font-weight: 800; line-height: 1.25; letter-spacing: -0.025em; }
+.sd-asis .sd-sol-title { font-size: 36px; color: #c9ccd2; }
+.sd-sol-desc { margin-top: 18px; font-size: 19px; line-height: 1.65; color: var(--sd-sub); }
+.sd-points { margin-top: 40px; display: flex; flex-direction: column; gap: 26px; }
+.sd-point-tag { display: inline-block; padding: 7px 14px; border-radius: 8px; background: var(--sd-accent); color: var(--sd-ink); font-size: 15px; font-weight: 800; }
+.sd-point-text { margin-top: 10px; font-size: 18px; line-height: 1.6; color: #d4d7dc; }
+.sd-frame-phone { border-radius: 44px; border: 9px solid #2e3137; background: #000; overflow: hidden; }
+.sd-frame-window { border-radius: 16px; border: 1.5px solid #34373d; background: #000; overflow: hidden; }
+.sd-frame-bar { height: 34px; background: #26292e; display: flex; align-items: center; gap: 8px; padding-left: 16px; }
+.sd-frame-bar i { width: 11px; height: 11px; border-radius: 50%; background: #474b52; }
+.sd-frame img { display: block; }
+
+/* ── 성과 ── */
+.sd-result-body { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 210px; display: flex; gap: 26px; }
+.sd-compare { flex: 1.5; padding: 38px 44px; display: flex; flex-direction: column; justify-content: center; gap: 34px; }
+.sd-cmp-label { font-size: 20px; font-weight: 700; color: var(--sd-text); }
+.sd-cmp-row { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.sd-cmp-tag { width: 44px; flex: none; font-size: 14px; font-weight: 700; color: var(--sd-faint); }
+.sd-cmp-bar { height: 34px; border-radius: 10px; }
+.sd-cmp-val { font-size: 22px; font-weight: 800; white-space: nowrap; }
+.sd-kpi-col { flex: 1; display: flex; flex-direction: column; gap: 22px; }
+.sd-kpi-col .sd-kpi { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.sd-kpi-row { flex: 1; display: flex; gap: 22px; }
+.sd-kpi-row .sd-kpi { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.sd-kpi-row .sd-kpi strong { font-size: 104px; }
+.sd-kpi-row .sd-kpi span { margin-top: 22px; font-size: 22px; }
+.sd-notes { flex: 1; align-self: center; display: flex; align-items: stretch; gap: 22px; }
+.sd-note { flex: 1; display: flex; flex-direction: column; min-height: 240px; padding: 36px 34px; }
+.sd-note-label { font-size: 17px; font-weight: 800; color: var(--sd-accent); }
+.sd-note-text { margin-top: 16px; font-size: 21px; line-height: 1.65; color: #d9dce1; }
+.sd-learning { position: absolute; left: 96px; right: 96px; bottom: 96px; height: 92px; display: flex; align-items: center; gap: 26px; padding: 0 40px; border-radius: 28px; border: 1.5px solid var(--sd-accent); background: rgba(255, 255, 255, 0.02); }
+.sd-learning b { flex: none; font-size: 19px; font-weight: 800; color: var(--sd-accent); }
+.sd-learning span { font-size: 23px; font-weight: 700; color: var(--sd-text); line-height: 1.4; }
+
+/* ── 편집 모드 ── */
+.sd-editable { outline: 1.5px dashed rgba(255, 255, 255, 0.28); outline-offset: 4px; border-radius: 4px; cursor: text; }
+.sd-editable:focus { outline: 2px solid var(--sd-accent); }
+
+/* html2canvas 는 글자 옆에 1px 이미지(SMALL_IMAGE)를 붙여 글꼴 기준선을 잰다. Tailwind preflight 가 img 를
+   display:block 으로 바꾸면 이 이미지가 다음 줄로 내려가 기준선이 한 줄만큼 커지고, 캡처된 글자가 0.5em 넘게
+   아래로 밀린다(2026-10 실측). 측정용 이미지만 골라 inline 으로 되돌린다. */
+img[src^="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP"] { display: inline !important; }

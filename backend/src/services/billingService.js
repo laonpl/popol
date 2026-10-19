@@ -45,6 +45,7 @@ const OPERATION_LABELS = [
   [/\/role-data\/experience-summary$/, '자료 기반 한 페이지 경험 정리'],
   [/\/experience\/analyze-git$/, 'GitHub 경험 분석'],
   [/\/experience\/analyze$/, '경험 분석'],
+  [/\/experience\/summary-deck$/, '경험 요약 슬라이드'],
   [/\/experience\/extract-moments$/, '핵심 경험 추출'],
   [/\/experience\/refine-key-experience$/, '핵심 경험 보강'],
   [/\/job\/analyze$/, '채용 공고 분석'],

@@ -40,6 +40,7 @@ import { buildMarketerEvidenceModel } from '../../utils/marketerEvidence';
 import MissingFieldsPanel from '../../components/MissingFieldsPanel';
 import InterviewPrepPanel from '../../components/InterviewPrepPanel';
 import OnePagerPanel from '../../components/OnePagerPanel';
+import SummaryDeckModal from '../../components/summaryDeck/SummaryDeckModal';
 import { collectMissingFields } from '../../utils/missingFields';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -2811,6 +2812,7 @@ export default function ExperienceResult() {
   const [fillOpen, setFillOpen] = useState(false);
   const [prepOpen, setPrepOpen] = useState(false);
   const [onePagerOpen, setOnePagerOpen] = useState(false);
+  const [summaryDeckOpen, setSummaryDeckOpen] = useState(false);
   const missingCount = useMemo(() => (exp ? collectMissingFields(exp).length : 0), [exp]);
 
   // 채우기 패널 → 원본 반영. 화면과 Firestore를 함께 갱신한다.
@@ -3215,6 +3217,13 @@ export default function ExperienceResult() {
                 <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[11.5px] font-black leading-none text-white">{missingCount}</span>
               </button>
             )}
+            <button
+              onClick={() => setSummaryDeckOpen(true)}
+              title="정리한 경험을 포트폴리오에 바로 붙일 수 있는 슬라이드로 보여줍니다"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-bluewood-900 px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-bluewood-800"
+            >
+              경험 요약보기
+            </button>
             <button
               onClick={() => setOnePagerOpen(true)}
               title="요구 역량 순서로 근거 한 줄씩 세운 A4 한 장 (60초 검토용)"
@@ -3672,6 +3681,15 @@ export default function ExperienceResult() {
     )}
     {prepOpen && (
       <InterviewPrepPanel exp={exp} onClose={() => setPrepOpen(false)} />
+    )}
+    {summaryDeckOpen && (
+      <SummaryDeckModal
+        exp={exp}
+        experienceId={id}
+        unsaved={dirty}
+        onClose={() => setSummaryDeckOpen(false)}
+        onDeckChange={deck => setExp(prev => ({ ...(prev || {}), structuredResult: { ...(prev?.structuredResult || {}), summaryDeck: deck } }))}
+      />
     )}
     {onePagerOpen && (
       <OnePagerPanel exp={exp} profile={{ userName: exp?.userName, headline: exp?.structuredResult?.projectOverview?.role }} onClose={() => setOnePagerOpen(false)} />
