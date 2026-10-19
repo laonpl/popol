@@ -87,7 +87,8 @@ pre, code, kbd, samp { font-family: ui-monospace, SFMono-Regular, Menlo, Consola
 }
 
 .app-shell > header { border-bottom: 2px solid var(--fp-ink); }
-.app-shell > header nav { border: 1px solid var(--fp-line); }
+.app-shell > header nav { border: 0; }
+.app-shell > header nav.app-primary-nav { border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;border-radius:0;padding:0; }
 .app-shell > header img[alt="FitPoly"] { width: 38px; height: 38px; object-fit: contain; }
 .app-shell main :is(h1, h2, h3):not(.portfolio-template *) { color: var(--fp-ink); letter-spacing: 0; line-height: 1.35; }
 .app-shell main h1:not(.portfolio-template *) { font-family: 'Pretendard', sans-serif; font-weight: 900; line-height: 1.3; }

@@ -2075,7 +2075,7 @@ function CommonLegacyDoc({
 const pmFileExt = name => String(name || '').split('.').pop().toUpperCase().slice(0, 5);
 const pmSafeUrl = value => /^https?:\/\//i.test(String(value || '').trim()) ? String(value).trim() : `https://${String(value || '').trim()}`;
 
-export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchSr, role = 'pm' }) {
+export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchSr, role = 'pm', minimal = false }) {
   const [uploading, setUploading] = useState(false);
   const [link, setLink] = useState('');
   const fileRef = useRef(null);
@@ -2138,10 +2138,10 @@ export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchS
           {[['role', '내 역할과 책임'], ['duration', '프로젝트 기간'], ['team', '함께한 팀']].map(([key, label]) => <div key={key}><span>{label}</span><AutoText value={cs.meta?.[key] || ''} onChange={value => setMeta(key, value)} placeholder="직접 입력" className="pm-profile-meta-value" /></div>)}
         </div>
 
-        <div className="pm-judgment-profile">
+        {!minimal && <div className="pm-judgment-profile">
           <div className="pm-side-heading"><span>판단 프로필</span><small>{evidence.legacy ? '원문 대조 전' : '자료 기반'}</small></div>
           {[[role === 'marketer' ? '고객을 이해한 방식' : '문제를 읽은 방식', discovery], ['직접 책임진 범위', delivery?.ownership || delivery?.owner], ['판단이 바뀐 지점', learning]].map(([label, value]) => <div className="pm-judgment-item" key={label}><span>{label}</span><p>{value || '연결된 자료에서 아직 확인되지 않았습니다.'}</p></div>)}
-        </div>
+        </div>}
 
         <div className="pm-source-vault">
           <div className="pm-side-heading"><span>산출물 보관함</span><small>{files.length}개</small></div>
@@ -2168,11 +2168,11 @@ export function PmDoc({ exp, cs, sr, setField, setMeta, onPatchSr }) {
     onPatchSr({ ...sr, keyExperiences });
   };
   return (
-    <div className="pm-workspace pm-page-grid">
-      <PmProfileSidebar cs={cs} sr={sr} evidence={evidence} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} />
+    <div className="pm-workspace pm-page-grid role-visual-workspace">
+      <PmProfileSidebar cs={cs} sr={sr} evidence={evidence} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} minimal />
       <main className="pm-page-main">
-        <PmEvidenceCaseStudy sr={sr} sourceText={sourceText} onRecordChange={patchRecord} onChange={onPatchSr} />
-        <details className="pd-project-notes" open={(cs.body || []).some(segment => segment.content?.trim()) || undefined}>
+        <PmEvidenceCaseStudy sr={sr} project={cs} sourceText={sourceText} onRecordChange={patchRecord} onChange={onPatchSr} />
+        <details className="pd-project-notes">
           <summary>프로젝트 추가 설명 <span>공통 배경 · 자유 편집 본문</span></summary>
           <p>기존에 작성한 본문과 이미지를 그대로 보존한 영역입니다. 위 핵심 경험에 공통으로 필요한 배경을 보충하세요. 특정 경험의 원본 파일은 해당 경험의 ‘근거 자료’에서 연결합니다.</p>
           <CaseBody body={cs.body || []} onChange={next => setField('body', next)} />
@@ -2785,11 +2785,12 @@ export function MarketerDoc({ cs, sr = {}, sourceText, setField, setMeta, onPatc
   const evidence = buildMarketerEvidenceModel(sr, { sourceText: roleSourceText(sr, sourceText) });
   const connectedImages = new Set(evidence.cases.flatMap(item => caseArtifacts(sr, item).filter(file => file.image).map(file => file.url)));
   const previousImages = (cs.keyExps || []).map(item => ({ ...item, images: (item.images || []).filter(image => !connectedImages.has(image.url)) })).filter(item => item.images.length);
-  return <div className="marketing-workspace">
-    <MarketingProjectDesk cs={cs} sr={sr} evidence={evidence} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} />
+  return <div className="marketing-workspace role-visual-workspace">
+    <header className="marketing-print-context"><h2>{cs.title || '캠페인 프로젝트'}</h2>{cs.summary && <p>{cs.summary}</p>}</header>
+    <PmProfileSidebar role="marketer" cs={cs} sr={sr} evidence={evidence} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} minimal />
     <main className="marketing-main">
-      <MarketerEvidenceCaseStudy sr={sr} sourceText={sourceText} onChange={onPatchSr} />
-      <details className="marketing-project-notes" open={previousImages.length > 0 || (cs.body || []).some(segment => segment.content?.trim()) || undefined}>
+      <MarketerEvidenceCaseStudy sr={sr} project={cs} sourceText={sourceText} onChange={onPatchSr} />
+      <details className="marketing-project-notes">
         <summary>프로젝트 추가 설명 · 기존 이미지</summary><p>캠페인에 공통으로 필요한 배경과 기존에 작성한 내용을 보존합니다. 위 작업물 영역에 표시한 이미지는 여기서 반복하지 않습니다.</p>
         {previousImages.map((item, i) => <div key={item.id || i}><h4>{item.title}</h4>{item.images.map((image, index) => <a key={index} href={image.url} target="_blank" rel="noreferrer"><img src={image.url} alt={image.caption || item.title || '기존 작업 이미지'} style={{ maxWidth: '100%', maxHeight: 440, objectFit: 'contain', margin: '14px 0' }} /></a>)}</div>)}
         <CaseBody body={cs.body || []} onChange={next => setField('body', next)} />
@@ -3255,7 +3256,7 @@ export default function ExperienceResult() {
         </div>
       </div>
 
-      <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+      <article className={isMarketer ? 'mx-auto max-w-[1520px] px-4 py-8 sm:px-6 xl:px-8 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
         {identityLine && (
           <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4 sm:px-6">
             <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>

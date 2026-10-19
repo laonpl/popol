@@ -26,7 +26,7 @@ export function productServiceLayers(work = {}) {
 // missing values nor quantities such as "목표 10~20" become measured points.
 export function metricComparison(metric = {}) {
   const parse = raw => {
-    const match = text(raw).match(/^(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(%|원|명|건|회|개|일|시간|초|배)?$/);
+    const match = text(raw).match(/^(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(%|원|명|건|회|개|일|시간|분|초|배)?$/);
     return match ? { value: Number(match[1].replaceAll(',', '')), unit: match[2] || text(metric.unit) } : null;
   };
   if (!metric.actual || ['unlocated', 'derived'].includes(metric.basis)) return null;
@@ -43,7 +43,7 @@ export function metricComparison(metric = {}) {
 export function campaignMetricStages(metrics = []) {
   const labels = { reach: '도달 · 인지도', click: '클릭 · 유입', conversion: '전환', retention: '관계 · 재구매', cost: '비용 효율', qualitative: '고객 반응' };
   return Object.entries(labels).map(([key, label]) => ({ key, label,
-    metrics: list(metrics).filter(row => row.stage === key && row.kind !== 'output' && text(row.actual)),
+    metrics: list(metrics).filter(row => row.stage === key && row.kind !== 'output' && !['unlocated', 'derived'].includes(row.basis) && text(row.actual)),
   })).filter(stage => stage.metrics.length);
 }
 

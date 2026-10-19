@@ -4,7 +4,8 @@ import { scrapeCoverLetterPosting, MAX_APPLICATION_LINKS } from './coverLetterSo
 import { validatePublicUrl } from './publicWebFetch.js';
 import { applyCatalogEntry } from './coverLetterQuestionCatalog.js';
 import { isTransientAiError, aiUnavailableError } from '../utils/aiError.js';
-import { capCoverLetterAnswer } from '../utils/coverLetterLength.js';
+import { capCoverLetterAnswer, coverLetterLengthDistance, fitCoverLetterEdits } from '../utils/coverLetterLength.js';
+import { coverLetterQualityProblems } from '../utils/coverLetterQuality.js';
 import { coverLetterQuestionFocus, questionFocusWords } from '../../../shared/coverLetterQuestionFocus.mjs';
 import {
   cleanText, compactText, stringList, quotedInSource, normalizePostingQuestions,
@@ -14,6 +15,8 @@ import {
   buildCoverLetterAnalysisPrompt, buildCompanyResearchPrompt,
   buildCoverLetterAnswerPrompt, buildCoverLetterAuditPrompt,
   buildCoverLetterLengthRevisionPrompt,
+  buildCoverLetterLengthEditsPrompt,
+  buildCoverLetterQualityReviewPrompt,
 } from '../prompts/coverLetterPrompts.js';
 
 const AI_OPTIONS = { models: ['gemini-2.5-flash', 'gemini-3.1-flash-lite'], retries: 2, delayMs: 1200, callTimeoutMs: 45000, githubFallback: false, config: { responseMimeType: 'application/json', temperature: 0.45 } };
@@ -386,11 +389,13 @@ export async function generateCoverLetterAnswer(body, ownedExperiences, dependen
   let proposed = parseJSON(await generateAI(buildCoverLetterAnswerPrompt(input), AI_OPTIONS));
   if (proposed.status === 'needs_context') return needsContext(proposed);
   // Separate factual audit catches qualitative inventions and goals presented as outcomes.
+  let auditUnavailable = false;
   const audit = async draft => {
     try {
       return parseJSON(await generateAI(buildCoverLetterAuditPrompt(input, draft), AI_OPTIONS));
     } catch (error) {
       if (!isTransientAiError(error)) throw error;
+      auditUnavailable = true;
       // An optional review outage must not discard an already generated usable draft.
       return { ...draft, warnings: ['AI 최종 검토가 지연되어 생성한 초안을 먼저 제공합니다.', ...stringList(draft.warnings, 11, 500)] };
     }
@@ -410,26 +415,91 @@ export async function generateCoverLetterAnswer(body, ownedExperiences, dependen
     error.code = 'COVERLETTER_REVIEW_FAILED';
     throw error;
   }
-  // Size the final wording after audit, so a successful audit cannot reintroduce overflow.
-  for (let attempt = 0; question.maxLength && result.review.charCount > question.maxLength && attempt < 2; attempt++) {
-    try {
-      const revised = parseJSON(await generateAI(buildCoverLetterLengthRevisionPrompt(input, proposed, result.review.charCount), AI_OPTIONS));
-      if (revised.status === 'needs_context') return needsContext(revised);
-      const candidate = validateGeneratedAnswer(revised, input);
-      if (candidate.problems.length) continue;
-      proposed = revised;
-      result = candidate;
-    } catch (error) {
-      if (!isTransientAiError(error)) throw error;
-      break;
+  const auditedAnswer = result.answer;
+  const resize = async () => {
+    // Check both bounds after audit, which can shorten or expand the draft.
+    let lengthAiUnavailable = false;
+    const closer = candidate => !candidate.problems.length
+      && coverLetterLengthDistance(candidate.review.charCount, question) < coverLetterLengthDistance(result.review.charCount, question);
+    for (let attempt = 0; !result.review.withinLimit && attempt < 2; attempt++) {
+      try {
+        const revised = parseJSON(await generateAI(buildCoverLetterLengthRevisionPrompt(input, proposed, result.review.charCount), AI_OPTIONS));
+        if (revised.status === 'needs_context') return needsContext(revised);
+        const candidate = validateGeneratedAnswer(revised, input);
+        if (!closer(candidate)) continue;
+        proposed = revised;
+        result = candidate;
+      } catch (error) {
+        if (!isTransientAiError(error)) throw error;
+        lengthAiUnavailable = true;
+        break;
+      }
     }
-  }
-  if (question.maxLength && result.review.charCount > question.maxLength) {
-    const answer = capCoverLetterAnswer(result.answer, question);
-    const warnings = answer.endsWith('…')
-      ? ['AI 축약을 완료하지 못해 최대 길이에 맞춘 임시 초안입니다. 마지막 문장을 확인해주세요.', ...stringList(proposed.warnings, 11, 500)]
-      : proposed.warnings;
-    result = validateGeneratedAnswer({ ...proposed, answer, warnings }, input);
+    if (question.maxLength && result.review.charCount > question.maxLength) {
+      const answer = capCoverLetterAnswer(result.answer, question);
+      const warnings = answer.endsWith('…')
+        ? ['AI 축약을 완료하지 못해 최대 길이에 맞춘 임시 초안입니다. 마지막 문장을 확인해주세요.', ...stringList(proposed.warnings, 11, 500)]
+        : proposed.warnings;
+      const capped = validateGeneratedAnswer({ ...proposed, answer, warnings }, input);
+      if (closer(capped)) result = capped;
+    }
+    // Whole-draft rewrites only estimate length. Choose local edits using actual
+    // counts so near misses (e.g. 644 for 650–700) do not stop at an avoidable error.
+    for (let attempt = 0; !result.review.withinLimit && !lengthAiUnavailable && attempt < 2; attempt++) {
+      try {
+        const revision = parseJSON(await generateAI(buildCoverLetterLengthEditsPrompt(input, result), AI_OPTIONS));
+        const answer = fitCoverLetterEdits(result.answer, question, revision.edits);
+        const candidate = validateGeneratedAnswer({ ...result, answer }, input);
+        if (closer(candidate)) result = candidate;
+      } catch (error) {
+        if (!isTransientAiError(error)) throw error;
+        break;
+      }
+    }
+  };
+  const assertReady = () => {
+    if (result.problems.length) {
+      const error = inputError(result.problems.join(' '), 422);
+      error.code = 'COVERLETTER_REVIEW_FAILED';
+      throw error;
+    }
+    if (!result.review.withinLimit) {
+      const range = question.minLength && question.maxLength
+        ? `${question.minLength}~${question.maxLength}자`
+        : question.minLength ? `최소 ${question.minLength}자 이상` : `최대 ${question.maxLength}자 이하`;
+      const error = inputError(`요청한 ${range}에 맞게 본문을 완성하지 못했습니다(현재 ${result.review.charCount}자). 다시 작성해주세요.`, 422);
+      error.code = 'COVERLETTER_LENGTH_FAILED';
+      throw error;
+    }
+  };
+  const resizeContext = await resize();
+  if (resizeContext) return resizeContext;
+  assertReady();
+  // A pre-resize audit cannot approve later sentence combinations or truncation.
+  // Review the assembled text without rewriting it, so a pass cannot change its length.
+  if (!auditUnavailable || result.answer !== auditedAnswer) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const quality = parseJSON(await generateAI(buildCoverLetterQualityReviewPrompt(input, result), AI_OPTIONS));
+      if (quality.status === 'needs_context') return needsContext(quality);
+      const qualityProblems = coverLetterQualityProblems(quality, result.answer);
+      if (!qualityProblems.length) break;
+      if (attempt === 1) {
+        const error = inputError(qualityProblems.join(' '), 422);
+        error.code = 'COVERLETTER_QUALITY_FAILED';
+        throw error;
+      }
+      const repairInput = { ...input, currentAnswer: result.answer };
+      proposed = parseJSON(await generateAI(buildCoverLetterAnswerPrompt(repairInput, qualityProblems.join(' ')), AI_OPTIONS));
+      if (proposed.status === 'needs_context') return needsContext(proposed);
+      proposed = await audit(proposed);
+      if (proposed.status === 'needs_context') return needsContext(proposed);
+      result = validateGeneratedAnswer(proposed, input);
+      if (!result.problems.length) {
+        const context = await resize();
+        if (context) return context;
+      }
+      assertReady();
+    }
   }
   const { problems, ...response } = result;
   return response;

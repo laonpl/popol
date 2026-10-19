@@ -132,6 +132,9 @@ try {
         { path: '/app/coverletter', element: React.createElement(Hub) },
         { path: '/app/coverletter/new', element: React.createElement(Workspace) },
         { path: '/app/coverletter/edit/:id', element: React.createElement(Workspace) },
+        { path: '/app/portfolio', element: React.createElement(Hub) },
+        { path: '/app/portfolio/coverletter/new', element: React.createElement(Workspace) },
+        { path: '/app/portfolio/coverletter/edit/:id', element: React.createElement(Workspace) },
       ] },
       { path: '/login', element: React.createElement('div', { id: 'login-sentinel' }, 'Synthetic login destination') },
     ], { initialEntries: ['/app/coverletter'] });
@@ -149,7 +152,7 @@ try {
   await page.setViewport({ width: 1440, height: 1050 });
   await clickButton(page, '공고로 시작하기');
   await page.waitForSelector('#login-sentinel');
-  assert.equal(await page.evaluate(() => window.qaRouter.state.location.state.from), '/app/coverletter/new');
+  assert.equal(await page.evaluate(() => window.qaRouter.state.location.state.from), '/app/portfolio/coverletter/new');
   checks.push('guest hub and intended login return');
 
   await page.evaluate(async () => {

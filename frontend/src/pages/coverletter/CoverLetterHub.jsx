@@ -15,6 +15,7 @@ import useAuthStore from "../../stores/authStore";
 import useCoverLetterStore from "../../stores/coverLetterStore";
 import FileCat from "../../components/FileCat";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { newCoverLetterPath, editCoverLetterPath } from "../../utils/coverLetterNavigation";
 import "./coverLetter.css";
 
 function dateLabel(value) {
@@ -54,8 +55,8 @@ export default function CoverLetterHub() {
   );
   const start = () =>
     user
-      ? navigate("/app/coverletter/new")
-      : navigate("/login", { state: { from: "/app/coverletter/new" } });
+      ? navigate(newCoverLetterPath())
+      : navigate("/login", { state: { from: newCoverLetterPath() } });
   const remove = async () => {
     if (deleting) return;
     setDeleting(true);
@@ -182,7 +183,7 @@ export default function CoverLetterHub() {
                 </div>
                 <button
                   className="cl-card-link"
-                  onClick={() => navigate(`/app/coverletter/edit/${letter.id}`)}
+                  onClick={() => navigate(editCoverLetterPath(letter.id))}
                 >
                   <h3>{letter.title || "새 자기소개서"}</h3>
                   <p>

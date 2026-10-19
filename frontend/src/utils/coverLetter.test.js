@@ -48,6 +48,14 @@ test('analysis normalization accepts the endpoint envelope and preserves attribu
   assert.deepEqual(letter.questions, []);
 });
 
+test('a draft moved to no company keeps that assignment and retains its original posting analysis', () => {
+  const analysis = { company: '이전 기업', summary: '원문 분석' };
+  const letter = normalizeCoverLetter({ targetCompany: '', analysis, questions: [{ question: '지원 동기', answer: '기존 답변' }] });
+  assert.equal(letter.targetCompany, ''); assert.equal(letter.analysis.company, '이전 기업');
+  assert.equal(letter.questions[0].answer, '기존 답변');
+  assert.equal(normalizeCoverLetter({ analysis }).targetCompany, '이전 기업');
+});
+
 test('missing application questions preserve their status and selectable application sources', () => {
   const result = normalizeAnalysis({ analysis: {
     questions: [], questionStatus: 'selection_required',

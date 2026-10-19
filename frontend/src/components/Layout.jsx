@@ -12,8 +12,7 @@ import JourneyResumeBanner from './JourneyResumeBanner';
 
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
-  { to: '/app/portfolio', label: '포트폴리오' },
-  { to: '/app/coverletter', label: '자기소개서' },
+  { to: '/app/portfolio', label: '포트폴리오 · 자기소개서' },
 ];
 
 // 이 아래로 떨어지면 헤더 칩이 경고색으로 바뀐다 (작업 중 갑자기 막히는 상황 예방)
@@ -167,16 +166,16 @@ export default function Layout() {
 
           {/* 메뉴 탭 — lg 이상에서만 절대 가운데 정렬.
               그 아래에서는 로고/유저 영역과 겹치므로 흐름 배치로 전환한다. */}
-          <nav className="hidden md:flex lg:absolute lg:left-1/2 lg:-translate-x-1/2 items-center bg-surface-100 rounded-full p-1 ml-2 lg:ml-0">
+          <nav aria-label="주요 메뉴" className="app-primary-nav hidden md:flex lg:absolute lg:left-1/2 lg:-translate-x-1/2 items-center gap-3 ml-2 lg:ml-0">
             {navItems.map(({ to, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `px-4 lg:px-6 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
+                  `border px-4 lg:px-6 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
                     isActive
-                      ? 'bg-primary-500 text-white shadow-sm'
-                      : 'text-bluewood-500 hover:text-bluewood-800'
+                      ? 'border-primary-500 bg-primary-500 text-white shadow-sm'
+                      : 'border-surface-200 bg-white text-bluewood-500 hover:border-bluewood-300 hover:text-bluewood-800'
                   }`
                 }
               >

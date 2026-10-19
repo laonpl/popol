@@ -22,6 +22,7 @@ import shareLinkRoutes from './routes/shareLinks.js';
 import companyFolderRoutes from './routes/companyFolders.js';
 import documentBoardRoutes from './routes/documentBoard.js';
 import fileRoutes from './routes/files.js';
+import roleDataRoutes from './routes/roleData.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 import { logError } from './services/errorLogger.js';
@@ -152,6 +153,7 @@ app.use('/api/share-links', shareLinkRoutes);
 app.use('/api/company-folders', companyFolderRoutes);
 app.use('/api/document-board', documentBoardRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/role-data', roleDataRoutes);
 
 // 릴스 캡처 등 로컬 전용 도구 — 운영에서는 마운트하지 않는다 (헤드리스 브라우저를 띄우는 무거운 작업)
 if (process.env.NODE_ENV !== 'production') {

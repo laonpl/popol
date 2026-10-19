@@ -1,12 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coverLetterLengthInstruction, capCoverLetterAnswer } from '../src/utils/coverLetterLength.js';
+import { coverLetterLengthInstruction, capCoverLetterAnswer, fitCoverLetterEdits } from '../src/utils/coverLetterLength.js';
 import { countAnswerCharacters } from '../src/services/coverLetterEvidence.js';
+import { buildCoverLetterLengthRevisionPrompt, buildCoverLetterLengthEditsPrompt } from '../src/prompts/coverLetterPrompts.js';
 
 test('generation targets leave margin below the maximum and honor a close minimum', () => {
   assert.match(coverLetterLengthInstruction({ maxLength: 300 }), /약 270자/);
-  assert.match(coverLetterLengthInstruction({ minLength: 290, maxLength: 300 }), /약 290자/);
+  assert.match(coverLetterLengthInstruction({ maxLength: 1 }), /약 1자/);
+  assert.match(coverLetterLengthInstruction({ minLength: 290, maxLength: 300 }), /약 295자/);
+  assert.match(coverLetterLengthInstruction({ minLength: 650, maxLength: 750 }), /약 700자/);
+  assert.match(coverLetterLengthInstruction({ minLength: 700, maxLength: 700 }), /약 700자/);
   assert.match(coverLetterLengthInstruction({ maxLength: 300, countSpaces: false }), /공백과 줄바꿈 제외/);
+});
+
+test('length revision gives measured expansion or reduction instructions for both bounds', () => {
+  const input = { question: { minLength: 650, maxLength: 750 } };
+  const shortPrompt = buildCoverLetterLengthRevisionPrompt(input, { answer: '초안' }, 330);
+  assert.match(shortPrompt, /현재 본문은 330자/);
+  assert.match(shortPrompt, /320자 부족/);
+  assert.match(shortPrompt, /확장/);
+  assert.doesNotMatch(shortPrompt, /초과했습니다/);
+  const longPrompt = buildCoverLetterLengthRevisionPrompt(input, { answer: '초안' }, 800);
+  assert.match(longPrompt, /50자 초과/);
+  assert.match(longPrompt, /최소 글자 수가 있으면 그보다 짧아지지/);
+  assert.match(buildCoverLetterLengthRevisionPrompt({ question: { minLength: 650 } }, {}, 600), /50자 부족/);
 });
 
 test('the safety cap prefers full sentences and retains text that already fits', () => {
@@ -25,4 +42,60 @@ test('the final cap follows space exclusion, normalizes CRLF and preserves emoji
       assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(result));
     }
   }
+});
+
+test('local edits combine independently measured alternatives to satisfy an exact length', () => {
+  const answer = '자료를 분석했습니다. 개선안을 제안했습니다.';
+  const edits = [
+    { before: '분석했습니다', after: ['분석하였습니다', '분석해 보았습니다'] },
+    { before: '제안했습니다', after: ['제안하였습니다', '제안해 보았습니다'] },
+  ];
+  const exact = countAnswerCharacters(answer) + 2;
+  assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, edits),
+    '자료를 분석하였습니다. 개선안을 제안하였습니다.');
+});
+
+test('local edits use the configured whitespace and Unicode counting rules', () => {
+  for (const countSpaces of [true, false]) {
+    const answer = '🙂 고객 인터뷰를 진행했습니다.\r\n개선안을 제안했습니다.';
+    const replacement = '고객의 문제를 파악하기 위한 인터뷰';
+    const expected = answer.replace(/\r\n/g, '\n').replace('고객 인터뷰', replacement);
+    const exact = countAnswerCharacters(expected, countSpaces);
+    const result = fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact, countSpaces }, [
+      { before: '고객 인터뷰', after: [replacement] },
+    ]);
+    assert.equal(result, expected);
+    assert.equal(countAnswerCharacters(result, countSpaces), exact);
+  }
+});
+
+test('ambiguous, overlapping or malformed edits are ignored and worsening edits never replace the draft', () => {
+  const answer = '고객을 만났습니다. 고객을 조사했습니다.';
+  const limits = { minLength: countAnswerCharacters(answer) + 1, maxLength: countAnswerCharacters(answer) + 2 };
+  for (const edits of [null, [{}], [{ before: '', after: ['내용'] }],
+    [{ before: '없는 문장', after: ['내용'] }], [{ before: '고객을', after: ['고객들을'] }],
+    [{ before: '만났습니다', after: ['가'.repeat(100)] }]]) {
+    assert.equal(fitCoverLetterEdits(answer, limits, edits), answer);
+  }
+  assert.equal(fitCoverLetterEdits(answer, limits, [
+    { before: '만났습니다', after: ['만나보았습니다'] },
+    { before: '고객을 만났습니다', after: ['원문과 겹치는 제안은 무시합니다'] },
+  ]), '고객을 만나보았습니다. 고객을 조사했습니다.');
+});
+
+test('local reductions keep the conclusion and can meet an exact upper bound', () => {
+  const answer = '저는 직접 자료를 분석하였습니다. 개선안을 제안하였습니다.';
+  const expected = '자료를 분석했습니다. 개선안을 제안했습니다.';
+  const exact = countAnswerCharacters(expected);
+  assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, [
+    { before: '저는 직접 자료를 분석하였습니다.', after: ['자료를 분석했습니다.', '저는 자료를 분석했습니다.'] },
+    { before: '제안하였습니다', after: ['제안했습니다'] },
+  ]), expected);
+});
+
+test('edit prompt describes a measured 6-character shortage and a 56-character maximum increase', () => {
+  const prompt = buildCoverLetterLengthEditsPrompt({ question: { minLength: 650, maxLength: 700 } }, { answer: '가'.repeat(643) + '.' });
+  assert.match(prompt, /현재 본문은 644자/);
+  assert.match(prompt, /6자 이상, 56자 이하/);
+  assert.match(prompt, /전체 본문을 다시 쓰지 마세요/);
 });

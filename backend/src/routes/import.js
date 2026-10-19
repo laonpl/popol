@@ -159,7 +159,7 @@ router.post('/upload', authMiddleware, (req, res, next) => {
       if (decoded && !decoded.includes('�')) originalName = decoded;
     } catch { /* 변환 실패 시 원본 사용 */ }
 
-    const imported = await importFromFile(file.buffer, file.mimetype, originalName);
+    const imported = await importFromFile(file.buffer, file.mimetype, originalName, { readGraphics: req.body.readGraphics === 'true' });
 
     let structured = null;
     if (targetType) {

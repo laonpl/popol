@@ -252,7 +252,7 @@ test('extracted short official heading can be generated while empty and arbitrar
   assert.throws(() => normalizeQuestion({ question: '' }));
   assert.throws(() => normalizeQuestion({ question: ' ' }));
   assert.throws(() => normalizeQuestion({ question: 'abc' }));
-  const result = await generateCoverLetterAnswer({ question: shortQuestion, analysis: { sourceText: '자기소개서 문항\n1. 지원동기 (500자)' } }, [rawExperience], { generateAI: async () => JSON.stringify(correctAnswer) });
+  const result = await generateCoverLetterAnswer({ question: shortQuestion, analysis: { sourceText: '자기소개서 문항\n1. 지원동기 (500자)' } }, [rawExperience], { generateAI: async prompt => lengthFixtureQualityReply(prompt) || JSON.stringify(correctAnswer) });
   assert.equal(result.answer, correctAnswer.answer);
   assert.equal(result.review.withinLimit, true);
 });
@@ -384,7 +384,7 @@ test('foreign IDs and fake evidence cannot become linked experiences', () => {
   const result = validateGeneratedAnswer({ ...correctAnswer, linkedExperienceIds: ['foreign-id'], evidence: [{ experienceId: 'foreign-id', quote: evidenceQuote }, { experienceId: 'owned-experience', quote: '매출을 200% 성장시켰습니다.' }] }, { experiences: [experience], question });
   assert.equal(result.evidence.length, 0);
   assert.deepEqual(result.linkedExperienceIds, []);
-  assert.ok(result.problems.some(problem => problem.includes('인용')));
+  assert.equal(result.problems.length, 0);
 });
 
 test('numbers missing from citation snippets no longer block a completed answer', () => {
@@ -412,22 +412,158 @@ test('length outside the requested limits is reported without rejecting or trunc
   }
 });
 
-test('a short 330-character draft remains usable without a minimum-length error', async () => {
-  const answer = correctAnswer.answer.padEnd(329, '가') + '.';
-  assert.equal(countAnswerCharacters(answer), 330);
-  for (const limits of [{ minLength: 500, maxLength: 700 }]) {
-    let calls = 0;
-    const result = await generateCoverLetterAnswer({ question: { ...question, ...limits } }, [rawExperience], {
-      generateAI: async () => { calls++; return JSON.stringify({ ...correctAnswer, answer }); },
-    });
-    assert.equal(calls, 2);
-    assert.equal(result.answer, answer);
-    assert.equal(result.review.charCount, 330);
-    assert.equal(result.review.withinLimit, false);
-    const saved = buildCoverLetterDocument({ questions: [{ ...question, ...limits, ...result }] }, 'owner');
-    assert.equal(saved.questions[0].answer, answer);
-    assert.equal(saved.questions[0].review.withinLimit, false);
+function answerAtLength(length, countSpaces = true) {
+  const base = `${correctAnswer.answer}\r\n🙂 `;
+  return base + '가'.repeat(length - countAnswerCharacters(base, countSpaces) - 1) + '.';
+}
+
+function lengthFixtureQualityReply(prompt) {
+  if (!prompt.startsWith('분량 보정이 끝난 자기소개서의 최종 품질')) return null;
+  const answer = JSON.parse(prompt.match(/최종 본문: (.+)\n/)[1]);
+  return JSON.stringify({ status: 'pass', requirements: [{ requirement: '경험 설명', answerQuote: answer.slice(0, 20) }], issues: [] });
+}
+
+test('650–750 character limits resize short and long drafts and accept both inclusive boundaries', async () => {
+  for (const countSpaces of [true, false]) {
+    for (const initialLength of [330, 649, 650, 700, 750, 751, 800]) {
+      let calls = 0;
+      const needsRevision = initialLength < 650 || initialLength > 750;
+      const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 750, countSpaces } }, [rawExperience], {
+        generateAI: async prompt => {
+          calls++;
+          const quality = lengthFixtureQualityReply(prompt);
+          if (quality) return quality;
+          assert.ok(prompt.includes('약 700자'));
+          if (calls === 3) {
+            assert.ok(prompt.includes(`현재 본문은 ${initialLength}자`));
+            assert.ok(prompt.includes(initialLength < 650 ? '부족' : '초과'));
+          }
+          return JSON.stringify({ ...correctAnswer, answer: answerAtLength(calls <= 2 ? initialLength : 700, countSpaces) });
+        },
+      });
+      assert.equal(calls, needsRevision ? 4 : 3);
+      assert.equal(result.review.charCount, needsRevision ? 700 : initialLength);
+      assert.equal(result.review.charCount, countAnswerCharacters(result.answer, countSpaces));
+      assert.equal(result.review.withinLimit, true);
+    }
   }
+});
+
+test('minimum-only and exact-length requests also expand drafts after audit', async () => {
+  for (const maxLength of [null, 650]) {
+    let calls = 0;
+    const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength } }, [rawExperience], {
+      generateAI: async prompt => {
+        calls++;
+        const quality = lengthFixtureQualityReply(prompt);
+        if (quality) return quality;
+        return JSON.stringify({ ...correctAnswer, answer: answerAtLength(calls === 2 ? 330 : 650) });
+      },
+    });
+    assert.equal(calls, 4);
+    assert.equal(result.review.charCount, 650);
+    assert.equal(result.review.withinLimit, true);
+  }
+});
+
+test('length revisions recheck both bounds when expansion overshoots the maximum', async () => {
+  let calls = 0;
+  const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 750 } }, [rawExperience], {
+    generateAI: async prompt => {
+      calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      if (calls === 3) assert.match(prompt, /320자 부족/);
+      if (calls === 4) assert.match(prompt, /50자 초과/);
+      return JSON.stringify({ ...correctAnswer, answer: answerAtLength(calls <= 2 ? 330 : calls === 3 ? 800 : 700) });
+    },
+  });
+  assert.equal(calls, 5);
+  assert.equal(result.review.charCount, 700);
+  assert.equal(result.review.withinLimit, true);
+});
+
+test('persistent underflow or revision outage cannot return an out-of-range success', async () => {
+  for (const unavailable of [false, true]) {
+    let calls = 0;
+    await assert.rejects(generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 750 } }, [rawExperience], {
+      generateAI: async () => {
+        calls++;
+        if (unavailable && calls > 2) throw Object.assign(new Error('unavailable'), { status: 503 });
+        return JSON.stringify({ ...correctAnswer, answer: answerAtLength(330) });
+      },
+    }), error => error.status === 422 && error.code === 'COVERLETTER_LENGTH_FAILED' && /650~750자/.test(error.message));
+    assert.equal(calls, unavailable ? 3 : 6);
+  }
+});
+
+test('a repeated 644-character near miss is completed with measured local edits for 650–700', async () => {
+  for (const countSpaces of [true, false]) {
+    let calls = 0;
+    const shortAnswer = answerAtLength(644, countSpaces);
+    const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700, countSpaces } }, [rawExperience], {
+      generateAI: async prompt => {
+        calls++;
+        const quality = lengthFixtureQualityReply(prompt);
+        if (quality) return quality;
+        if (calls <= 4) return JSON.stringify({ ...correctAnswer, answer: shortAnswer });
+        assert.match(prompt, /현재 본문은 644자/);
+        assert.match(prompt, /6자 이상, 56자 이하/);
+        return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: [
+          '고객의 문제를 파악하기 위한 인터뷰',
+          '문제 유형을 파악하기 위한 고객 인터뷰',
+        ] }] });
+      },
+    });
+    assert.equal(calls, 6);
+    assert.ok(result.review.charCount >= 650 && result.review.charCount <= 700);
+    assert.equal(result.review.charCount, countAnswerCharacters(result.answer, countSpaces));
+    assert.equal(result.review.withinLimit, true);
+    assert.deepEqual(result.evidence, correctAnswer.evidence);
+    assert.deepEqual(result.linkedExperienceIds, correctAnswer.linkedExperienceIds);
+  }
+});
+
+test('sentence capping to 644 characters is followed by local completion rather than an error', async () => {
+  let calls = 0;
+  const shortAnswer = answerAtLength(644);
+  const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700 } }, [rawExperience], {
+    generateAI: async prompt => {
+      calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      if (calls <= 4) return JSON.stringify({ ...correctAnswer, answer: shortAnswer + ' ' + '나'.repeat(100) + '.' });
+      assert.match(prompt, /현재 본문은 644자/);
+      return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: ['고객의 문제를 파악하기 위한 인터뷰'] }] });
+    },
+  });
+  assert.equal(calls, 6);
+  assert.equal(result.review.withinLimit, true);
+  assert.ok(result.review.charCount >= 650 && result.review.charCount <= 700);
+  assert.ok(result.answer.endsWith('.'));
+});
+
+test('worse whole rewrites do not discard a closer draft before local completion', async () => {
+  let calls = 0;
+  const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700 } }, [rawExperience], {
+    generateAI: async prompt => {
+      calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      if (calls <= 4) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(calls <= 2 ? 644 : 600) });
+      assert.match(prompt, /현재 본문은 644자/);
+      return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: ['고객의 문제를 파악하기 위한 인터뷰'] }] });
+    },
+  });
+  assert.equal(calls, 6);
+  assert.equal(result.review.withinLimit, true);
+});
+
+test('a final overflow cap cannot silently drop the answer below the minimum', async () => {
+  const oversized = correctAnswer.answer + ' ' + '가'.repeat(800) + '.';
+  await assert.rejects(generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 750 } }, [rawExperience], {
+    generateAI: async () => JSON.stringify({ ...correctAnswer, answer: oversized }),
+  }), error => error.status === 422 && error.code === 'COVERLETTER_LENGTH_FAILED');
 });
 
 test('generation targets 270 characters for a 300-character limit and resizes an overflowing draft automatically', async () => {
@@ -436,13 +572,15 @@ test('generation targets 270 characters for a 300-character limit and resizes an
   const result = await generateCoverLetterAnswer({ question: { ...question, maxLength: 300 } }, [rawExperience], {
     generateAI: async prompt => {
       calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
       assert.ok(prompt.includes('최대 300자'));
       assert.ok(prompt.includes('약 270자'));
       if (calls === 3) assert.ok(prompt.includes('현재 본문은 330자'));
       return JSON.stringify({ ...correctAnswer, answer: calls < 3 ? answer : correctAnswer.answer });
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.equal(result.answer, correctAnswer.answer);
   assert.equal(result.review.withinLimit, true);
   assert.ok(result.review.charCount <= 300);
@@ -455,12 +593,14 @@ test('length is enforced after an audit expands an initially fitting draft', asy
   let calls = 0;
   const result = await generateCoverLetterAnswer({ question: { ...question, maxLength: 300, countSpaces: false } }, [rawExperience], {
     generateAI: async prompt => {
-      assert.ok(prompt.includes('공백과 줄바꿈 제외'));
       calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      assert.ok(prompt.includes('공백과 줄바꿈 제외'));
       return JSON.stringify({ ...correctAnswer, answer: calls === 2 ? correctAnswer.answer + '가'.repeat(330) + '.' : correctAnswer.answer });
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.equal(result.answer, correctAnswer.answer);
   assert.ok(result.review.charCount <= 300);
 });
@@ -470,13 +610,15 @@ test('continued model overflow or a resizing outage still returns a draft under 
     let calls = 0;
     const oversized = correctAnswer.answer + ' ' + '가'.repeat(330) + '.';
     const result = await generateCoverLetterAnswer({ question: { ...question, maxLength: 300 } }, [rawExperience], {
-      generateAI: async () => {
+      generateAI: async prompt => {
         calls++;
+        const quality = lengthFixtureQualityReply(prompt);
+        if (quality) return quality;
         if (unavailable && calls > 2) throw Object.assign(new Error('unavailable'), { status: 503 });
         return JSON.stringify({ ...correctAnswer, answer: oversized });
       },
     });
-    assert.equal(calls, unavailable ? 3 : 4);
+    assert.equal(calls, unavailable ? 4 : 5);
     assert.equal(result.answer, correctAnswer.answer);
     assert.equal(result.review.withinLimit, true);
     assert.ok(result.review.charCount <= 300);
@@ -518,17 +660,41 @@ test('generation returns 4000 cases, stages and days without numeric repair or r
     generateAI: async prompt => {
       assert.ok(!prompt.includes('매출 200% 성장'));
       calls += 1;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
       return JSON.stringify({ ...correctAnswer, answer });
     },
   });
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
   assert.equal(response.answer, answer);
   assert.deepEqual(response.review.unverifiedNumbers, []);
   assert.deepEqual(response.linkedExperienceIds, ['owned-experience']);
 });
 
-test('generation with no usable experience citations still fails with 422', async () => {
-  await assert.rejects(generateCoverLetterAnswer({ question }, [rawExperience], { generateAI: async () => JSON.stringify({ ...correctAnswer, evidence: [] }) }), error => error.status === 422 && error.code === 'COVERLETTER_REVIEW_FAILED');
+test('missing or invalid optional citations do not block generation or erase owned source links', async () => {
+  for (const evidence of [undefined, [], [{ experienceId: 'foreign-id', quote: evidenceQuote }], [{ experienceId: 'owned-experience', quote: '잘못 옮겨 적은 인용' }]]) {
+    let calls = 0;
+    const result = await generateCoverLetterAnswer({ question }, [rawExperience], {
+      generateAI: async prompt => {
+        calls++;
+        return lengthFixtureQualityReply(prompt) || JSON.stringify({ ...correctAnswer, evidence });
+      },
+    });
+    assert.equal(calls, 3, 'missing citation metadata should not trigger a repair');
+    assert.equal(result.answer, correctAnswer.answer);
+    assert.deepEqual(result.evidence, []);
+    assert.deepEqual(result.linkedExperienceIds, ['owned-experience']);
+    assert.equal(result.review.withinLimit, true);
+  }
+});
+
+test('additional input alone can produce a completed answer without citation metadata', async () => {
+  const result = await generateCoverLetterAnswer({ question, additionalContext: correctAnswer.answer }, [], {
+    generateAI: async prompt => lengthFixtureQualityReply(prompt) || JSON.stringify({ answer: correctAnswer.answer }),
+  });
+  assert.equal(result.answer, correctAnswer.answer);
+  assert.deepEqual(result.evidence, []);
+  assert.deepEqual(result.linkedExperienceIds, []);
 });
 
 const foodQuestion = { ...question, question: '본인이 경험한 식문화 또는 음식 관련된 경험에 대해 서술하고, 이를 통해 깨달은 점이나 어떤 의미가 있었는지 작성하십시오.', maxLength: 300, countSpaces: false };
@@ -548,7 +714,7 @@ test('food question with QRious alone requests real food experience before any A
 test('actual food context can generate an answer with only user-input evidence and no linked experience', async () => {
   const context = '교환학생 친구와 함께 음식을 만들어 나누었습니다. 각자의 식문화를 이야기하며 서로를 이해하는 계기가 됐습니다.';
   const result = await generateCoverLetterAnswer({ question: foodQuestion, additionalContext: context }, [], {
-    generateAI: async () => JSON.stringify({ status: 'draft', answer: context,
+    generateAI: async prompt => lengthFixtureQualityReply(prompt) || JSON.stringify({ status: 'draft', answer: context,
       evidence: [{ experienceId: 'user-input', quote: context }], warnings: [] }),
   });
   assert.equal(result.answer, context);
@@ -705,7 +871,7 @@ test('combined material preserves verified question excerpts inside the saved 60
   assert.ok(saved.questions.every(item => item.validation === 'verified'));
   assert.equal(normalizePostingQuestions(saved.questions, saved.analysis.questionSourceText).length, 2);
   const generated = await generateCoverLetterAnswer({ question: saved.questions[1], analysis: saved.analysis }, [rawExperience], {
-    generateAI: async () => JSON.stringify(correctAnswer),
+    generateAI: async prompt => lengthFixtureQualityReply(prompt) || JSON.stringify(correctAnswer),
   });
   assert.equal(generated.answer, correctAnswer.answer);
 });

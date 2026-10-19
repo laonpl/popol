@@ -6,7 +6,7 @@ import PmPortfolioBoard from './PmPortfolioBoard';
 import RoleArtifactStudio from './RoleArtifactStudio';
 import WorkProductReview from './WorkProductReview';
 import { PM_WORK_PRODUCTS } from '../../utils/pmWorkProducts';
-import { roleSourceText } from '../../utils/roleArtifacts';
+import { roleSourceText, caseArtifacts } from '../../utils/roleArtifacts';
 
 function SourceExcerpt({ record }) {
   const located = record.basis !== 'unlocated';
@@ -25,12 +25,12 @@ function Claim({ record, onSave }) {
   return <div className="pm-claim-heading"><h4>{record.claim}</h4>{onSave && <button type="button" className="pm-claim-edit print:hidden" aria-label="판단 요약 수정" onClick={() => { setDraft(record.claim); setEditing(true); }}><PenLine size={14} /></button>}</div>;
 }
 
-export default function PmEvidenceCaseStudy({ sr = {}, sourceText, readOnly = false, onRecordChange, onChange }) {
+export default function PmEvidenceCaseStudy({ sr = {}, sourceText, readOnly = false, onRecordChange, onChange, project }) {
   const model = useMemo(() => buildPmEvidenceModel(sr, { sourceText: sourceText === undefined ? undefined : roleSourceText(sr, sourceText) }), [sr, sourceText]);
-  return <PmPortfolioBoard model={model} Source={SourceExcerpt} readOnly={readOnly} sr={sr} onChange={onChange}
+  return <PmPortfolioBoard model={model} Source={SourceExcerpt} readOnly={readOnly} sr={sr} onChange={onChange} project={project}
     renderArtifacts={(item, editorId) => <>
       {!readOnly && <WorkProductReview id={editorId} sr={sr} item={item} groups={PM_WORK_PRODUCTS} role="pm" onChange={onChange} />}
-      <RoleArtifactStudio sr={sr} item={item} onChange={onChange} readOnly={readOnly} />
+      {!caseArtifacts(sr, item).some(file => file.image) && <RoleArtifactStudio sr={sr} item={item} onChange={onChange} readOnly={readOnly} />}
     </>}
     renderRecord={(item, record) => <>
       <Claim record={record} onSave={!readOnly && onRecordChange && !record.derivedLegacy ? value => onRecordChange(item.sourceIndex, record.sourceRecordIndex, value) : undefined} />

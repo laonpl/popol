@@ -580,7 +580,7 @@ async function extractZipText(buffer) {
  * 이미지 → Gemini Vision OCR
  * HWP 등 → Gemini Vision 분석
  */
-export async function importFromFile(buffer, mimeType, fileName) {
+export async function importFromFile(buffer, mimeType, fileName, { readGraphics = false } = {}) {
   let extractedText = '';
   const extension = String(fileName || '').toLowerCase().match(/(\.[^.]+)$/)?.[1] || '';
 
@@ -598,7 +598,7 @@ export async function importFromFile(buffer, mimeType, fileName) {
       try { if (parser) await parser.destroy(); } catch { /* ignore */ }
     }
     // 2단계: 텍스트가 부족하면 스캔본일 가능성 → Gemini Vision OCR
-    if (extractedText.trim().length < 50) {
+    if (readGraphics || extractedText.trim().length < 50) {
       console.log('[Import] PDF 텍스트 부족, Gemini Vision OCR 시도');
       try {
         extractedText = await extractWithGeminiVision(buffer, mimeType);
@@ -615,7 +615,7 @@ export async function importFromFile(buffer, mimeType, fileName) {
     // 로컬 Tesseract OCR은 이미지에 따라 메모리를 크게 쓰며, OOM은 깔끔히
     // throw되지 않고 프로세스를 죽여 폴백이 동작하지 않는다.
     // OCR_PREFER_VISION=true 면 Tesseract를 건너뛰고 바로 Gemini Vision API 사용.
-    if (process.env.OCR_PREFER_VISION === 'true') {
+    if (readGraphics || process.env.OCR_PREFER_VISION === 'true') {
       console.log('[Import] OCR_PREFER_VISION=true → Tesseract 생략, Gemini Vision OCR 사용');
       extractedText = await extractWithGeminiVision(buffer, mimeType);
     } else {
