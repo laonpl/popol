@@ -1,9 +1,10 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, ChevronDown, GitBranch, FileCheck2 } from 'lucide-react';
 import { PM_COMPANY_REFERENCES, PM_PORTFOLIO_REFERENCES } from '../../utils/pmPortfolioViews';
 import { PM_DIMENSIONS, PM_STAGE_LABELS } from '../../utils/pmEvidence';
 import { Block, Outcome } from './PmWorkProductBlocks';
-import { PmDecisionStudio } from './RoleSignatureStudio';
+import ProductImpactReport from './ProductImpactReport';
+import RoleExperienceOnePager from './RoleExperienceOnePager';
 import './PmPortfolioBoard.css';
 import './ProductDecisionPortfolio.css';
 
@@ -46,46 +47,46 @@ function FlowExplorer({ item, Source }) {
   </section>;
 }
 
-function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly, sr, onChange }) {
+function DecisionDossier({ item, Source, renderRecord, renderArtifacts, readOnly, sr, onChange, project }) {
   const id = useId();
+  const detail = useRef(null);
   const w = item.workProducts;
   const hasFlow = !!(w.serviceBlueprint?.length || w.journey?.length);
   const chapters = CHAPTERS.map(chapter => ({ ...chapter,
     records: item.records.filter(record => chapter.dimensions.includes(record.dimension)),
   })).filter(chapter => chapter.records.length || chapter.groups.some(group => w[group]?.length) || (chapter.key === 'spec' && hasFlow) || (chapter.key === 'validation' && item.metrics.length));
   const missing = CHAPTERS.filter(chapter => !chapters.some(entry => entry.key === chapter.key));
-  const problem = w.problems?.[0]?.problem || item.records.find(row => row.dimension === 'discovery')?.claim;
-  const decision = w.alternatives?.find(row => row.disposition === '채택');
-  const decisionRecord = item.records.find(row => row.dimension === 'prioritization');
-  const owners = [...new Set([...item.records.map(row => row.ownership), ...(w.requirements || []).map(row => row.owner)].filter(Boolean))];
-  const result = item.metrics.find(metric => metric.basis !== 'unlocated' && metric.actual);
-  const outcomeRecord = item.records.find(row => row.dimension === 'outcome');
   return <div className="pd-dossier">
-    <header className="pd-product-brief"><div><span>PRODUCT CASE STUDY</span><h3>{item.title}</h3>{problem && <p>{problem}</p>}</div><dl>{(decision || decisionRecord) && <div><dt>선택한 방향 · {decision ? PM_STAGE_LABELS[decision.stage] : '기존 정리 · 원문 확인 필요'}</dt><dd>{decision?.option || decisionRecord.claim}</dd></div>}<div><dt>내 책임 범위</dt><dd>{owners.length ? owners.join(' / ') : '담당 범위를 확인할 원문이 필요합니다.'}</dd></div>{result ? <div><dt>기록된 결과 · {result.name}</dt><dd>{result.baseline ? result.baseline + ' → ' : ''}{result.actual}<small>{[result.period, result.population].filter(Boolean).join(' · ') || '기간·대상 확인 필요'}</small></dd></div> : outcomeRecord && <div><dt>결과 정리 · {PM_STAGE_LABELS[outcomeRecord.stage]}</dt><dd>{outcomeRecord.claim}<small>{outcomeRecord.basis === 'unlocated' ? '원문 확인 필요' : '연결된 자료에서 확인'}</small></dd></div>}</dl></header>
-    <PmDecisionStudio item={item} Source={Source} sourcesId={id + '-editor'} canEdit={!readOnly && !!onChange} sr={sr} onChange={onChange} />
-    <nav className="pd-document-index print:hidden" aria-label="제품 설계 문서 목차">{chapters.map((chapter, i) => <a key={chapter.key} href={'#' + id + '-' + chapter.key}>{String(i + 1).padStart(2, '0')} {chapter.label}</a>)}<a href={'#' + id + '-sources'}>근거 자료</a></nav>
-    {chapters.map((chapter, i) => <section key={chapter.key} id={id + '-' + chapter.key} className={'pd-chapter pd-chapter-' + chapter.key}>
+    <RoleExperienceOnePager item={item} sr={sr} project={project} role="pm" onChange={onChange} readOnly={readOnly} onExpand={() => { detail.current.open = true; detail.current.scrollIntoView({ block: 'start', behavior: 'smooth' }); }} />
+    <details className="one-full-detail print:hidden" ref={detail}><summary>제품 판단·설계·검증 상세 펼치기</summary>
+    <ProductImpactReport item={item} sr={sr} Source={Source} renderRecord={renderRecord} onChange={!readOnly ? onChange : undefined} prefix={id} />
+    </details>
+    <details className="ir-records print:hidden"><summary>전체 추출 기록 · 원문 검토</summary>
+    <nav className="pd-document-index print:hidden" aria-label="제품 설계 문서 목차">{chapters.map((chapter, i) => <a key={chapter.key} href={'#' + id + '-record-' + chapter.key}>{String(i + 1).padStart(2, '0')} {chapter.label}</a>)}<a href={'#' + id + '-sources'}>근거 자료</a></nav>
+    {chapters.map((chapter, i) => <section key={chapter.key} id={id + '-record-' + chapter.key} className={'pd-chapter pd-chapter-' + chapter.key}>
       <header className="pd-chapter-heading"><span>{String(i + 1).padStart(2, '0')}</span><div><small>{chapter.label}</small><h3>{chapter.title}</h3></div><FileCheck2 size={19} /></header>
       {chapter.records.map(record => <article className="pm-proof-record pd-chapter-record" key={record.id}><div className="pd-record-label"><span>{PM_DIMENSIONS.find(dimension => dimension.key === record.dimension)?.label}</span><small>{PM_STAGE_LABELS[record.stage]}</small></div>{renderRecord(item, record)}</article>)}
       {chapter.key === 'spec' && hasFlow && <FlowExplorer item={item} Source={Source} />}
       {chapter.groups.map(group => <Block key={group} group={group} rows={w[group] || []} Source={Source} />)}
       {chapter.key === 'validation' && <Outcome item={item} Source={Source} />}
     </section>)}
+    </details>
+    <details className="one-record-drawer print:hidden"><summary>산출물 연결·기록 보완</summary>
     <section id={id + '-sources'} className="pd-source-appendix">{renderArtifacts?.(item, id + '-editor')}</section>
     {!readOnly && missing.length > 0 && <aside className="pd-missing-design pd-completion-guide print:hidden"><div><h4>포트폴리오에서 더 설명할 부분</h4><p>현재 기록에 없는 단계입니다. 실제 자료가 있는 항목만 보완하세요. 출시 전 프로젝트에 매출이나 출시 성과를 요구하지 않습니다.</p><ul>{missing.map(chapter => <li key={chapter.key}><b>{chapter.label}</b><span>{chapter.missing}</span></li>)}</ul><p>경험정리 페이지의 보관함에 자료를 추가하고 저장한 뒤 ‘산출물 다시 추출’을 실행하면 본문에 반영됩니다.</p></div></aside>}
-  </div>;
+    </details></div>;
 }
 
-export default function PmPortfolioBoard({ model, Source, renderRecord, readOnly, renderArtifacts, sr, onChange }) {
+export default function PmPortfolioBoard({ model, Source, renderRecord, readOnly, renderArtifacts, sr, onChange, project }) {
   const [active, setActive] = useState(0);
   const id = useId(), cases = model.cases;
   const selected = Math.min(active, Math.max(0, cases.length - 1));
   return <section className="pm-proof pm-portfolio-board pd-portfolio" aria-label="PM 핵심 경험 포트폴리오">
-    <header className="pd-masthead"><span>PRODUCT / CASE STUDY</span><b>문제를 제품으로 바꾼 과정</b><small>문제 발견 → 선택과 우선순위 → 제품 설계 → 내 기여와 실행 → 검증과 결과 → 다음 결정</small></header>
+    <header className="pd-masthead"><span>PRODUCT / IMPACT REPORT</span><b>제품 판단 · 설계 리포트</b><small>고객 발견 · MVP 선택 · 서비스 설계 · 출시 · 검증</small></header>
     {cases.length ? <><div className="pm-proof-tabs pd-case-files print:hidden" role="tablist" aria-label="제품 의사결정 선택">{cases.map((item, i) => <button type="button" role="tab" key={item.id} id={id + '-tab-' + i} aria-selected={selected === i} tabIndex={selected === i ? 0 : -1} aria-controls={id + '-panel-' + i} onClick={() => setActive(i)} onKeyDown={event => {
       const next = event.key === 'ArrowRight' ? (i + 1) % cases.length : event.key === 'ArrowLeft' ? (i + cases.length - 1) % cases.length : event.key === 'Home' ? 0 : event.key === 'End' ? cases.length - 1 : null;
       if (next !== null) { event.preventDefault(); setActive(next); document.getElementById(id + '-tab-' + next)?.focus(); }
-    }}><code>{String(i + 1).padStart(2, '0')}</code><span>{item.title}</span></button>)}</div>{cases.map((item, i) => <article key={item.id} role="tabpanel" id={id + '-panel-' + i} aria-labelledby={id + '-tab-' + i} className={'pm-proof-case ' + (selected === i ? '' : 'pm-proof-inactive')}><DecisionDossier item={item} Source={Source} renderRecord={renderRecord} renderArtifacts={renderArtifacts} readOnly={readOnly} sr={sr} onChange={onChange} /></article>)}</> : <div className="pm-proof-empty"><h3>어떤 제품의 어떤 결정을 책임졌나요?</h3><p>기획서·사용자 조사·정책·실험 기록에서 시작하세요.</p></div>}
+    }}><code>{String(i + 1).padStart(2, '0')}</code><span>{item.title}</span></button>)}</div>{cases.map((item, i) => <article key={item.id} role="tabpanel" id={id + '-panel-' + i} aria-labelledby={id + '-tab-' + i} className={'pm-proof-case ' + (selected === i ? '' : 'pm-proof-inactive')}><DecisionDossier item={item} Source={Source} renderRecord={renderRecord} renderArtifacts={renderArtifacts} readOnly={readOnly} sr={sr} onChange={onChange} project={project} /></article>)}</> : <div className="pm-proof-empty"><h3>어떤 제품의 어떤 결정을 책임졌나요?</h3><p>기획서·사용자 조사·정책·실험 기록에서 시작하세요.</p></div>}
     {!readOnly && <details className="pm-reference-disclosure print:hidden"><summary>구성에 참고한 기업·공개 실무 자료 <ChevronDown size={14} /></summary><p>기업별 공통 합격 공식이 아닙니다. 공개 포트폴리오와 직무 전환 사례는 합격 제출본 확인 여부와 구분해 참고했습니다.</p><div>{[...PM_COMPANY_REFERENCES, ...PM_PORTFOLIO_REFERENCES].map(([company, role, focus, url]) => <a key={company} href={url} target="_blank" rel="noreferrer"><b>{company}</b><span>{role}</span><p>{focus}</p><ArrowUpRight size={13} /></a>)}</div></details>}
   </section>;
 }

@@ -1,4 +1,6 @@
 import { collectRoleSelfReports } from '../../../shared/roleSelfReport.mjs';
+import { performanceExport } from '../../../shared/rolePerformance.mjs';
+import { planningDocumentText } from '../../../shared/sourceExperience.mjs';
 
 const list = value => Array.isArray(value) ? value : [];
 const str = value => typeof value === 'string' ? value.trim() : '';
@@ -6,8 +8,9 @@ export function roleSourceText(sr, sourceText) {
   const assets = roleArtifacts(sr);
   const additions = list(sr.additionalMaterials).filter(row => row && assets.some(asset => asset.id === row.assetId) && str(row.text));
   const selfReports = collectRoleSelfReports(sr);
-  if (sourceText === undefined && !additions.length && !selfReports.length) return undefined;
-  return [sourceText || '', ...additions.map(row => `--- ${row.name} ---\n${row.text}`), ...selfReports.map(row => `--- ${row.name} ---\n${row.text}`)].filter(Boolean).join('\n\n');
+  const connected = list(sr.keyExperiences).flatMap(experience => [experience?.planningConnection, experience?.figmaConnection, ...list(experience?.sourceDocuments)]).filter(Boolean).map(document => planningDocumentText(document)).filter(Boolean);
+  if (sourceText === undefined && !connected.length && !additions.length && !selfReports.length) return undefined;
+  return [sourceText || '', ...connected, ...additions.map(row => `--- ${row.name} ---\n${row.text}`), ...selfReports.map(row => `--- ${row.name} ---\n${row.text}`)].filter(Boolean).join('\n\n');
 }
 export function safeArtifactUrl(value) {
   const url = str(value);
@@ -38,5 +41,12 @@ export function patchArtifactBinding(sr, sourceIndex, assetId, patch) {
   }) };
 }
 export function artifactExport(sr, item) {
-  return caseArtifacts(sr, item).map(file => ['산출물: ' + file.name, file.purpose && '연결한 판단: ' + file.purpose, file.caption && '설명(직접 입력): ' + file.caption, file.contribution && '내 작업 범위(직접 입력): ' + file.contribution, '원본: ' + file.url].filter(Boolean).join('\n'));
+  const experience = sr.keyExperiences?.[item.sourceIndex] || {}, summary = experience.roleSummary || {};
+  return [...caseArtifacts(sr, item).map(file => ['산출물: ' + file.name, file.purpose && '연결한 판단: ' + file.purpose, file.caption && '설명(직접 입력): ' + file.caption, file.contribution && '내 작업 범위(직접 입력): ' + file.contribution, '원본: ' + file.url].filter(Boolean).join('\n')),
+    experience.performanceData?.metrics?.length ? performanceExport(experience.performanceData) : '',
+    experience.planningConnection ? ['Notion 연결 기획서: ' + experience.planningConnection.title, '원본: ' + experience.planningConnection.url, '갱신: ' + experience.planningConnection.updatedAt, ...(experience.planningConnection.sections || []).map(section => section.text)].join('\n') : '',
+    ...[experience.figmaConnection, ...list(experience.sourceDocuments)].filter(Boolean).map(document => `경험 정리에 읽은 자료: ${document.title}\n원본: ${document.url || '가져온 파일'}\n${planningDocumentText(document)}`),
+    ...list(summary.process).map(step => `실행 단계: ${step.title} · ${step.description || ''}`), ...list(summary.decisions).map(decision => `내린 선택: ${decision.title} · ${decision.reason || ''}`),
+    ['headline', 'myRole', 'problem', 'action', 'validation', 'result', 'learning', 'figmaUrl'].map(field => summary[field] ? `한 장 정리 · ${field}: ${summary[field]}` : '').filter(Boolean).join('\n'),
+    ...(summary.manualMetrics || []).filter(row => row.name && row.actual).map(row => `직접 입력 지표 · ${row.name}: ${row.actual}${row.baseline ? ` · 기준 ${row.baseline}` : ''}${row.target ? ` · 목표 ${row.target}` : ''}`)].filter(Boolean);
 }

@@ -3,6 +3,7 @@ import { ScrollText, PenLine, Paperclip, Upload, Trash2, Plus, Loader2, External
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import ResumeExportModal from '../ResumeExportModal';
+import DocumentFileIcon from '../DocumentFileIcon';
 
 // 기업 폴더 안쪽 — 이력서 · 자소서 · 기타 서류를 관리한다. 포트폴리오는 위쪽 서류 보드에 나온다.
 // 파일은 /upload/document 로 올리고, 목록과 자소서 답변은 /company-folders 에 저장한다.
@@ -17,7 +18,7 @@ function formatSize(bytes) {
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export default forwardRef(function CompanyFolderPanel({ company, folder, portfolios, onSaved }, ref) {
+export default forwardRef(function CompanyFolderPanel({ company, folder, portfolios, coverLetters = [], onCreateCoverLetter, onOpenCoverLetter, onSaved }, ref) {
   const files = folder?.files || [];
   const [essays, setEssays] = useState(folder?.essays || []);
   const [essayState, setEssayState] = useState('idle'); // idle | saving | saved | error
@@ -67,7 +68,7 @@ export default forwardRef(function CompanyFolderPanel({ company, folder, portfol
       const { data } = await api.post('/upload/document', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
       await save({
         files: [...files, {
-          id: newId(), category, name: data.originalName || file.name, url: data.url,
+          id: newId(), category, name: file.name || data.originalName, url: data.url,
           size: data.size || file.size, uploadedAt: new Date().toISOString(),
         }],
       });
@@ -132,7 +133,7 @@ export default forwardRef(function CompanyFolderPanel({ company, folder, portfol
         title="이력서"
         count={filesOf('resume').length}
         action={(
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {portfolios.length > 0 && (
               <button type="button" onClick={() => setResumeFrom(portfolios[0])} className="text-[13px] font-semibold text-bluewood-500 hover:text-primary-600">
                 포트폴리오로 이력서 만들기
@@ -150,9 +151,10 @@ export default forwardRef(function CompanyFolderPanel({ company, folder, portfol
         id="company-essays"
         icon={PenLine}
         title="자기소개서"
-        count={essays.length + filesOf('coverLetter').length}
+        count={coverLetters.length + essays.length + filesOf('coverLetter').length}
         action={(
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {onCreateCoverLetter && <button type="button" onClick={onCreateCoverLetter} className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary-600 hover:text-primary-700"><Plus size={14} /> 공고로 자소서 쓰기</button>}
             <span className="text-[12px] text-bluewood-300" role="status">
               {essayState === 'saving' ? '저장 중…' : essayState === 'saved' ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check size={12} /> 저장됨</span> : essayState === 'error' ? <button type="button" className="text-red-600 underline" onClick={() => { setEssayState('saving'); pendingSave.current?.(); }}>저장 실패 · 다시 시도</button> : ''}
             </span>
@@ -163,8 +165,9 @@ export default forwardRef(function CompanyFolderPanel({ company, folder, portfol
           </div>
         )}
       >
+        {coverLetters.length > 0 && <ul className="mb-4 divide-y divide-surface-100 rounded-xl border border-surface-100">{coverLetters.map(letter => <li key={letter.id}><button type="button" onClick={() => onOpenCoverLetter?.(letter)} className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-surface-50"><DocumentFileIcon kind="cover" className="document-file-icon--small" /><span className="min-w-0 flex-1"><b className="block truncate text-[13px] text-bluewood-700">{letter.title || '새 자기소개서'}</b><small className="text-bluewood-400">{[letter.targetPosition, letter.status === 'final' ? '작성 완료' : '작성 중'].filter(Boolean).join(' · ')}</small></span><ExternalLink size={14} className="text-bluewood-400" /></button></li>)}</ul>}
         {essays.length === 0 && filesOf('coverLetter').length === 0 ? (
-          <Empty text="문항을 추가해 바로 쓰거나, 작성해 둔 자소서 파일을 올려 두세요." />
+          !coverLetters.length && <Empty text="공고로 자소서를 시작하거나, 문항을 직접 쓰고 기존 파일을 올려 두세요." />
         ) : (
           <div className="space-y-3">
             {essays.map((e, i) => (
@@ -243,9 +246,7 @@ function FileList({ files, onRemove, emptyText }) {
     <ul className="divide-y divide-surface-100 rounded-xl border border-surface-100">
       {files.map(f => (
         <li key={f.id} className="flex items-center gap-3 px-3.5 py-2.5">
-          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-100 text-[10px] font-bold uppercase text-bluewood-500">
-            {(f.name.split('.').pop() || 'file').slice(0, 4)}
-          </span>
+          <DocumentFileIcon file={f} className="document-file-icon--small" />
           <a href={f.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-bluewood-700 hover:text-primary-600">
             {f.name}
           </a>

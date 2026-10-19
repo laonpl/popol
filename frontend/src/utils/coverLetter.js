@@ -95,7 +95,7 @@ export function normalizeCoverLetter(value = {}) {
   return stripUndefined({
     ...item,
     title: text(item.title) || '새 자기소개서',
-    targetCompany: text(item.targetCompany) || analysis?.company || '',
+    targetCompany: typeof item.targetCompany === 'string' ? item.targetCompany : analysis?.company || '',
     targetPosition: text(item.targetPosition) || analysis?.position || '',
     sourceUrl: text(item.sourceUrl) || analysis?.sourceUrl || '',
     sourceText: text(item.sourceText) || analysis?.sourceText || '',

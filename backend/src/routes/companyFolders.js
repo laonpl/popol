@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminDb } from '../config/firebase.js';
+import { companyDocumentsOf, moveCompanyDocuments } from '../services/companyFolderDocuments.js';
 
 // 기업 폴더 — 한 기업에 제출할 이력서·자소서 파일과 자소서 문항별 답변을 모아 둔다.
 // 포트폴리오는 targetCompany로 묶어 프론트에서 합쳐 보여주므로 여기엔 저장하지 않는다.
@@ -75,13 +76,7 @@ router.put('/', authMiddleware, async (req, res, next) => {
   }
 });
 
-// 이 기업으로 묶인 내 포트폴리오 — 목록 화면과 같게 앞뒤 공백을 무시하고 비교한다.
-async function portfoliosOf(uid, company) {
-  const snap = await adminDb.collection('portfolios').where('userId', '==', uid).get();
-  return snap.docs.filter(d => String(d.data().targetCompany || '').trim() === company);
-}
-
-// POST /api/company-folders/rename — 기업명 변경: 포트폴리오의 지원 기업과 폴더(이력서·자소서)를 함께 옮긴다.
+// 기업명 변경: 저장된 포트폴리오·자기소개서와 폴더 자료를 함께 옮긴다.
 // 바꿀 이름의 폴더가 이미 있으면 파일·자소서를 합친다.
 router.post('/rename', authMiddleware, async (req, res, next) => {
   try {
@@ -93,11 +88,11 @@ router.post('/rename', authMiddleware, async (req, res, next) => {
     const col = adminDb.collection(COLLECTION);
     const fromRef = col.doc(folderId(uid, from));
     const toRef = col.doc(folderId(uid, to));
-    if (from === to) return res.json({ fromId: fromRef.id, folder: null, movedPortfolios: 0 });
+    if (from === to) return res.json({ fromId: fromRef.id, folder: null, movedPortfolios: 0, movedCoverLetters: 0 });
 
-    const [docs, fromSnap, toSnap] = await Promise.all([portfoliosOf(uid, from), fromRef.get(), toRef.get()]);
+    const [docs, fromSnap, toSnap] = await Promise.all([companyDocumentsOf(adminDb, uid, from), fromRef.get(), toRef.get()]);
     const batch = adminDb.batch();
-    docs.forEach(d => batch.update(d.ref, { targetCompany: to, updatedAt: new Date() }));
+    const moved = moveCompanyDocuments(batch, docs, to);
 
     let folder = toSnap.exists ? toSnap.data() : null;
     if (fromSnap.exists) {
@@ -116,26 +111,26 @@ router.post('/rename', authMiddleware, async (req, res, next) => {
       batch.delete(fromRef);
     }
     await batch.commit();
-    res.json({ fromId: fromRef.id, folder: folder ? { id: toRef.id, ...folder } : null, movedPortfolios: docs.length });
+    res.json({ fromId: fromRef.id, folder: folder ? { id: toRef.id, ...folder } : null, ...moved });
   } catch (error) {
     next(error);
   }
 });
 
 // POST /api/company-folders/delete — 기업 폴더 삭제: 이력서·자소서 기록을 지우고
-// 포트폴리오는 지우지 않고 '기업 미지정'으로 옮긴다.
+// 저장된 포트폴리오·자기소개서는 지우지 않고 '기업 미지정'으로 옮긴다.
 router.post('/delete', authMiddleware, async (req, res, next) => {
   try {
     const uid = req.user.uid;
     const company = str(req.body?.company, 100).trim();
     if (!company) return res.status(400).json({ error: '기업명이 필요합니다' });
     const ref = adminDb.collection(COLLECTION).doc(folderId(uid, company));
-    const docs = await portfoliosOf(uid, company);
+    const docs = await companyDocumentsOf(adminDb, uid, company);
     const batch = adminDb.batch();
-    docs.forEach(d => batch.update(d.ref, { targetCompany: '', updatedAt: new Date() }));
+    const moved = moveCompanyDocuments(batch, docs, '');
     batch.delete(ref);
     await batch.commit();
-    res.json({ fromId: ref.id, movedPortfolios: docs.length });
+    res.json({ fromId: ref.id, ...moved });
   } catch (error) {
     next(error);
   }

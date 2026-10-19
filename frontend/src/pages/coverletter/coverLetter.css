@@ -1165,16 +1165,19 @@
 }
 .cl-answer-editor {
   width: 100%;
-  min-height: 390px;
+  min-height: 440px;
   margin-top: 18px;
   background: #fcfcfa;
   border: 1px solid #e9e9e4;
   border-radius: 9px;
-  padding: 22px;
+  padding: 24px;
   resize: vertical;
-  line-height: 2;
-  font-size: 14px !important;
+  line-height: 1.9;
+  font-size: 15px !important;
   color: #393936;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .cl-answer-editor::placeholder {
   color: #b7b7b0;
@@ -1488,9 +1491,9 @@
     width: 100%;
   }
   .cl-answer-editor {
-    padding: 15px;
-    font-size: 13px !important;
-    min-height: 330px;
+    padding: 18px;
+    font-size: 14px !important;
+    min-height: 380px;
   }
   .cl-revision-input {
     flex-direction: column;

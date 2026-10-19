@@ -42,6 +42,7 @@ const MODEL_PRICING_USD_PER_MILLION = {
 };
 
 const OPERATION_LABELS = [
+  [/\/role-data\/experience-summary$/, '자료 기반 한 페이지 경험 정리'],
   [/\/experience\/analyze-git$/, 'GitHub 경험 분석'],
   [/\/experience\/analyze$/, '경험 분석'],
   [/\/experience\/extract-moments$/, '핵심 경험 추출'],

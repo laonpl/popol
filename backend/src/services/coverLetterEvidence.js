@@ -246,14 +246,17 @@ export function validateGeneratedAnswer(proposed, { experiences, additionalConte
   const evidence = (Array.isArray(proposed?.evidence) ? proposed.evidence : []).map(item => ({ experienceId: cleanText(item?.experienceId, 128), quote: cleanText(item?.quote, 1800) }))
     .filter(item => allSources.some(source => source.id === item.experienceId && quotedInSource(item.quote, source.text))).slice(0, 12);
   const referencedIds = new Set(evidence.map(item => item.experienceId));
-  const linkedExperienceIds = experiences.filter(item => referencedIds.has(item.id)).map(item => item.id);
+  // Citations are optional display metadata. Keep declared source links even
+  // when a model omits a verbatim quote, but never accept an unowned ID.
+  const declaredIds = new Set(Array.isArray(proposed?.linkedExperienceIds) ? proposed.linkedExperienceIds : []);
+  const linkedExperienceIds = experiences.filter(item => referencedIds.has(item.id) || declaredIds.has(item.id)).map(item => item.id);
   const charCount = countAnswerCharacters(answer, question.countSpaces !== false);
   const withinLimit = (!question.maxLength || charCount <= question.maxLength) && (!question.minLength || charCount >= question.minLength);
   const warnings = stringList(proposed?.warnings, 12, 500);
   if (experiences.some(item => item.source === 'saved-summary')) warnings.push('원문이 없는 경험은 저장된 정리 내용을 사용했습니다. 역할과 성과를 제출 전에 확인해주세요.');
   const problems = [];
+  problems.push(...stringList(proposed?.qualityIssues, 4, 600));
   if (!answer) problems.push('작성할 사실이 부족합니다. 경험의 역할·행동·결과를 보강해주세요.');
-  if (answer && !evidence.length) problems.push('본문의 근거가 되는 경험 원문 인용이 없습니다.');
   const focus = coverLetterQuestionFocus(question.question);
   if (answer && focus && !questionFocusWords(question.question, answer).length) {
     problems.push(`문항에서 요구하는 ${focus.label} 경험에 답하지 않았습니다. 원문 자료의 관련 경험과 깨달은 점을 중심으로 다시 작성하세요. 관련 원문이 부족하면 status="needs_context"와 구체적인 followUpQuestion을 반환하세요.`);

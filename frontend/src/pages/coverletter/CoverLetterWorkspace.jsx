@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -36,6 +36,7 @@ import JobSiteLinks from "../../components/JobSiteLinks";
 import ApplicationQuestionConnector from "./ApplicationQuestionConnector";
 import { connectionTarget, mergeApplicationQuestions } from "../../utils/applicationConnector";
 import { catalogLookupTarget, mergeCatalogEntry } from "../../utils/questionCatalog";
+import { coverLetterLibraryPath } from "../../utils/coverLetterNavigation";
 import "./coverLetter.css";
 
 const STEPS = ["공고 가져오기", "기업 분석", "경험 연결", "자소서 작성"];
@@ -356,6 +357,8 @@ function AnalysisPanel({ analysis }) {
 export default function CoverLetterWorkspace() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialCompany = searchParams.get('company') || '';
   const user = useAuthStore((s) => s.user);
   const {
     experiences,
@@ -413,7 +416,7 @@ export default function CoverLetterWorkspace() {
     setLoadError("");
     setDocumentId(id || null);
     if (!id) {
-      const blank = emptyLetter();
+      const blank = { ...emptyLetter(), targetCompany: initialCompany };
       setLetter(blank);
       setSavedSnapshot(JSON.stringify(blank));
       setLoading(false);
@@ -453,7 +456,7 @@ export default function CoverLetterWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [id, getCoverLetter]);
+  }, [id, getCoverLetter, initialCompany]);
   useEffect(() => { setShowConnector(false); }, [id, user?.uid]);
   const catalogStatus = letter.analysis?.questionCatalog?.status;
   const catalogTarget = catalogLookupTarget(letter.analysis);
@@ -967,7 +970,7 @@ export default function CoverLetterWorkspace() {
         <p>{loadError}</p>
         <button
           className="cl-button"
-          onClick={() => navigate("/app/coverletter")}
+          onClick={() => navigate(coverLetterLibraryPath(letter.targetCompany))}
         >
           목록으로
         </button>
@@ -980,7 +983,7 @@ export default function CoverLetterWorkspace() {
         <div>
           <button
             className="cl-back"
-            onClick={() => navigate("/app/coverletter")}
+            onClick={() => navigate(coverLetterLibraryPath(letter.targetCompany))}
           >
             <ArrowLeft size={15} /> 자기소개서
           </button>
