@@ -18,7 +18,15 @@ const PM_SCHEMA = `{
   "research": [ { "label": "사용자 인터뷰", "value": "15명" } ],
   "deliverables": [ { "name": "PRD", "value": "24쪽" } ],
   "role": "맡은 역할", "team": "팀 구성", "tools": ["Figma"],
-  "problem": "서비스가 푼 사용자 문제", "solution": "해결 방식",
+  "service": "서비스·프로젝트 이름", "tagline": "무엇을 하는 서비스인지 한 문장",
+  "target": "대상 사용자와 그들이 처한 상황",
+  "problem": "서비스가 푼 사용자 문제 — 3~5문장", "background": "문제를 보여 주는 배경·현황(조사 수치 포함)",
+  "situation": "어떤 상황에서 문제가 생기나 — 한 문장",
+  "painPoints": ["사용자가 실제로 겪는 불편·행동 한 줄"],
+  "stakeholder": { "who": "사용자와 기대가 부딪히는 상대(예: 인사담당자)", "needs": ["그 상대가 원하는 것 한 줄"] },
+  "conflict": "왜 기존 방법으로는 풀리지 않나 — 핵심 원인·충돌 한 문장",
+  "problemFacts": [ { "value": "40시간", "label": "그 수치가 무엇인지" } ],
+  "solution": "해결 방식 — 2~4문장", "features": [ { "name": "핵심 기능", "desc": "그 기능이 무엇을 해결하는지 한 줄" } ],
   "outcomes": [ { "label": "지표", "value": "값" } ],
   "flow": [ { "label": "단계명(8자 이내)", "desc": "사용자가 하는 일 한 줄" } ],
   "exceptions": [ { "step": "flow의 단계명", "label": "예외 상황", "handling": "정책·처리 방식" } ],
@@ -75,6 +83,20 @@ PM 고유 산출물(대표 지표·리서치 규모·기획 산출물·사용자
 아래 자료에서 그 내용을 추출해 순수 JSON만 반환하세요.
 
 ${COMMON_RULES}
+- 프로젝트 소개(service·tagline·target·problem·background·solution·features)는 처음 보는 사람이 "무엇을, 누구를 위해, 왜, 어떻게" 만들었는지 알 수 있게 쓴다.
+  짧게 쓰라는 규칙의 예외로 problem은 3~5문장, solution은 2~4문장. features에는 해결 방법을 이루는 핵심 기능 2~5개를 자료에 있는 것만.
+- problem: 서비스가 풀려는 사용자 문제를 "누가 · 어떤 상황에서 · 무엇이 불편하고 · 왜 기존 방법으로는 안 되는지" 순서로 풀어 쓴다.
+  자료에 적힌 사용자의 실제 고민·행동(예: "무엇을 보여줄지 막막하다", "공고마다 다시 편집한다")을 살려 문장으로 쓰고, 수치·통계는 problem에 넣지 말고 background로 보낸다.
+  프로젝트 진행 상황이나 내 업무 과제(예: "베타 테스트에서 품질을 검증해야 했다", "출시 여부를 결정해야 했다")는 problem·background에 쓰지 않는다 — 그건 decisions의 problem이다.
+- background: 그 사용자 문제가 실제로 크다는 것을 보여 주는 현황·조사 수치만(예: "평균 40시간 소요", "62%가 ATS에서 탈락"). problem 문장과 같은 내용을 반복하지 않는다.
+- 문제 정의는 화면에 "누가(target) / 어떤 상황에서(situation) / 사용자의 고민(painPoints) / 상대방의 시선(stakeholder) / 핵심 충돌(conflict) / 현황 수치(problemFacts)"로 나뉘어 나온다.
+  자료의 문제 정의 내용(고민·시선·충돌·수치)을 요약해 버리지 말고 빠짐없이 이 칸들에 나눠 담는다. 칸끼리 같은 내용을 반복하지 않는다.
+  target은 명사구 하나(예: "평일 저녁을 직접 차리는 맞벌이 부모"), situation은 사용자가 그 문제를 겪는 순간 한 문장(예: "퇴근 후 30분 안에 저녁을 준비해야 할 때") — 시장 동향이 아니라 사용자의 상황. 예시 문구를 그대로 쓰지 말고 자료의 말로.
+- painPoints: 자료에 적힌 사용자의 구체적인 고민·행동을 자료 문구를 살려 한 줄씩, 자료에 있는 만큼(최대 6개). 수치는 넣지 않는다.
+- stakeholder: 사용자와 기대가 부딪히는 상대(예: 심사위원·고객사·운영자)가 자료에 있으면 who와, 그 상대가 원하는 것을 needs에 자료 문구대로 한 줄씩(최대 6개). 없으면 who "" · needs [].
+- conflict: 왜 기존 방법으로는 풀리지 않는지 — 핵심 원인이나 충돌을 한 문장으로(자료에 있을 때만).
+- problemFacts: 문제를 보여 주는 현황·조사 수치를 { value: 숫자+단위, label: 무엇의 수치인지 } 로 자료에 있는 만큼(최대 8개). 같은 수치를 두 번 넣지 않는다.
+  숫자 바로 옆에 무엇의 수치인지 적혀 있는 것만 담는다. 슬라이드·PDF에서 옮겨 숫자와 설명이 떨어져 있으면(예: "41% 33% 40% … 구직자가 느끼는 시장 약화 …") 짝을 추측하지 말고 뺀다.
 - research: 인터뷰·설문·VOC·사용성 테스트·로그 분석처럼 사용자 조사 규모가 숫자로 나온 것만, 최대 4개.
 - deliverables: 직접 만든 기획 산출물(PRD·와이어프레임·정책서·테스트케이스·이벤트 명세 등) 최대 5개. 분량 숫자가 없으면 value는 "".
 - flow: 사용자가 서비스를 쓰는 핵심 흐름 3~6단계. exceptions: 그 흐름의 예외 상황과 정책 최대 4개.
@@ -132,7 +154,12 @@ function normalizePm(raw = {}) {
     research: pair(raw.research, 'label', 'value', 4),
     deliverables: pair(raw.deliverables, 'name', 'value', 5),
     role: str(raw.role, 80), team: str(raw.team, 80), tools: strList(raw.tools, 8, 30),
-    problem: str(raw.problem, 600), solution: str(raw.solution, 600),
+    service: str(raw.service, 60), tagline: str(raw.tagline, 160), target: str(raw.target, 300),
+    problem: str(raw.problem, 1200), background: str(raw.background, 600), solution: str(raw.solution, 900),
+    situation: str(raw.situation, 200), painPoints: strList(raw.painPoints, 6, 120), conflict: str(raw.conflict, 240).replace(/^핵심\s*충돌\s*[:：]\s*/, ''),
+    stakeholder: { who: str(raw.stakeholder?.who, 30), needs: strList(raw.stakeholder?.needs, 6, 120) },
+    problemFacts: arr(raw.problemFacts).map(f => ({ value: str(f?.value, 24), label: str(f?.label, 80) })).filter(f => f.value && f.label).slice(0, 8),
+    features: arr(raw.features).map(f => ({ name: str(f?.name, 40), desc: str(f?.desc, 200) })).filter(f => f.name).slice(0, 5),
     outcomes: pair(raw.outcomes, 'label', 'value', 5),
     flow: arr(raw.flow).map(s => ({ label: str(s?.label, 24), desc: str(s?.desc, 160) })).filter(s => s.label).slice(0, 6),
     exceptions: arr(raw.exceptions).map(e => ({ step: str(e?.step, 24), label: str(e?.label, 80), handling: str(e?.handling, 200) })).filter(e => e.label).slice(0, 4),
@@ -225,7 +252,7 @@ export function groundOnePage(page, sourceText) {
   };
   const out = walk(g);
   const valued = (rows) => (rows || []).filter(r => String(r.value || '').trim());
-  for (const k of ['research', 'stats', 'funnel', 'outcomes']) if (out[k]) out[k] = valued(out[k]);
+  for (const k of ['research', 'stats', 'funnel', 'outcomes', 'problemFacts']) if (out[k]) out[k] = valued(out[k]);
   if (out.contribution) out.contribution = out.contribution.filter(Boolean);
   return out;
 }

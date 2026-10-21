@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findResearchScale, findDeliverables, buildPmOnePage, buildCampaignOnePage, parseAmount, toSavedPage } from './roleOnePage.js';
+import { findResearchScale, findDeliverables, buildPmOnePage, buildCampaignOnePage, parseAmount, toSavedPage, PM_INTRO_KEYS, isLegacyPmIntro } from './roleOnePage.js';
 import { mergeCaseStudyIntoStructured } from './caseStudySync.js';
 
 test('캠페인 인터뷰와 개별 경험 편집 내용이 한 장에 이어지고 챗봇의 저장된 수정은 우선한다', () => {
@@ -159,4 +159,27 @@ test('PM 의사결정: 핵심 경험의 판단과 실행·검증 결과를 제�
   const edited = buildPmOnePage({ sr: { keyExperiences, pmOnePage: { edited: true, decisions: [{ title: keyExperiences[0].title, action: '', options: [] }] } } });
   assert.equal(edited.decisions[0].action, '');
   assert.equal(edited.decisions[0].validation, '베타 사용자 12명 설문');
+});
+
+test('PM 프로젝트 소개: 분석 전에는 서비스 설명(product)의 이름·한 줄 소개·핵심 기능으로 채운다', () => {
+  const page = buildPmOnePage({ sr: {
+    product: { name: 'FitPoly', tagline: '경험 자료를 포트폴리오로', problem: '자료가 흩어져 있다', solution: 'AI가 정리한다', features: [{ name: '자동 정리', desc: '자료를 경험 단위로' }, { desc: '이름 없는 기능' }] },
+    projectOverview: { background: '응답자 62%가 40시간 이상 쓴다' },
+  } });
+  assert.equal(page.service, 'FitPoly');
+  assert.equal(page.tagline, '경험 자료를 포트폴리오로');
+  assert.equal(page.background, ''); // 프로젝트 배경(진행 상황)은 사용자 문제의 배경이 아니다
+  assert.deepEqual(page.features, [{ name: '자동 정리', desc: '자료를 경험 단위로' }]);
+});
+
+test('PM 문제 정의: 예전 분석이 한 줄로 줄인 문제는 소개를 다시 정리하기 전까지 더 자세한 서비스 설명으로 보여 준다', () => {
+  const product = { problem: '취준생은 무엇을 보여줄지 막막하고 공고마다 포트폴리오를 다시 편집한다. 인사담당자는 짧게 핵심만 보고 싶어 한다. 이 시선 차이가 낮은 합격률로 이어진다.' };
+  const legacy = { source: 'analysis', problem: '포트폴리오 제작에 40시간 소요' };
+  assert.equal(isLegacyPmIntro({ pmOnePage: legacy }), true);
+  assert.equal(buildPmOnePage({ sr: { product, pmOnePage: legacy } }).problem, product.problem);
+  const fresh = { ...legacy, painPoints: ['막막하다'] };
+  assert.equal(isLegacyPmIntro({ pmOnePage: fresh }), false);
+  assert.equal(buildPmOnePage({ sr: { product, pmOnePage: fresh } }).problem, legacy.problem);
+  assert.equal(isLegacyPmIntro({ pmOnePage: { ...legacy, edited: true } }), false); // 직접 편집한 한 장은 건드리지 않는다
+  assert.ok(PM_INTRO_KEYS.includes('stakeholder') && !PM_INTRO_KEYS.includes('decisions'));
 });

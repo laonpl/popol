@@ -213,6 +213,15 @@ function withExperienceFields(decisions, fromExperiences, edited) {
   });
 }
 
+/** 프로젝트 소개 칸 — 예전 분석을 다시 정리할 때 이 칸들만 새 분석 결과로 바꾼다 */
+export const PM_INTRO_KEYS = ['service', 'tagline', 'target', 'situation', 'problem', 'background', 'painPoints', 'stakeholder', 'conflict', 'problemFacts', 'solution', 'features'];
+
+/** 문제 정의를 칸으로 나누기 전의 예전 분석이고 사용자가 편집하지 않은 한 장인가 */
+export function isLegacyPmIntro(sr = {}) {
+  const saved = sr.pmOnePage;
+  return !!saved && saved.source === 'analysis' && !saved.edited && saved.painPoints === undefined;
+}
+
 export function buildPmOnePage({ sr = {}, cs = {} } = {}) {
   const corpus = corpusOf({ sr, cs });
   const derived = {
@@ -223,14 +232,26 @@ export function buildPmOnePage({ sr = {}, cs = {} } = {}) {
     role: firstText(cs.meta?.role, sr.projectOverview?.role),
     team: firstText(cs.meta?.team, sr.projectOverview?.team),
     tools: toolsFrom(sr, cs),
+    // 프로젝트 소개 — 무엇을(서비스·한 줄 소개), 누구의 어떤 문제를(대상·문제·배경), 어떻게(해결·핵심 기능)
+    service: text(sr.product?.name),
+    tagline: text(sr.product?.tagline),
+    target: '',
     problem: firstText(sr.product?.problem, sr.projectOverview?.background, cs.keyExps?.[0]?.problem),
+    // projectOverview.background는 '베타 테스트를 검증해야 했다' 같은 프로젝트 진행 상황이라 사용자 문제의 배경으로 쓰지 않는다 — 분석이 채운다
+    background: '',
+    // 문제 정의 표(어떤 상황에서·무엇이 불편한가·왜 안 풀렸나)와 현황 수치 — 분석이 채운다
+    situation: '', painPoints: [], stakeholder: { who: '', needs: [] }, conflict: '', problemFacts: [],
     solution: firstText(sr.product?.solution, sr.projectOverview?.goal, cs.keyExps?.[0]?.action),
+    features: list(sr.product?.features).map(f => ({ name: text(f?.name), desc: text(f?.desc) })).filter(f => f.name).slice(0, 5),
     outcomes: outcomesFrom(sr),
     flow: flowFrom(sr),
     exceptions: [],
     decisions: list(sr.keyExperiences).map(pmDecisionFrom).filter(d => d.title || d.problem).slice(0, 4),
   };
   const page = resolve(sr.pmOnePage, derived);
+  // 예전 분석('짧게' 규칙 시절 — 문제 정의 칸 painPoints가 없음)은 문제를 한 줄로 줄여 두었다.
+  // 편집하지 않은 한 장이면 소개를 다시 정리할 때까지 더 자세한 서비스 설명(product)의 문제 문단을 보여 준다
+  if (isLegacyPmIntro(sr) && text(sr.product?.problem).length > text(page.problem).length * 2) page.problem = text(sr.product.problem);
   return { ...page, decisions: withExperienceFields(page.decisions, list(sr.keyExperiences).map(pmDecisionFrom), page.edited) };
 }
 

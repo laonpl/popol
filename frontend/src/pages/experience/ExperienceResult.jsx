@@ -47,7 +47,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import AutoText from '../../components/AutoText';
 import { PmOnePager, CampaignOnePager, collectRoleArtifacts } from '../../components/portfolio/RoleOnePage';
 import RoleEditChat from '../../components/portfolio/RoleEditChat';
-import { buildPmOnePage, buildCampaignOnePage, toSavedPage } from '../../utils/roleOnePage';
+import { buildPmOnePage, buildCampaignOnePage, toSavedPage, PM_INTRO_KEYS, isLegacyPmIntro } from '../../utils/roleOnePage';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
 const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
@@ -3093,7 +3093,8 @@ export default function ExperienceResult() {
   // auto: 아직 한 장 분석이 없는 경험을 처음 열 때 한 번 — 실패해도 알리지 않고('자료로 분석' 버튼은 그대로), 그사이 사용자가 고친 한 장은 덮지 않는다
   const roleAutoTried = useRef(false);
   const roleTouched = useRef(false);
-  const analyzeRoleOnePage = async ({ auto = false } = {}) => {
+  // introOnly: 예전 분석의 프로젝트 소개 칸만 새 분석 결과로 바꾼다(의사결정 등 나머지 칸은 그대로)
+  const analyzeRoleOnePage = async ({ auto = false, introOnly = false } = {}) => {
     const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory;
     const material = getRawMaterialText(exp) || [cs?.summary, ...(cs?.keyExps || []).flatMap(k => [k.title, k.problem, k.action, k.result, k.learning])].filter(Boolean).join('\n');
     if (!material.trim()) {
@@ -3106,11 +3107,13 @@ export default function ExperienceResult() {
       const key = jc === 'pm' ? 'pmOnePage' : 'campaignOnePage';
       if (!data?.[key]) throw new Error('empty');
       if (auto && roleTouched.current) return;
-      const page = { ...data[key], source: 'analysis' };
+      const page = introOnly
+        ? { ...exp?.structuredResult?.[key], ...Object.fromEntries(PM_INTRO_KEYS.map(k => [k, data[key][k]])) }
+        : { ...data[key], source: 'analysis' };
       // 한 장 칸만 저장 — 분석이 도는 동안 바뀐 다른 칸을 옛 값으로 덮지 않게
       if (id && id !== 'demo') await updateDoc(doc(db, 'experiences', id), { [`structuredResult.${key}`]: page, updatedAt: new Date() });
       setExp(prev => ({ ...(prev || {}), structuredResult: { ...(prev?.structuredResult || {}), [key]: page } }));
-      toast.success(jc === 'pm' ? '자료로 기획 임팩트를 정리했어요' : '자료로 캠페인 임팩트를 정리했어요');
+      toast.success(introOnly ? '자료로 프로젝트 소개를 다시 정리했어요' : jc === 'pm' ? '자료로 기획 임팩트를 정리했어요' : '자료로 캠페인 임팩트를 정리했어요');
     } catch (err) {
       if (!auto) toast.error(err?.response?.data?.error || '분석에 실패했어요. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -3120,9 +3123,12 @@ export default function ExperienceResult() {
   useEffect(() => {
     const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory;
     const key = jc === 'pm' ? 'pmOnePage' : jc === 'marketer' ? 'campaignOnePage' : '';
-    if (loading || !cs || !key || !id || id === 'demo' || roleAutoTried.current || exp?.structuredResult?.[key]) return;
+    if (loading || !cs || !key || !id || id === 'demo' || roleAutoTried.current) return;
+    // 한 장이 없으면 전체 분석, 문제 정의를 칸으로 나누기 전의 예전 PM 분석이면 소개 칸만 다시 정리 — 화면을 연 뒤 한 번만
+    const legacyIntro = key === 'pmOnePage' && isLegacyPmIntro(exp?.structuredResult);
+    if (exp?.structuredResult?.[key] && !legacyIntro) return;
     roleAutoTried.current = true;
-    analyzeRoleOnePage({ auto: true });
+    analyzeRoleOnePage({ auto: true, introOnly: legacyIntro });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, cs, exp, id]);
 

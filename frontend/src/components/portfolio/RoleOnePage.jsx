@@ -919,6 +919,122 @@ function DecisionRows({ page, onPatch }) {
   );
 }
 
+/** 문제 정의의 목록 칸 — 제목(누구의 고민·누구의 시선) + 점 목록. 편집 때는 한 줄에 하나 */
+function ProblemList({ title, items, onChange, placeholder, accent }) {
+  const editing = useEditing();
+  if (!editing && !items.length) return null;
+  return (
+    <div className="min-w-0 rounded-lg border border-surface-200 px-4 py-3.5">
+      <p className="mb-2 text-[12px] font-bold" style={{ color: accent ? ACCENT : '#314157' }}>{title}</p>
+      {editing
+        ? <AutoText dense value={items.join('\n')} onChange={(v) => onChange(v.split('\n').map(s => s.trim()).filter(Boolean))} placeholder={placeholder} className="text-[12.5px] text-bluewood-700" />
+        : <ul className="space-y-1.5">{items.map((p, i) => (
+            <li key={i} className="flex gap-2 text-[12.5px] leading-[1.6] text-bluewood-700"><span className="mt-[8px] h-1 w-1 flex-shrink-0 rounded-full" style={{ background: accent ? ACCENT : '#94a3b8' }} /><span className="min-w-0" style={WRAP}>{p}</span></li>
+          ))}</ul>}
+    </div>
+  );
+}
+
+/** 프로젝트 소개 — 무엇을(서비스 이름·한 줄 소개) → 누구의 어떤 문제(누가·상황 / 사용자의 고민 | 상대의 시선 / 핵심 충돌 / 현황 수치) → 어떻게 풀었나(해결·핵심 기능) → 목표.
+ *  문제 정의는 자료의 고민·시선·수치를 줄이지 않고 칸으로 나눠 전부 보여 준다 */
+function ProjectIntro({ page, set, onAnalyze }) {
+  const editing = useEditing();
+  const features = page.features || [];
+  const pains = page.painPoints || [];
+  const facts = page.problemFacts || [];
+  const sh = page.stakeholder || { who: '', needs: [] };
+  const needs = sh.needs || [];
+  const label = 'mb-3 text-[11.5px] font-black uppercase tracking-wide';
+  const structured = !!(t(page.situation) || pains.length || needs.length || t(page.conflict)); // 칸으로 나뉜 문제 정의
+  const showProblem = editing || structured || t(page.target) || t(page.problem) || t(page.background) || facts.length > 0;
+  const showSolution = editing || t(page.solution) || features.length > 0;
+  const who = t(page.target).split(/\s+/).pop() || '사용자'; // "포트폴리오가 어려운 취업준비생" → "취업준비생"
+  return (
+    <div className="space-y-7">
+      {(t(page.service) || t(page.tagline) || editing) && (
+        editing
+          ? <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)]"><AutoText value={page.service || ''} onChange={set('service')} placeholder="서비스·프로젝트 이름" className="text-[13px] font-bold text-bluewood-900" /><AutoText value={page.tagline || ''} onChange={set('tagline')} placeholder="무엇을 하는 서비스인지 한 문장" className="text-[13px] text-bluewood-700" /></div>
+          : <p className="text-[17px] font-extrabold leading-[1.45] text-bluewood-900" style={WRAP}>{t(page.service) && <span style={{ color: ACCENT }}>{page.service}</span>}{t(page.service) && t(page.tagline) && <span className="mx-2 font-normal text-bluewood-300">—</span>}{page.tagline}</p>
+      )}
+
+      {showProblem && (
+        <div>
+          <p className={label} style={{ color: '#314157' }}>누구의 어떤 문제</p>
+          {(t(page.target) || t(page.situation) || editing) && (
+            <dl className="mb-4 grid gap-x-8 gap-y-2 border-y border-surface-200 py-3 text-[13px] leading-[1.6] sm:grid-cols-2">
+              {(t(page.target) || editing) && <div className="flex gap-3"><dt className="w-[72px] flex-shrink-0 text-[12px] font-bold text-bluewood-400">누가</dt><dd className="min-w-0 flex-1 font-bold text-bluewood-900" style={WRAP}><Txt block value={page.target} onChange={set('target')} placeholder="대상 사용자 (명사구)" /></dd></div>}
+              {(t(page.situation) || editing) && <div className="flex gap-3"><dt className="w-[72px] flex-shrink-0 text-[12px] font-bold text-bluewood-400">어떤 상황</dt><dd className="min-w-0 flex-1 text-bluewood-800" style={WRAP}><Txt block value={page.situation} onChange={set('situation')} placeholder="사용자가 문제를 겪는 순간 한 문장" /></dd></div>}
+            </dl>
+          )}
+          {(pains.length > 0 || needs.length > 0 || editing) && (
+            <div className={`grid gap-3 ${(pains.length > 0 || editing) && (needs.length > 0 || editing) ? 'md:grid-cols-2' : ''}`}>
+              <ProblemList title={`${who}의 고민`} items={pains} onChange={set('painPoints')} placeholder="사용자의 고민 — 한 줄에 하나" />
+              {(needs.length > 0 || editing) && (
+                <div className="min-w-0">
+                  <EditOnly><AutoText value={sh.who || ''} onChange={(v) => set('stakeholder')({ ...sh, who: v })} placeholder="기대가 부딪히는 상대 (예: 인사담당자)" className="mb-1.5 text-[12px] text-bluewood-700" /></EditOnly>
+                  <ProblemList title={`${t(sh.who) || '상대'}의 시선`} items={needs} onChange={(v) => set('stakeholder')({ ...sh, needs: v })} placeholder="그 상대가 원하는 것 — 한 줄에 하나" accent />
+                </div>
+              )}
+            </div>
+          )}
+          {(t(page.conflict) || editing) && (
+            <div className="mt-4 border-l-[3px] py-0.5 pl-4" style={{ borderColor: ACCENT }}>
+              <p className="text-[11.5px] font-bold text-bluewood-400">핵심 충돌</p>
+              <Txt block value={page.conflict} onChange={set('conflict')} placeholder="기존 방법으로 풀리지 않는 원인·충돌 한 문장" className="mt-0.5 text-[15px] font-extrabold leading-[1.5] text-bluewood-900" />
+            </div>
+          )}
+          {/* 칸으로 나뉘지 않은 예전 분석은 문제 문단으로 */}
+          {(!structured || editing) && (
+            <div className="mt-4"><Para value={page.problem} onChange={set('problem')} lines={8} placeholder="문제 서술 (칸으로 나뉘지 않았을 때 보이는 문단)" /></div>
+          )}
+          {!structured && !editing && onAnalyze && (
+            <p className="mt-2 text-[11.5px] text-bluewood-400 print:hidden">‘다시 분석’을 누르면 고민 · 상대의 시선 · 핵심 충돌 · 현황 수치로 나눠 정리돼요.</p>
+          )}
+          {editing
+            ? <div className="mt-4"><LinesEditor label="문제를 보여 주는 수치" hint="'수치 | 무엇의 수치인지'" rows={facts} keys={['value', 'label']} onChange={set('problemFacts')} /></div>
+            : facts.length > 0 && (
+              <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-surface-200 pt-4 sm:grid-cols-4">
+                {facts.map((f, i) => (
+                  <div key={i} className="min-w-0">
+                    <p className="text-[20px] font-extrabold leading-tight tracking-tight text-bluewood-900" style={WRAP}>{f.value}</p>
+                    <p className="mt-1 text-[11.5px] leading-snug text-bluewood-500" style={WRAP}>{f.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          {(editing || (t(page.background) && !facts.length)) && (
+            <div className="mt-4 border-l-2 border-surface-300 pl-3"><Para value={page.background} onChange={set('background')} lines={4} placeholder="문제를 보여 주는 배경·현황 (조사 수치)" className="text-[12.5px] leading-[1.7] text-bluewood-500" /></div>
+          )}
+        </div>
+      )}
+
+      {showSolution && (
+        <div>
+          <p className={label} style={{ color: ACCENT }}>어떻게 풀었나</p>
+          <Para value={page.solution} onChange={set('solution')} lines={7} placeholder="어떤 제품 방식으로 풀었나 (2~4문장)" />
+          {editing
+            ? <div className="mt-3"><LinesEditor label="핵심 기능" hint="'기능 | 무엇을 해결하나'" rows={features} keys={['name', 'desc']} onChange={set('features')} /></div>
+            : features.length > 0 && (
+              <ul className="mt-3 grid gap-x-8 border-t border-surface-200 md:grid-cols-2">
+                {features.map((f, i) => (
+                  <li key={i} className="flex gap-3 border-b border-surface-100 py-2.5 text-[12.5px] leading-[1.6]">
+                    <span className="w-5 flex-shrink-0 font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className="min-w-0" style={WRAP}><b className="text-bluewood-900">{f.name}</b>{t(f.desc) && <span className="text-bluewood-600"> — {f.desc}</span>}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </div>
+      )}
+
+      {(t(page.goal) || editing) && (
+        <div className="flex gap-3 rounded-lg bg-surface-50 px-4 py-3 text-[13px] leading-[1.6]"><span className="flex-shrink-0 font-bold text-bluewood-500">목표</span><div className="min-w-0 flex-1"><Para value={page.goal} onChange={set('goal')} lines={2} placeholder="시작할 때 정한 목표·성공 기준" className="text-[13px] leading-[1.6] text-bluewood-800" /></div></div>
+      )}
+    </div>
+  );
+}
+
+
 export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze, analyzing, artifacts, artifactActions }) {
   const [editing, setEditing] = useState(false);
   const set = (k) => (v) => onPatch({ ...page, [k]: v });
@@ -940,12 +1056,8 @@ export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze
         <section className="min-w-0">
           <ImpactHeader title="기획 임팩트" editing={editing} setEditing={setEditing} page={page} onAnalyze={onAnalyze} analyzing={analyzing} />
           <ThinNote show={thin} onAnalyze={onAnalyze} analyzing={analyzing} what="성과와 의사결정" />
-          <Block title="프로젝트 소개" show={has(page.problem) || has(page.solution) || has(page.goal)}>
-            <div className="space-y-4">
-              {(t(page.problem) || editing) && <div><DocHead>문제 정의</DocHead><Para value={page.problem} onChange={set('problem')} placeholder="누가 어떤 상황에서 어떤 불편을 겪었나" /></div>}
-              {(t(page.goal) || editing) && <div><DocHead>목표</DocHead><Para value={page.goal} onChange={set('goal')} placeholder="시작할 때 정한 목표·성공 기준" lines={2} /></div>}
-              {(t(page.solution) || editing) && <div><DocHead>해결 방법</DocHead><Para value={page.solution} onChange={set('solution')} placeholder="어떤 제품 방식으로 풀었나" /></div>}
-            </div>
+          <Block title="프로젝트 소개" show={['service', 'tagline', 'target', 'situation', 'problem', 'background', 'conflict', 'solution', 'goal'].some(k => has(page[k])) || has(page.features) || has(page.painPoints) || has(page.stakeholder?.needs)}>
+            <ProjectIntro page={page} set={set} onAnalyze={onAnalyze} />
           </Block>
           <Block title="주요 성과" note={results.length ? `${results.length}개 지표` : ''} show={results.length > 0}>
             <ResultsBoard page={page} onPatch={onPatch} />
