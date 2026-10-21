@@ -388,13 +388,30 @@ export const SAMPLE_EXPERIENCES = {
     metric: '6.2%', metricLabel: '가입 전환율',
     context: '동아리 서비스 홍보 예산이 30만원뿐이었다.',
     action: '광고 대신 에브리타임과 인스타그램에서 시간표 인증 챌린지를 돌렸다.',
-    result: '게시물 유입에서 가입 전환율 6.2%가 나왔다.',
+    result: '게시물 유입 가입 전환율이 이전 홍보 게시물 1.8%에서 6.2%로 올랐다. 목표는 4%였다.',
     learning: '노출을 늘리는 것보다 인증할 이유를 만드는 게 효율이 높았다.',
     jobData: {
-      target: '수도권 대학생 1~2학년',
-      channels: ['인스타그램', '에브리타임'],
+      businessProblem: '홍보 예산 30만원으로 개강 3주 안에 신규 가입자를 모아야 했다.',
+      target: '개강 첫 주에 시간표를 짜는 1~2학년',
+      audienceInsight: '개강 첫 주 에브리타임에는 시간표 캡처를 올려 공강을 자랑하는 글이 하루 수십 건씩 올라왔다.',
+      channels: ['에브리타임', '인스타그램'],
       creative: '시간표 인증 챌린지',
       kpis: [{ name: '가입 전환', value: '6.2%' }, { name: '참여 게시물', value: '84건' }],
+      marketerWorkProducts: {
+        channels: [
+          { channel: '에브리타임', purpose: '챌린지 참여', rationale: '타깃이 이미 시간표 캡처를 서로 보여주는 곳이라 올릴 이유만 주면 됐다', stage: 'executed' },
+          { channel: '인스타그램', purpose: '참여작 재공유', rationale: '참여 게시물을 모아 보여주고 친구 태그로 퍼지게 했다', stage: 'executed' },
+        ],
+        creatives: [
+          { variant: '챌린지 공지', format: '카드뉴스', hook: '내 시간표, 공강 몇 개야?', cta: '시간표 캡처 올리고 경품 받기', rationale: '혜택보다 자랑하고 싶은 마음을 먼저 건드리는 질문으로 시작했다', stage: 'executed' },
+        ],
+      },
+      marketerMetrics: [
+        { name: '가입 전환율', kind: 'outcome', stage: 'conversion', baseline: '1.8%', target: '4%', actual: '6.2%', period: '개강 3주', method: '유입 링크 클릭 대비 가입' },
+        { name: '챌린지 참여 게시물', kind: 'outcome', stage: 'reach', actual: '84건', period: '개강 3주' },
+      ],
+      attributionLimit: '전환율은 자체 집계라 유입 경로가 겹치는 부분을 걸러내지 못했다.',
+      nextExperiment: '채널별 링크를 분리해 에브리타임과 인스타그램 유입을 따로 보겠다.',
     },
     ...record({
       trace: {

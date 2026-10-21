@@ -26,6 +26,14 @@ test('actuals require the exact matched quote, not a number from another file or
   const sr = groundMarketerEvidence(wrap({ marketerMetrics: [{ name: '전환율', actual: '99%', quote: report }] }), `--- report.pdf ---\n${report}\n--- other.pdf ---\n실제 전환율 99%로 관찰했다.`);
   assert.equal(sr.keyExperiences[0].jobData.marketerMetrics[0].actual, '');
 });
+test('channel objects keep jobData.channels as names and move the reason into work products', () => {
+  const source = '기숙사생은 에브리타임에서 정보를 얻는다는 응답이 많아 에브리타임을 1순위 채널로 정했다.';
+  const sr = groundMarketerEvidence(wrap({ channels: [{ channel: '에브리타임', purpose: '참여 유도', rationale: '기숙사생의 정보 습득 1순위 채널', quote: source }, '인스타그램'] }), source);
+  const jd = sr.keyExperiences[0].jobData;
+  assert.deepEqual(jd.channels, ['에브리타임', '인스타그램']);
+  assert.equal(jd.marketerWorkProducts.channels[0].rationale, '기숙사생의 정보 습득 1순위 채널');
+  assert.equal(jd.marketerWorkProducts.channels[0].basis, 'self_report');
+});
 test('partial or ambiguous quotes cannot certify execution, ownership or results', () => {
   const quote = `${report} 이 문장은 원문에 없다.`;
   const sr = grounded({ marketerEvidence: [{ dimension: 'creative', claim: '성과 주장', quote, stage: 'executed', ownership: '단독 제작' }] });

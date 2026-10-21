@@ -63,6 +63,12 @@ function stripJsonFence(text) {
   return match ? match[1] : text;
 }
 
+// GLM·Qwen 은 한국어 문장 중간에 중국어 단어를 섞을 때가 있다(2026-10-21 실측: "2.5배以上으로"). 자주 나오는 단어만 한국어로 바꾼다.
+const HAN_TO_KO = { 以上: '이상', 以下: '이하', 以内: '이내', 左右: '정도', 约: '약', 等: '등' };
+function fixHanLeaks(text) {
+  return /[一-鿿]/.test(text) ? text.replace(/以上|以下|以内|左右|约|等/g, word => HAN_TO_KO[word]) : text;
+}
+
 // ── 모델별 동시 실행 제한 (한 모델의 호출 한도를 혼자 다 쓰지 않도록) ──
 // GLM-5·Qwen3 235B 모두 동시 30건에서 429 없이 처리됐다(2026-10-19 실측) → 여유를 두고 20.
 const MAX_PER_MODEL = Number(process.env.BEDROCK_MAX_PER_MODEL || 20);
@@ -164,5 +170,5 @@ export async function callBedrock({ modelId, contents, config = null, timeoutMs 
   if (!text.trim()) throw Object.assign(new Error(`[Bedrock] ${modelId} 응답에 텍스트가 없습니다.`), { status: 502, model: modelId });
   if (payload.stopReason === 'max_tokens') console.warn(`[Bedrock] ${modelId} 출력이 maxTokens(${inferenceConfig.maxTokens})에서 잘렸습니다.`);
   if (jsonMode) text = stripJsonFence(text);
-  return text;
+  return fixHanLeaks(text);
 }

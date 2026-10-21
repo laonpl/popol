@@ -2,6 +2,7 @@ import { MARKETER_WORK_PRODUCTS } from './marketerWorkProducts.js';
 import { artifactExport } from './roleArtifacts.js';
 import { marketingCaseSections } from './marketerCaseStudy.js';
 import { validRoleSelfReport } from '../../../shared/roleSelfReport.mjs';
+import { quoteInSource } from '../../../shared/quoteMatch.mjs';
 export const MARKETER_DIMENSIONS = [
   { key: 'conversion', label: '사업 · 브랜드 목표' }, { key: 'targeting', label: '고객 선택 근거' },
   { key: 'creative', label: '표현과 채널 선택' }, { key: 'activation', label: '캠페인 집행과 운영' },
@@ -19,7 +20,7 @@ function currentBasis(row, sourceText) {
   if (validRoleSelfReport(row)) return 'self_report';
   if (row.manuallyAdded && row.selfReportVersion) return 'unlocated';
   if (!['source_excerpt', 'self_report'].includes(row.basis) || norm(row.quote).length < 12) return 'unlocated';
-  if (sourceText !== undefined && !norm(sourceText).includes(norm(row.quote))) return 'unlocated';
+  if (sourceText !== undefined && !quoteInSource(sourceText, row.quote)) return 'unlocated';
   return row.basis;
 }
 export function buildMarketerEvidenceModel(sr = {}, { sourceText } = {}) {

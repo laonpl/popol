@@ -89,7 +89,7 @@ export default function RoleEditChat({ jobCategory, page, material, onApply, ope
 
   return (
     // 좁은 화면: 오른쪽 아래에 떠 있는 창 / xl 이상: 상단 바 아래부터 화면 끝까지 오른쪽에 붙은 칸 (본문은 결과 화면이 비켜 둔다)
-    <div className="fixed bottom-3 right-3 z-40 flex h-[min(600px,calc(100vh-96px))] w-[min(380px,calc(100vw-24px))] flex-col print:hidden sm:bottom-6 sm:right-6 xl:top-[164px] xl:h-auto xl:w-[340px]"
+    <div role="complementary" aria-label="핵심 경험 편집 챗봇" className="role-edit-chat-panel fixed bottom-3 right-3 z-40 flex h-[min(600px,calc(100vh-96px))] w-[min(380px,calc(100vw-24px))] flex-col print:hidden sm:bottom-6 sm:right-6 xl:top-[164px] xl:h-auto xl:w-[340px]"
       style={PANEL_STYLE}>
       <div className="flex items-center gap-2.5 border-b-2 border-[#111] px-3.5 py-2.5">
         <FileCat variant={sending ? 'thinking' : 'happy'} file="document" className="h-11 w-11 flex-shrink-0" />
@@ -132,9 +132,9 @@ export default function RoleEditChat({ jobCategory, page, material, onApply, ope
       </div>
 
       <div className="border-t border-surface-200 px-3 pb-3 pt-2.5">
-        {applied && <p className="mb-1.5 text-[11px] text-bluewood-400">고친 내용은 상단 ‘저장’을 눌러야 저장돼요.</p>}
+        {applied && <p className="mb-1.5 text-[11px] text-bluewood-400">고친 내용은 상단 ‘변경사항 저장’을 눌러야 저장돼요.</p>}
         <div className="flex items-end gap-2 rounded-xl border border-surface-300 px-2.5 py-1.5 focus-within:border-[#111]">
-          <textarea ref={inputRef} value={input} rows={2} onChange={(e) => setInput(e.target.value)}
+          <textarea ref={inputRef} aria-label="핵심 경험 수정 요청" value={input} rows={2} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
             placeholder="예: 문제 정의를 더 짧게 줄여줘"
             className="max-h-28 min-w-0 flex-1 resize-none bg-transparent py-1 text-[13px] leading-[1.5] text-bluewood-900 outline-none placeholder:text-bluewood-300"

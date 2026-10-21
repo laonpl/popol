@@ -58,19 +58,48 @@
 .sd-problem-body { position: absolute; left: 96px; right: 96px; top: 330px; bottom: 96px; display: flex; gap: 26px; }
 .sd-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .sd-chart-box { flex: 1; min-height: 0; position: relative; display: flex; align-items: flex-end; }
-.sd-voices { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 18px; }
-.sd-voice { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 24px 28px 20px; border-radius: 26px; background: var(--sd-card-2); }
-.sd-voice::after { content: ''; position: absolute; left: 22px; bottom: -11px; width: 24px; height: 24px; background: var(--sd-card-2); transform: rotate(45deg); border-radius: 0 0 6px 0; }
-.sd-voice-text { font-size: 18px; line-height: 1.6; color: #d9dce1; font-weight: 500; }
-.sd-voice-quote { font-size: 21px; font-weight: 700; color: var(--sd-accent); line-height: 1.5; }
-.sd-voice-who { align-self: flex-end; margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--sd-faint); }
-.sd-span-2 { grid-column: span 2; }
+/* 근거 목록 — 꼬리표 + 문장 한 줄씩. 칸 높이를 나눠 채우고 글자는 세로 가운데 */
+.sd-evlist { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.sd-ev { flex: 1; min-height: 0; display: flex; align-items: center; gap: 24px; padding: 20px 32px; border-radius: 22px; background: var(--sd-card-2); }
+.sd-ev-tag { flex: none; min-width: 92px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--sd-accent); color: var(--sd-accent); font-size: 15px; font-weight: 800; line-height: 1.5; text-align: center; white-space: nowrap; }
+.sd-ev-text { font-size: 20px; line-height: 1.6; font-weight: 600; color: #e4e6ea; }
+.sd-evlist-few .sd-ev-text { font-size: 23px; }
+.sd-ev-quote { color: var(--sd-accent); font-weight: 700; }
 .sd-statement { flex: 1; display: flex; align-items: center; padding: 48px 52px; }
 .sd-statement p { font-size: 28px; font-weight: 700; line-height: 1.6; color: #e4e6ea; letter-spacing: -0.02em; }
+.sd-statement-xl { padding: 56px 72px; }
+.sd-statement-xl p { font-size: 46px; line-height: 1.5; letter-spacing: -0.03em; }
+.sd-statement-lg { padding: 52px 64px; }
+.sd-statement-lg p { font-size: 38px; line-height: 1.55; letter-spacing: -0.025em; }
 .sd-hypo { position: relative; flex: none; width: 300px; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 34px; border-radius: 30px; background: var(--sd-accent); color: var(--sd-ink); }
 .sd-hypo::before { content: ''; position: absolute; left: -14px; top: 50%; width: 30px; height: 30px; margin-top: -15px; background: var(--sd-accent); transform: rotate(45deg); border-radius: 4px; }
 .sd-hypo-label { font-size: 24px; font-weight: 800; }
 .sd-hypo-text { font-size: 30px; font-weight: 800; line-height: 1.45; letter-spacing: -0.02em; }
+
+/* ── 마케팅 전략: 누구에게 › 어디서 › 무엇을 ── */
+.sd-strategy { position: absolute; left: 96px; right: 96px; top: 270px; bottom: 96px; display: flex; }
+.sd-strategy > .sd-col { flex: 1; }
+.sd-strategy > .sd-col:nth-child(3) { flex: 1.15; }
+.sd-strategy > .sd-chev { flex: none; width: 56px; }
+.sd-st-card { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 40px 38px; }
+.sd-st-name { font-size: 32px; font-weight: 800; line-height: 1.4; letter-spacing: -0.02em; color: var(--sd-text); }
+.sd-st-why { font-size: 18.5px; line-height: 1.65; color: var(--sd-sub); }
+.sd-st-channels { gap: 0; padding: 14px 38px; }
+.sd-st-channel { padding: 20px 0; border-top: 1px solid var(--sd-line); }
+.sd-st-channel:first-child { border-top: 0; }
+.sd-st-channel-name { font-size: 24px; font-weight: 800; line-height: 1.4; color: var(--sd-text); }
+.sd-st-channel .sd-st-why { margin-top: 6px; font-size: 17px; }
+.sd-st-message { border: 1.5px solid var(--sd-accent); background: rgba(255, 255, 255, 0.03); }
+.sd-st-copy { font-size: 32px; font-weight: 800; line-height: 1.45; letter-spacing: -0.02em; color: var(--sd-accent); }
+
+/* ── 마무리: 핵심 한 문장 크게 + 아래 보조 카드 ── */
+.sd-closing { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 96px; display: flex; flex-direction: column; gap: 22px; }
+.sd-close-key { flex: 1.3; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 40px 52px; border: 1.5px solid var(--sd-accent); }
+.sd-close-key:only-child { flex: none; min-height: 300px; margin: auto 0; }
+.sd-close-key-text { font-size: 36px; font-weight: 800; line-height: 1.5; letter-spacing: -0.02em; color: var(--sd-text); }
+.sd-close-rest { flex: 1; min-height: 0; display: flex; gap: 22px; }
+.sd-close-card { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px 40px; }
+.sd-close-text { font-size: 21px; font-weight: 600; line-height: 1.6; color: #d9dce1; }
 
 /* ── 배경 리서치 ── */
 .sd-center { text-align: center; }
@@ -103,9 +132,10 @@
 .sd-step-desc { margin-top: 6px; font-size: 16.5px; line-height: 1.55; color: var(--sd-sub); }
 
 /* ── 과정: 흐름 ── */
-.sd-flow { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 96px; display: flex; gap: 18px; }
+.sd-flow { position: absolute; left: 96px; right: 96px; top: 290px; bottom: 96px; display: flex; align-items: center; }
+.sd-flow-row { width: 100%; display: flex; gap: 18px; }
 .sd-flow-item { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.sd-flow-card { flex: 1; margin-top: 26px; padding: 30px 28px; border-radius: 22px; background: var(--sd-card); border: 1.5px solid transparent; }
+.sd-flow-card { flex: 1; min-height: 240px; margin-top: 26px; padding: 30px 28px; border-radius: 22px; background: var(--sd-card); border: 1.5px solid transparent; }
 .sd-flow-item:last-child .sd-flow-card { border-color: var(--sd-accent); }
 .sd-flow-dot { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: var(--sd-card-2); border: 2px solid var(--sd-accent); font-size: 21px; font-weight: 800; color: var(--sd-accent); }
 .sd-flow-line { position: absolute; left: 64px; right: -18px; top: 31px; height: 2px; background: rgba(255, 255, 255, 0.14); }
@@ -148,6 +178,25 @@
 .sd-note { flex: 1; display: flex; flex-direction: column; min-height: 240px; padding: 36px 34px; }
 .sd-note-label { font-size: 17px; font-weight: 800; color: var(--sd-accent); }
 .sd-note-text { margin-top: 16px; font-size: 21px; line-height: 1.65; color: #d9dce1; }
+.sd-note-solo { justify-content: center; padding: 40px 44px; }
+.sd-note-lg .sd-note-text { font-size: 27px; font-weight: 700; line-height: 1.55; color: var(--sd-text); }
+.sd-note-xl .sd-note-text { font-size: 33px; font-weight: 800; line-height: 1.5; letter-spacing: -0.02em; color: var(--sd-text); }
+/* 그래프 카드 대시보드 */
+.sd-dash { flex: 1; display: flex; gap: 24px; }
+.sd-dash > * { flex: 1; min-width: 0; }
+.sd-ccard { display: flex; flex-direction: column; align-items: center; padding: 30px 32px 26px; }
+.sd-ccard-label { font-size: 22px; font-weight: 800; line-height: 1.4; text-align: center; color: var(--sd-text); }
+.sd-ccard-chart { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+.sd-ccard-caption { margin-top: 10px; font-size: 18px; font-weight: 700; line-height: 1.45; text-align: center; color: var(--sd-accent); }
+/* 실행 규모 숫자 */
+.sd-stats { position: absolute; left: 96px; right: 96px; bottom: 96px; height: 116px; display: flex; gap: 20px; }
+.sd-pyramid-wrap .sd-stats { position: static; }
+.sd-stats .sd-stat { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 14px 28px; }
+.sd-stat-label { font-size: 16px; font-weight: 700; line-height: 1.4; color: var(--sd-sub); }
+.sd-stats-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 20px; }
+.sd-stats-grid .sd-stat { display: flex; flex-direction: column; justify-content: center; padding: 24px 34px; }
+.sd-scale .sd-statement p { font-size: 24px; }
+.sd-scale { position: absolute; left: 96px; right: 96px; top: 270px; bottom: 96px; display: flex; gap: 28px; }
 .sd-learning { position: absolute; left: 96px; right: 96px; bottom: 96px; height: 92px; display: flex; align-items: center; gap: 26px; padding: 0 40px; border-radius: 28px; border: 1.5px solid var(--sd-accent); background: rgba(255, 255, 255, 0.02); }
 .sd-learning b { flex: none; font-size: 19px; font-weight: 800; color: var(--sd-accent); }
 .sd-learning span { font-size: 23px; font-weight: 700; color: var(--sd-text); line-height: 1.4; }

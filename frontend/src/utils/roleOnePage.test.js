@@ -1,6 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { findResearchScale, findDeliverables, buildPmOnePage, buildCampaignOnePage, parseAmount, toSavedPage } from './roleOnePage.js';
+import { mergeCaseStudyIntoStructured } from './caseStudySync.js';
+
+test('캠페인 인터뷰와 개별 경험 편집 내용이 한 장에 이어지고 챗봇의 저장된 수정은 우선한다', () => {
+  const sr = { keyExperiences: [{ title: '캠페인', action: '기존 실행', roleSummary: {
+    audience: '야간 학습 공간을 찾는 대학생', channel: '학교 커뮤니티에서 장소 정보를 찾기 때문에 선택',
+    message: '늦은 시간에도 가까운 학습 공간', action: '커뮤니티별 소재를 다르게 구성', learning: '고객 맥락부터 확인',
+  } }] };
+  const page = buildCampaignOnePage({ sr });
+  assert.equal(page.structure.target, sr.keyExperiences[0].roleSummary.audience);
+  assert.equal(page.structure.message, sr.keyExperiences[0].roleSummary.message);
+  assert.equal(page.strategy, sr.keyExperiences[0].roleSummary.channel);
+  assert.equal(page.executions[0].action, sr.keyExperiences[0].roleSummary.action);
+  const edited = toSavedPage({ ...page, summary: '챗봇이 정리한 요약', structure: { ...page.structure, message: '편집한 메시지' } });
+  const restored = buildCampaignOnePage({ sr: { ...sr, campaignOnePage: edited } });
+  assert.equal(restored.summary, '챗봇이 정리한 요약');
+  assert.equal(restored.structure.message, '편집한 메시지');
+});
+
+test('공통 저장이 챗봇 한 장·개별 경험 편집·산출물·요약 슬라이드를 함께 보존한다', () => {
+  const sr = {
+    jobCategory: 'pm', pmOnePage: { summary: '챗봇 수정', decisions: [], edited: true },
+    campaignOnePage: { summary: '캠페인 수정', edited: true },
+    keyExperiences: [{ id: 'case-1', roleSummary: { action: '직접 편집한 실행' }, jobData: { pmWorkProducts: { problems: [] } } }],
+    deliverables: [{ id: 'asset-1', url: 'https://example.com/source.pdf' }],
+    additionalMaterials: [{ assetId: 'asset-1', text: '자료 본문' }],
+    summaryDeck: { title: '사용자가 편집한 슬라이드' },
+  };
+  const saved = mergeCaseStudyIntoStructured(sr, { title: '경험', keyExps: [{ id: 'case-1', title: '수정한 제목' }] });
+  for (const key of ['pmOnePage', 'campaignOnePage', 'deliverables', 'additionalMaterials', 'summaryDeck']) assert.deepEqual(saved[key], sr[key]);
+  assert.deepEqual(saved.keyExperiences[0].roleSummary, sr.keyExperiences[0].roleSummary);
+  assert.deepEqual(saved.keyExperiences[0].jobData, sr.keyExperiences[0].jobData);
+  assert.equal(saved.keyExperiences[0].title, '수정한 제목');
+});
 
 test('리서치 규모: 문장 속 다른 숫자를 조사 규모로 읽지 않는다', () => {
   const found = findResearchScale('1인 가구 15명 인터뷰에서 11명이 포기했습니다. 기존 서비스 리뷰 240건, 설문 126명. 테스트 사용자 48명 기준');

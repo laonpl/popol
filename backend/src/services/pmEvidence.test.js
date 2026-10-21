@@ -36,6 +36,27 @@ test('a planned observation remains a plan and has no actual value', () => {
   assert.equal(jd.pmMetrics[0].actual, '');
   assert.equal(jd.pmMetrics[0].target, '60%');
 });
+test('ordinary result sentences keep the observed value but never the goal or starting value', () => {
+  const q = '시험기간 2주 동안 하루 평균 방문 고객 12명 → 31명. 목표는 하루 방문 25명이었다.';
+  const raw = { 자료: `--- report.pdf ---\n${q}` };
+  const value = actual => run({ pmMetrics: [metric({ quote: q, actual, baseline: '12명', target: '25명' })] }, raw).pmMetrics[0];
+  assert.equal(value('31명').actual, '31명');
+  assert.equal(value('12명').actual, '');
+  assert.equal(value('25명').actual, '');
+  assert.equal(value('31명').target, '25명');
+  assert.equal(run({ pmEvidence: [record({ quote: q })] }, raw).pmEvidence[0].stage, 'observed');
+  const change = '기존 12명에서 31명으로 늘었다.';
+  assert.equal(run({ pmMetrics: [metric({ quote: change, actual: '31명' })] }, change).pmMetrics[0].actual, '31명');
+  const goal = '목표: 가입 전환율 1.2% → 2%로 올리는 실험을 준비했다.';
+  assert.equal(run({ pmMetrics: [metric({ quote: goal, actual: '2%' })] }, goal).pmMetrics[0].actual, '');
+  const views = '에브리타임 게시글 조회 3,400회.';
+  assert.equal(run({ pmMetrics: [metric({ quote: views, actual: '3400' })] }, views).pmMetrics[0].actual, '3400');
+});
+test('quotes stitched from whole source sentences are located; an added sentence is not', () => {
+  const raw = { 자료: '--- report.pdf ---\n가입 화면을 두 단계로 줄였다. 다른 일도 했다.\n(전환율 38% → 51%).' };
+  assert.equal(run({ pmEvidence: [record({ quote: '가입 화면을 두 단계로 줄였다. 전환율 38% → 51%.' })] }, raw).pmEvidence[0].basis, 'source_excerpt');
+  assert.equal(run({ pmEvidence: [record({ quote: '가입 화면을 두 단계로 줄였다. 매출이 두 배가 되었다.' })] }, raw).pmEvidence[0].basis, 'unlocated');
+});
 test('a number cannot be a substring of another number', () => {
   for (const number of ['100', '0.10', '10,000', '10.5', '-10', '−10']) {
     const q = `실제 전환율 측정값: ${number}이며 보고서에 기록했다.`;

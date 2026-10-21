@@ -173,6 +173,7 @@ function flowFrom(sr) {
 
 function pmDecisionFrom(k = {}) {
   const jd = k.jobData || {};
+  const summary = k.roleSummary || {};
   const chosen = text(jd.decision);
   const rejected = splitItems(jd.alternatives).filter(a => a !== chosen);
   const evidence = list(jd.pmEvidence).find(e => e?.dimension === 'discovery' && text(e?.claim));
@@ -180,7 +181,7 @@ function pmDecisionFrom(k = {}) {
     title: isPlaceholderTitle(k.title) ? '' : text(k.title),
     step: '', // 화면이 결정 글에 나온 플로우 단계명으로 읽는다
     tags: list(k.keywords).map(text).filter(Boolean).slice(0, 3),
-    problem: firstText(k.context, k.situation, jd.problemSignal),
+    problem: firstText(summary.problem, k.context, k.situation, jd.problemSignal),
     evidence: firstText(evidence?.quote, evidence?.claim, jd.problemSignal !== firstText(k.context, k.situation) ? jd.problemSignal : ''),
     options: [
       ...(chosen ? [{ label: chosen, chosen: true, reason: text(jd.hypothesis) }] : []),
@@ -189,8 +190,8 @@ function pmDecisionFrom(k = {}) {
     result: { label: firstText(k.metricLabel), before: text(k.beforeMetric), after: firstText(k.afterMetric, k.metric) },
     spec: { story: '', criteria: splitItems(jd.successCriteria).slice(0, 4), policies: [] },
     issue: { signal: text(jd.obstacle), cause: '', fix: text(jd.resolution) },
-    learning: text(k.learning),
-    action: text(k.action),
+    learning: firstText(summary.learning, k.learning),
+    action: firstText(summary.action, k.action),
   };
 }
 
@@ -228,16 +229,17 @@ function findCampaignStats(corpus) {
 
 function marketerExecutionFrom(k = {}) {
   const jd = k.jobData || {};
+  const summary = k.roleSummary || {};
   return {
     title: isPlaceholderTitle(k.title) ? '' : text(k.title),
     stage: '', // 화면이 결과 지표 이름으로 퍼널 단계를 읽는다
     tags: list(k.keywords).map(text).filter(Boolean).slice(0, 3),
     insight: firstText(jd.audienceInsight, k.context, k.situation),
-    action: firstText(k.action, jd.creative),
+    action: firstText(summary.action, k.action, jd.creative),
     result: { label: firstText(k.metricLabel), before: text(k.beforeMetric), after: firstText(k.afterMetric, k.metric) },
     creatives: [],
     issue: { signal: '', diagnosis: '', fix: '' },
-    learning: firstText(k.learning, jd.nextExperiment),
+    learning: firstText(summary.learning, k.learning, jd.nextExperiment),
   };
 }
 
@@ -246,6 +248,7 @@ export function buildCampaignOnePage({ sr = {}, cs = {} } = {}) {
   const kit = sr.marketerKit || {};
   const funnelKit = kit.funnel || {};
   const jd = list(sr.keyExperiences).map(k => k?.jobData || {});
+  const summaries = list(sr.keyExperiences).map(k => k?.roleSummary || {});
   const kitKpis = list(kit.kpis).map(k => ({ label: text(k?.name), value: text(k?.value) }));
   const mix = list(sr.portfolioVisuals?.mix);
   const mixTotal = mix.reduce((sum, m) => sum + (parseAmount(m?.value) || 0), 0);
@@ -263,13 +266,13 @@ export function buildCampaignOnePage({ sr = {}, cs = {} } = {}) {
     role: firstText(cs.meta?.role, sr.projectOverview?.role),
     tools: toolsFrom(sr, cs),
     // 마케터 과제·성과는 캠페인 기준 — 서비스 소개(product)의 문제·성과는 캠페인 것이 아니라 쓰지 않는다
-    problem: firstText(funnelKit.problem, jd.map(d => d.businessProblem).find(text), cs.keyExps?.[0]?.problem),
-    strategy: firstText(funnelKit.strategy, kit.positioning),
+    problem: firstText(...summaries.map(s => s.problem), funnelKit.problem, jd.map(d => d.businessProblem).find(text), cs.keyExps?.[0]?.problem),
+    strategy: firstText(...summaries.map(s => s.channel), funnelKit.strategy, kit.positioning),
     outcomes: outcomesFrom(sr, kitKpis, false),
     structure: {
-      target: firstText(funnelKit.target, jd.map(d => d.target).find(text)),
+      target: firstText(...summaries.map(s => s.audience), funnelKit.target, jd.map(d => d.target).find(text)),
       insight: firstText(jd.map(d => d.audienceInsight).find(text), funnelKit.insight),
-      message: firstText(jd.map(d => d.creative).find(text)),
+      message: firstText(...summaries.map(s => s.message), jd.map(d => d.creative).find(text)),
       channels: channelNames.length ? channelNames.slice(0, 5) : mix.map(m => firstText(m?.label, m?.name)).filter(Boolean).slice(0, 5),
       conversion: firstText(funnelKit.goal),
     },

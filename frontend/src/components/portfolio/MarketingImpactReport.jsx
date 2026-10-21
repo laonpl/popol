@@ -1,4 +1,4 @@
-import { ArrowRight, Megaphone, Target, RefreshCw } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { MARKETER_STAGE_LABELS, METRIC_KINDS } from '../../utils/marketerEvidence';
 import { roleReportCounts } from '../../utils/roleImpactReport';
 import { Source } from './MarketerWorkProductBlocks';
@@ -19,7 +19,7 @@ export default function MarketingImpactReport({ item, sr, onChange, readOnly, no
     || item.metrics.find(row => row.actual && row.kind === 'outcome') || item.metrics.find(row => row.actual);
   const chapter = (key, number, title, subtitle, groups) => ({ id: `${prefix}-${key}`, number, title, subtitle, groups, sr, item, role: 'marketer', onChange: readOnly ? null : onChange });
   return <div className="mir-report visual-report" aria-label="캠페인 실행과 성과 리포트">
-    <header className="mir-hero"><div><span>CAMPAIGN / GROWTH CANVAS</span><h2>{item.title}</h2><p>{positioning?.promise || records(['conversion'])[0]?.claim || '타깃 · 소재 · 접점 · 반응을 연결한 기록'}</p></div><div className="mir-impact"><Target size={24} /><small>{primary ? METRIC_KINDS[primary.kind] : '캠페인 경험'}</small><strong>{primary?.actual || `${w.creatives.length}개 소재 기록`}</strong><b>{primary?.name || '직접 만든 메시지와 실행'}</b>{primary && <span>{[primary.channel, primary.period].filter(Boolean).join(' · ')}</span>}</div></header>
+    <header className="mir-hero"><div><span>CAMPAIGN / GROWTH CANVAS</span><h2>{item.title}</h2><p>{positioning?.promise || records(['conversion'])[0]?.claim || '타깃 · 소재 · 접점 · 반응을 연결한 기록'}</p></div><div className="mir-impact"><small>{primary ? METRIC_KINDS[primary.kind] : '캠페인 경험'}</small><strong>{primary?.actual || `${w.creatives.length}개 소재 기록`}</strong><b>{primary?.name || '직접 만든 메시지와 실행'}</b>{primary && <span>{[primary.channel, primary.period].filter(Boolean).join(' · ')}</span>}</div></header>
     <ReportStats rows={roleReportCounts(item, 'marketer')} />
     <ReportJump entries={[['strategy', '캠페인 지도'], ['creative', '소재 쇼케이스'], ['activation', '채널 · CRM'], ['measurement', '퍼널 · 임팩트'], ['learning', '실험 · 개선']].map(([key, label]) => [`${prefix}-${key}`, label])} />
 
@@ -42,8 +42,8 @@ export default function MarketingImpactReport({ item, sr, onChange, readOnly, no
 
     <ReportChapter {...chapter('activation', '03', '채널 운영과 고객의 다음 접점', '콘텐츠의 확장과 CRM의 진입 → 메시지 → 종료 조건을 읽습니다.', ['channels', 'contentSystem', 'crm', 'operations'])}>
       <div className="mir-lifecycle">
-        {w.contentSystem.length > 0 && <div className="mir-editorial"><header><Megaphone size={17} /><h4>콘텐츠 발행 · 배포 · 확장</h4></header>{w.contentSystem.map((row, i) => <article key={i}><h5>{row.pillar}</h5><p>{row.intent}</p><div className="mir-content-flow"><span>{row.format || '형식 미기록'}</span><ArrowRight size={17} /><span>{row.distribution || '배포 미기록'}</span><ArrowRight size={17} /><span>{row.reuse || '확장 미기록'}</span></div>{row.cadence && <p>발행 주기 · {row.cadence}</p>}<Source row={row} /></article>)}</div>}
-        {w.crm.length > 0 && <div className="mir-crm"><header><RefreshCw size={17} /><h4>CRM 여정과 고객 보호</h4></header>{w.crm.map((row, i) => <article key={i}><small>{MARKETER_STAGE_LABELS[row.stage]}</small><h5>{row.segment}</h5><ol><li><small>ENTER · 진입</small><p>{row.trigger || '조건 미기록'}</p></li><li><small>SEND · 메시지</small><p>{[row.timing, row.message].filter(Boolean).join(' · ') || '메시지 미기록'}</p></li><li><small>EXIT · 종료</small><p>{row.exit || '조건 미기록'}</p></li></ol>{row.guardrail && <p className="ir-limit">고객 보호 · {row.guardrail}</p>}<Source row={row} /></article>)}</div>}
+        {w.contentSystem.length > 0 && <div className="mir-editorial"><header><h4>콘텐츠 발행 · 배포 · 확장</h4></header>{w.contentSystem.map((row, i) => <article key={i}><h5>{row.pillar}</h5><p>{row.intent}</p><div className="mir-content-flow"><span>{row.format || '형식 미기록'}</span><ArrowRight size={17} /><span>{row.distribution || '배포 미기록'}</span><ArrowRight size={17} /><span>{row.reuse || '확장 미기록'}</span></div>{row.cadence && <p>발행 주기 · {row.cadence}</p>}<Source row={row} /></article>)}</div>}
+        {w.crm.length > 0 && <div className="mir-crm"><header><h4>CRM 여정과 고객 보호</h4></header>{w.crm.map((row, i) => <article key={i}><small>{MARKETER_STAGE_LABELS[row.stage]}</small><h5>{row.segment}</h5><ol><li><small>ENTER · 진입</small><p>{row.trigger || '조건 미기록'}</p></li><li><small>SEND · 메시지</small><p>{[row.timing, row.message].filter(Boolean).join(' · ') || '메시지 미기록'}</p></li><li><small>EXIT · 종료</small><p>{row.exit || '조건 미기록'}</p></li></ol>{row.guardrail && <p className="ir-limit">고객 보호 · {row.guardrail}</p>}<Source row={row} /></article>)}</div>}
       </div>
       {!w.contentSystem.length && !w.crm.length && <ReportEmpty>콘텐츠의 배포·확장 구조 또는 CRM 진입·종료 조건을 기록하세요.</ReportEmpty>}
       <Detail title="채널별 집행 조건 · 제작과 협업 기록 펼치기">

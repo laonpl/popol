@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { ArrowUpRight, ChevronDown, PenLine } from 'lucide-react';
 import { buildMarketerEvidenceModel, MARKETER_DIMENSIONS, MARKETER_STAGE_LABELS, METRIC_KINDS } from '../../utils/marketerEvidence';
 import { MARKETER_WORK_PRODUCTS } from '../../utils/marketerWorkProducts';
@@ -7,6 +7,7 @@ import { Field, Source, WorkBlock } from './MarketerWorkProductBlocks';
 import WorkProductReview from './WorkProductReview';
 import MarketingImpactReport from './MarketingImpactReport';
 import RoleExperienceOnePager from './RoleExperienceOnePager';
+import ExperienceCaseSwitcher from './ExperienceCaseSwitcher';
 import { MARKETING_CHAPTERS, marketingCaseSections } from '../../utils/marketerCaseStudy';
 import './MarketerPortfolioBoard.css';
 import './CampaignShowcase.css';
@@ -49,17 +50,16 @@ function CopyLibrary({ rows }) {
 
 function Campaign({ item, sr, onChange, readOnly, project }) {
   const id = useId(), w = item.workProducts;
-  const detail = useRef(null);
   const files = caseArtifacts(sr, item);
   const sections = marketingCaseSections(item, { hasFiles: files.length > 0, editable: !readOnly && !!onChange });
   const missing = MARKETING_CHAPTERS.filter(chapter => !marketingCaseSections(item, { hasFiles: files.length > 0 }).some(section => section.key === chapter.key));
   const notes = rows => <Notes rows={rows} item={item} sr={sr} onChange={onChange} readOnly={readOnly} />;
   return <>
-    <RoleExperienceOnePager item={item} sr={sr} project={project} role="marketer" onChange={onChange} readOnly={readOnly} onExpand={() => { detail.current.open = true; detail.current.scrollIntoView({ block: 'start', behavior: 'smooth' }); }} />
-    <details className="one-full-detail print:hidden" ref={detail}><summary>캠페인 소재·집행·측정 상세 펼치기</summary>
+    <RoleExperienceOnePager item={item} sr={sr} project={project} role="marketer" onChange={onChange} readOnly={readOnly} />
+    <details className="one-full-detail print:hidden"><summary><span className="result-section-number">01</span><span>캠페인 상세<small>소재 · 집행 과정 · 성과 측정</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
     <MarketingImpactReport item={item} sr={sr} onChange={onChange} readOnly={readOnly} notes={notes} prefix={id} />
     </details>
-    <details className="ir-records print:hidden"><summary>전체 추출 기록 · 원문 검토</summary>
+    <details className="ir-records print:hidden"><summary><span className="result-section-number">02</span><span>근거와 원문<small>추출한 내용과 실제 자료 대조</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
     <div className="ma-case-layout"><aside className="ma-outline print:hidden"><div><span>이 경험 읽기</span><nav aria-label="마케팅 사례 목차">{sections.map((section, i) => <a key={section.key} href={'#' + id + '-record-' + section.key}><small>{String(i + 1).padStart(2, '0')}</small>{section.label}</a>)}{!readOnly && <a href={'#' + id + '-review'}><small>↗</small>추출 내용 검토</a>}</nav><p>수치와 문장에 연결된 원문을 함께 확인할 수 있습니다.</p></div></aside>
       <div className="ma-case-body">{sections.map((section, i) => <section className={'ma-chapter ma-' + section.key} id={id + '-record-' + section.key} key={section.key}><header className="ma-chapter-heading"><span>{String(i + 1).padStart(2, '0')}</span><div><small>{section.label}</small><h3>{section.title}</h3></div></header>
         {section.key === 'strategy' && <>{notes(section.records)}<Audience rows={w.audiences} /><WorkBlock group="positioning" rows={w.positioning} /></>}
@@ -77,16 +77,18 @@ function Campaign({ item, sr, onChange, readOnly, project }) {
   </>;
 }
 
-export default function MarketerEvidenceCaseStudy({ sr = {}, sourceText, readOnly = false, onChange, project }) {
+export default function MarketerEvidenceCaseStudy({ sr: sourceSr = {}, sourceText, readOnly = false, onChange, project }) {
+  // Legacy campaign cards must also have a writable source when opened in the editor.
+  const sr = useMemo(() => Array.isArray(sourceSr.keyExperiences) && sourceSr.keyExperiences.some(Boolean) ? sourceSr : {
+    ...sourceSr,
+    keyExperiences: (Array.isArray(sourceSr.marketerKit?.experienceCards) ? sourceSr.marketerKit.experienceCards : []).map(card => ({ ...card, action: card.execution || card.action, context: card.problem || card.context, jobData: {} })),
+  }, [sourceSr]);
   const model = useMemo(() => buildMarketerEvidenceModel(sr, { sourceText: sourceText === undefined ? undefined : roleSourceText(sr, sourceText) }), [sr, sourceText]);
   const [active, setActive] = useState(0), id = useId();
   const selected = Math.min(active, Math.max(0, model.cases.length - 1));
   return <section className="mk-portfolio ma-portfolio" aria-label="마케터 핵심 경험 포트폴리오">
     <header className="ma-page-title"><div><span>MARKETING / IMPACT REPORT</span><h2>캠페인 실행 · 성과 리포트</h2></div><p>소재 · 채널 · 고객 반응<br />실제로 만든 변화의 기록</p></header>
-    {model.cases.length ? <><div className="mk-case-tabs ma-case-tabs print:hidden" role="tablist" aria-label="캠페인 선택">{model.cases.map((item, i) => <button type="button" key={item.id} role="tab" id={id + '-tab-' + i} aria-selected={selected === i} aria-controls={id + '-case-' + i} tabIndex={selected === i ? 0 : -1} onClick={() => setActive(i)} onKeyDown={event => {
-      const next = event.key === 'ArrowRight' ? (i + 1) % model.cases.length : event.key === 'ArrowLeft' ? (i + model.cases.length - 1) % model.cases.length : event.key === 'Home' ? 0 : event.key === 'End' ? model.cases.length - 1 : null;
-      if (next !== null) { event.preventDefault(); setActive(next); document.getElementById(id + '-tab-' + next)?.focus(); }
-    }}><span>{String(i + 1).padStart(2, '0')}</span>{item.title}</button>)}</div>{model.cases.map((item, i) => <article className={'mk-campaign ma-case ' + (selected === i ? '' : 'mk-hidden')} role="tabpanel" id={id + '-case-' + i} aria-labelledby={id + '-tab-' + i} key={item.id}><Campaign item={item} sr={sr} onChange={onChange} readOnly={readOnly} project={project} /></article>)}</> : <p className="ma-empty">캠페인 브리프·직접 만든 작업물·운영 기록으로 첫 경험을 정리하세요.</p>}
+    {model.cases.length ? <><ExperienceCaseSwitcher cases={model.cases} selected={selected} onSelect={setActive} panelId={id + '-case-' + selected} />{model.cases.map((item, i) => <article className={'mk-campaign ma-case ' + (selected === i ? '' : 'mk-hidden')} aria-label={item.title} id={id + '-case-' + i} key={item.id}><Campaign item={item} sr={sr} onChange={onChange} readOnly={readOnly} project={project} /></article>)}</> : <p className="ma-empty">캠페인 브리프·직접 만든 작업물·운영 기록으로 첫 경험을 정리하세요.</p>}
     {!readOnly && <details className="mk-references print:hidden"><summary>구성에 참고한 공개 작업물·직무 자료 <ChevronDown size={13} /></summary><p>합격 공식이 아닙니다. 공개 작업물과 채용·실무 자료를 구분해 참고했으며, 공개 작업물이 실제 합격 제출본이라는 뜻은 아닙니다.</p>{[
       ['메가존 · 온라인마케터 합격자 후기 (원본 비공개)', 'https://www.jobkorea.co.kr/starter/review/view?C_Idx=7134&Ctgr_Code=4'],
       ['Carmine Mastropierro · 카피·콘텐츠 공개 작업물', 'https://carminemastropierro.com/portfolio/'],

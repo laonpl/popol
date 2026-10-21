@@ -32,7 +32,7 @@ export function localSourceSummary(documents) {
 export function sourceSummaryForPage(item, experience) {
   const source = localSourceSummary([experience.planningConnection, experience.figmaConnection].filter(Boolean));
   const manual = experience.roleSummary || {};
-  const fields = Object.fromEntries(['headline', 'myRole', 'problem', 'action', 'validation', 'result', 'learning', 'audience', 'subtitle'].map(field => [field, experienceText(manual[field]) || experienceText(source[field])]));
+  const fields = Object.fromEntries(['headline', 'myRole', 'problem', 'action', 'validation', 'result', 'learning', 'audience', 'channel', 'message', 'subtitle'].map(field => [field, experienceText(manual[field]) || experienceText(source[field])]));
   const record = dimension => experienceText(item.records.find(row => row.dimension === dimension)?.claim);
   return { ...manual, ...fields,
     problem: fields.problem || record('discovery') || record('conversion') || experienceText(experience.context),
