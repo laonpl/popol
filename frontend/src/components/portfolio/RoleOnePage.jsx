@@ -42,6 +42,9 @@ const rowsToLines = (rows = [], keys) => rows.map(r => keys.map(k => t(r?.[k])).
 const linesToRows = (value, keys) => String(value || '').split('\n').map(line => line.split('|').map(s => s.trim()))
   .filter(cells => cells.some(Boolean)).map(cells => Object.fromEntries(keys.map((k, i) => [k, cells[i] || ''])));
 
+// 예전 Firebase Storage 주소 — 무료 요금제에서 막혀(402) 열리지 않는다. 지금 업로드는 /api/files(Firestore)로 간다
+const LEGACY_STORAGE = /firebasestorage\.googleapis\.com|storage\.googleapis\.com|\.firebasestorage\.app/i;
+
 /** 결과 화면이 넘겨줄 실제 작업물 — 올린 파일(deliverables·pmFiles) + 핵심 경험·본문에 붙인 이미지 */
 export function collectRoleArtifacts(sr = {}, cs = {}) {
   const seen = new Set();
@@ -53,9 +56,10 @@ export function collectRoleArtifacts(sr = {}, cs = {}) {
     (item.image ? images : files).push(item);
   };
   // removable = 산출물로 올린 것(지울 수 있음), 핵심 경험·본문 이미지는 그쪽에서 관리
-  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext || (t(f.name).match(/\.([a-z0-9]{2,5})$/i) || [])[1]).toUpperCase(), link: f.kind === 'link', removable: true, image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
-  (cs.keyExps || []).forEach(k => (k.images || []).forEach(img => push({ url: img.url, name: k.title, image: true })));
-  (cs.body || []).filter(seg => seg.type === 'image').forEach(seg => push({ url: seg.content, name: '', image: true }));
+  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext || (t(f.name).match(/\.([a-z0-9]{2,5})$/i) || [])[1]).toUpperCase(), link: f.kind === 'link', removable: true, deliverable: t(f.deliverable), expired: LEGACY_STORAGE.test(f.url), image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
+  // 핵심 경험·본문 사진은 여기서 지울 수 없으므로 예전 저장소(열리지 않는) 주소는 아예 싣지 않는다
+  (cs.keyExps || []).forEach(k => (k.images || []).filter(img => !LEGACY_STORAGE.test(img.url || '')).forEach(img => push({ url: img.url, name: k.title, image: true })));
+  (cs.body || []).filter(seg => seg.type === 'image' && !LEGACY_STORAGE.test(seg.content || '')).forEach(seg => push({ url: seg.content, name: '', image: true }));
   return { images, files };
 }
 
@@ -226,12 +230,16 @@ function KpiRow({ items, compact = false }) {
       {/* 칸마다 왼쪽·위 선 — 첫 칸·첫 줄의 선은 -m으로 밖에 숨긴다. 칸 수는 폭에 맞춰 자동 */}
       <div className="-ml-px -mt-px grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 118 : 148}px, 1fr))` }}>
         {items.map((m, i) => {
-          const long = m.value.length > 9;
-          const size = compact ? (long ? 'text-[16px]' : 'text-[22px]') : (long ? 'text-[18px]' : 'text-[30px]');
+          // 한 줄의 숫자는 모두 같은 크기 — 가장 긴 값에 맞춘다. 짧은 값은 줄바꿈하지 않는다
+          const longest = Math.max(...items.map(x => x.value.length));
+          const size = compact
+            ? (longest > 9 ? 'text-[16px]' : 'text-[22px]')
+            : (longest > 9 ? 'text-[18px]' : longest > 5 ? 'text-[24px]' : 'text-[30px]');
           return (
             <div key={i} className={`min-w-0 border-l border-t border-surface-200 ${compact ? 'px-4 py-3' : 'px-5 py-4'}`}>
-              <p className="text-[12px] font-semibold leading-snug text-bluewood-500" style={WRAP}>{m.label}</p>
-              <p className={`mt-1 font-extrabold leading-tight tracking-tight text-bluewood-900 ${size}`} style={WRAP}>{m.value}</p>
+              {/* 이름 칸은 두 줄 높이로 고정 — 이름 길이가 달라도 숫자가 같은 높이에 선다 */}
+              <p className={`text-[12px] font-semibold leading-snug text-bluewood-500 ${items.some(x => x.label.length > 10) ? 'min-h-[2.75em]' : ''}`} style={WRAP}>{m.label}</p>
+              <p className={`mt-1 font-extrabold leading-tight tracking-tight text-bluewood-900 ${size} ${m.value.length <= 12 ? 'whitespace-nowrap' : ''}`} style={WRAP}>{m.value}</p>
               {(m.change || t(m.before) || m.target) && (
                 <p className="mt-1.5 text-[12px] leading-snug text-bluewood-400" style={WRAP}>
                   <Delta change={m.change} />{m.change && ' · '}{t(m.before) && `이전 ${m.before}`}{m.target && `${t(m.before) || m.change ? ' · ' : ''}목표 ${m.target}`}
@@ -613,45 +621,87 @@ function Artifacts({ artifacts }) {
 /** 산출물 이름의 첫 낱말 — 올린 파일 이름과 짝지을 때 쓴다 ("PRD 24쪽" → "prd", "와이어프레임 12화면" → "와이어프레임") */
 const keyword = (name) => (t(name).toLowerCase().match(/[a-z가-힣]{2,}/) || [])[0] || '';
 
-/** 산출물 카드 하나 — 위 미리보기(사진·파일 종류·링크) + 아래 이름·분량 */
-function ArtifactCard({ title, value, item, onRemove }) {
-  const preview = item && (item.image
-    ? <img src={item.url} alt={title || item.name || '산출물'} loading="lazy" className="h-full w-full object-cover" />
-    : <span className="text-[13px] font-black tracking-wide text-bluewood-400">{item.link ? '링크' : item.ext || '파일'}</span>);
-  const inner = (
-    <>
-      {preview && <div className="flex h-[132px] items-center justify-center overflow-hidden border-b border-surface-200 bg-surface-50">{preview}</div>}
-      <div className="px-3.5 py-2.5">
-        <p className="text-[13px] font-bold leading-snug text-bluewood-900" style={WRAP}>{title || item?.name || '산출물'}</p>
-        {(t(value) || (item && title && item.name !== title)) && (
-          <p className="mt-0.5 truncate text-[11.5px] text-bluewood-400">{[t(value), item && title && item.name !== title ? item.name : ''].filter(Boolean).join(' · ')}</p>
-        )}
-      </div>
-    </>
-  );
+/** 파일·사진 올리기 / 링크 붙이기 — 카드 안에서 연다. target = 이 첨부를 붙일 산출물 이름·바꿀 예전 파일 */
+function AttachPanel({ actions, target, onPickFile, onDone }) {
+  const [link, setLink] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (actions.addLink(link, target)) { setLink(''); onDone(); }
+  };
   return (
-    <div className="group relative min-w-0 overflow-hidden rounded-lg border border-surface-200 bg-white">
-      {item ? <a href={item.url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{inner}</a> : inner}
-      {item?.removable && onRemove && (
-        <button type="button" onClick={() => onRemove(item.url)} aria-label="산출물 빼기" className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[13px] text-bluewood-400 shadow-sm hover:text-red-500 group-hover:flex print:hidden">×</button>
-      )}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-100 px-3 py-2.5 text-[12px] print:hidden">
+      <button type="button" onClick={() => onPickFile(target)} disabled={actions.uploading} className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2.5 py-1 font-semibold text-bluewood-600 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50">
+        {actions.uploading ? <><Loader2 size={12} className="animate-spin" />올리는 중…</> : '파일·사진 올리기'}
+      </button>
+      <form onSubmit={submit} className="flex min-w-[160px] flex-1 items-center gap-1.5">
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="링크 붙이기 (Notion·Figma·Drive)" className="min-w-0 flex-1 border-b border-surface-200 bg-transparent py-0.5 text-[12px] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:border-primary-300" />
+        {t(link) && <button type="submit" className="font-semibold text-primary-600">추가</button>}
+      </form>
     </div>
   );
 }
 
-/** 기획 산출물 — 분석이 찾은 산출물 이름과 실제로 올린 파일·사진·링크를 한 카드로. 이름이 같은 낱말로 시작하면 짝짓는다 */
+/** 산출물 한 줄 카드 — 왼쪽 작은 표지(사진 썸네일·파일 종류·링크·문서 모양) + 이름·분량.
+ *  파일이 없거나 예전 저장소라 열리지 않는 카드는 누르면 그 자리에서 올리기 칸이 열린다 */
+function ArtifactCard({ title, value, item, actions, onPickFile }) {
+  const [attaching, setAttaching] = useState(false);
+  const name = title || item?.name || '산출물';
+  const opens = item && !item.expired;
+  const canAttach = !!actions && !opens;
+  const sub = item?.expired
+    ? '예전 저장소라 열 수 없어요 · 눌러서 다시 올리기'
+    : [t(value), item && title && item.name !== title ? item.name : ''].filter(Boolean).join(' · ') || (canAttach ? '눌러서 파일·링크 붙이기' : '');
+  const badge = item?.image && opens
+    ? <img src={item.url} alt={name} loading="lazy" className="h-full w-full object-cover object-top" />
+    : item
+      ? <span className="text-[10.5px] font-black tracking-wide text-bluewood-500">{item.link ? '링크' : (item.ext || '파일').slice(0, 4)}</span>
+      : <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-bluewood-300" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>;
+  const inner = (
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border bg-surface-50 ${item?.expired ? 'border-dashed border-amber-300' : canAttach ? 'border-dashed border-surface-300' : 'border-surface-200'}`}>{badge}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-bold leading-snug text-bluewood-900" style={WRAP}>{name}</span>
+        {sub && <span className={`mt-0.5 block truncate text-[11.5px] ${item?.expired ? 'text-amber-700' : 'text-bluewood-400'}`}>{sub}</span>}
+      </span>
+    </div>
+  );
+  const target = { deliverable: title || item?.deliverable || '', replace: item?.expired ? item.url : '' };
+  return (
+    <div className="group relative min-w-0 rounded-lg border border-surface-200 bg-white transition-colors hover:border-primary-200">
+      {opens
+        ? <a href={item.url} target="_blank" rel="noreferrer" className="block">{inner}</a>
+        : canAttach
+          ? <button type="button" onClick={() => setAttaching(a => !a)} aria-expanded={attaching} className="block w-full text-left">{inner}</button>
+          : inner}
+      {attaching && canAttach && <AttachPanel actions={actions} target={target} onPickFile={onPickFile} onDone={() => setAttaching(false)} />}
+      {item?.removable && actions?.remove && <RemoveButton onClick={() => actions.remove(item.url)} />}
+    </div>
+  );
+}
+
+const RemoveButton = ({ onClick }) => (
+  <button type="button" onClick={onClick} aria-label="산출물 빼기" className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[13px] text-bluewood-400 shadow-sm hover:text-red-500 group-hover:flex print:hidden">×</button>
+);
+
+/** 기획 산출물 — 산출물 이름(분석)과 올린 파일·링크를 한 줄 카드로.
+ *  짝짓기: 그 산출물 카드에서 직접 붙인 것(deliverable) → 이름의 첫 낱말이 파일명에 들어간 것.
+ *  어느 산출물과도 짝이 없는 사진은 아래에 같은 비율의 사진 줄로 모은다 */
 function DeliverableBoard({ deliverables, artifacts, actions }) {
   const [link, setLink] = useState('');
   const fileRef = useRef(null);
-  const items = [...(artifacts?.images || []), ...(artifacts?.files || [])];
+  const pending = useRef({}); // 파일 선택창을 연 카드 — 고른 파일을 그 산출물에 붙인다
+  const items = [...(artifacts?.files || []), ...(artifacts?.images || [])];
   const used = new Set();
+  const take = (pred) => { const x = items.find(i => !used.has(i.url) && pred(i)); if (x) used.add(x.url); return x || null; };
   const cards = deliverables.map(d => {
     const k = keyword(d.name);
-    const item = k ? items.find(x => !used.has(x.url) && t(x.name).toLowerCase().includes(k)) : null;
-    if (item) used.add(item.url);
+    const item = take(x => x.deliverable && x.deliverable === t(d.name)) || (k ? take(x => !x.deliverable && t(x.name).toLowerCase().includes(k)) : null);
     return { title: d.name, value: d.value, item };
   });
-  items.filter(x => !used.has(x.url)).forEach(item => cards.push({ title: '', value: '', item }));
+  const rest = items.filter(x => !used.has(x.url));
+  rest.filter(x => !x.image || x.expired).forEach(item => cards.push({ title: '', value: '', item }));
+  const photos = rest.filter(x => x.image && !x.expired);
+  const pickFile = (target = {}) => { pending.current = target; fileRef.current?.click(); };
   const submitLink = (e) => {
     e.preventDefault();
     if (actions?.addLink(link)) setLink('');
@@ -659,15 +709,28 @@ function DeliverableBoard({ deliverables, artifacts, actions }) {
   return (
     <div>
       {cards.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((c, i) => <ArtifactCard key={c.item?.url || `d${i}`} {...c} onRemove={actions?.remove} />)}
+        <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((c, i) => <ArtifactCard key={c.item?.url || `d${i}`} {...c} actions={actions} onPickFile={pickFile} />)}
+        </div>
+      )}
+      {photos.length > 0 && (
+        <div className={`grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-5 ${cards.length ? 'mt-3' : ''}`}>
+          {photos.map(p => (
+            <figure key={p.url} className="group relative min-w-0">
+              <a href={p.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-surface-200 bg-surface-50" style={{ aspectRatio: '4 / 3' }}>
+                <img src={p.url} alt={p.name || '산출물 사진'} loading="lazy" className="h-full w-full object-cover object-top transition-opacity hover:opacity-90" />
+              </a>
+              {t(p.name) && <figcaption className="mt-1 truncate text-[11.5px] text-bluewood-400">{p.name}</figcaption>}
+              {p.removable && actions?.remove && <RemoveButton onClick={() => actions.remove(p.url)} />}
+            </figure>
+          ))}
         </div>
       )}
       {actions && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] print:hidden">
           <input ref={fileRef} type="file" multiple className="hidden" accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.csv,.key,.fig,.zip,.png,.jpg,.jpeg,.webp,.gif"
-            onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; if (picked.length) actions.addFiles(picked); }} />
-          <button type="button" onClick={() => fileRef.current?.click()} disabled={actions.uploading} className="inline-flex items-center gap-1 font-semibold text-bluewood-400 hover:text-primary-600 disabled:opacity-50">
+            onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; if (picked.length) actions.addFiles(picked, pending.current); pending.current = {}; }} />
+          <button type="button" onClick={() => pickFile()} disabled={actions.uploading} className="inline-flex items-center gap-1 font-semibold text-bluewood-400 hover:text-primary-600 disabled:opacity-50">
             {actions.uploading ? <><Loader2 size={12} className="animate-spin" />올리는 중…</> : '+ 파일·사진 올리기'}
           </button>
           <form onSubmit={submitLink} className="flex min-w-0 flex-1 items-center gap-1.5 sm:max-w-[320px]">
@@ -676,7 +739,7 @@ function DeliverableBoard({ deliverables, artifacts, actions }) {
           </form>
         </div>
       )}
-      {!cards.length && <p className="mt-1.5 text-[12px] text-bluewood-300 print:hidden">PRD·와이어프레임·정책서 같은 기획 문서를 올리면 여기에 함께 보여요.</p>}
+      {!cards.length && !photos.length && <p className="mt-1.5 text-[12px] text-bluewood-300 print:hidden">PRD·와이어프레임·정책서 같은 기획 문서를 올리면 여기에 함께 보여요.</p>}
     </div>
   );
 }

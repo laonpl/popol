@@ -3179,16 +3179,18 @@ export default function ExperienceResult() {
   };
   const artifactActions = {
     uploading: artifactUploading,
-    addFiles: async (picked) => {
+    // target.deliverable = 이 파일을 붙일 산출물 이름(카드에서 올렸을 때), target.replace = 바꿀 예전 파일 주소(열리지 않는 예전 저장소 파일)
+    addFiles: async (picked, target = {}) => {
       setArtifactUploading(true);
       const { added, materials } = await uploadArtifactFiles(picked, exp?.structuredResult?.additionalMaterials);
-      if (added.length) patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s), ...added], pmFiles: [], additionalMaterials: materials }));
+      const tagged = added.map(a => (target.deliverable ? { ...a, deliverable: target.deliverable } : a));
+      if (tagged.length) patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s).filter(f => f.url !== target.replace), ...tagged], pmFiles: [], additionalMaterials: materials }));
       setArtifactUploading(false);
     },
-    addLink: (value) => {
+    addLink: (value, target = {}) => {
       const asset = linkArtifact(value);
       if (!asset) { toast.error('올바른 웹 링크를 입력해 주세요'); return false; }
-      patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s), asset], pmFiles: [] }));
+      patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s).filter(f => f.url !== target.replace), target.deliverable ? { ...asset, deliverable: target.deliverable } : asset], pmFiles: [] }));
       return true;
     },
     remove: (url) => patchArtifacts(s => {
