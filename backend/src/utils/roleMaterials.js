@@ -50,6 +50,8 @@ export function preserveRolePresentation(analysis, previous = {}) {
     deliverables: list(previous.deliverables ?? analysis.deliverables), pmFiles: list(previous.pmFiles ?? analysis.pmFiles),
     additionalMaterials: list(previous.additionalMaterials), artifactBindingArchive: archive,
     ...(previous.pmHypotheses ? { pmHypotheses: previous.pmHypotheses } : {}),
+    ...(previous.pmOnePage ? { pmOnePage: previous.pmOnePage } : {}),
+    ...(previous.campaignOnePage ? { campaignOnePage: previous.campaignOnePage } : {}),
     ...(previous.interviewSession ? { interviewSession: previous.interviewSession } : {}),
     ...(manualArchive.length ? { manualWorkProductArchive: manualArchive } : {}), ...(summaryArchive.length ? { roleSummaryArchive: summaryArchive } : {}) };
 }

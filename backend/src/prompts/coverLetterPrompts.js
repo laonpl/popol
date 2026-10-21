@@ -1,4 +1,4 @@
-import { coverLetterLengthInstruction } from '../utils/coverLetterLength.js';
+import { coverLetterLengthInstruction, coverLetterPassages } from '../utils/coverLetterLength.js';
 import { countAnswerCharacters } from '../services/coverLetterEvidence.js';
 import { coverLetterWritingGuide } from '../utils/coverLetterWritingGuide.js';
 
@@ -99,14 +99,18 @@ export function buildCoverLetterLengthEditsPrompt(input, draft) {
   const charCount = count(draft.answer);
   const minimumDelta = (question.minLength || 1) - charCount;
   const maximumDelta = (question.maxLength || 20000) - charCount;
-  const passages = Array.from(new Intl.Segmenter('ko', { granularity: 'sentence' }).segment(draft.answer),
-    item => ({ text: item.segment.trim(), charCount: count(item.segment.trim()) }));
+  const expanding = minimumDelta > 0;
+  const passages = coverLetterPassages(draft.answer).map(({ index, text }) => ({
+    sentenceIndex: index, text, charCount: count(text),
+    replacementMin: Math.max(1, count(text) + minimumDelta),
+    replacementMax: Math.max(1, count(text) + maximumDelta),
+  }));
   return `자기소개서의 일부 문장만 자연스럽게 다듬어 글자 수를 맞추세요. 전체 본문을 다시 쓰지 마세요.
 ${coverLetterLengthInstruction(question)}
 서버가 계산한 현재 본문은 ${charCount}자입니다. 본문 전체의 글자 수 변화는 ${minimumDelta}자 이상, ${maximumDelta}자 이하여야 합니다.
-${minimumDelta > 0 ? `최소 ${minimumDelta}자를 더해야 합니다. 기존 내용을 구체화하는 서로 다른 문장 4~8개를 고르세요.` : `최소 ${-maximumDelta}자를 줄여야 합니다. 핵심 사실과 결론을 남기고 줄일 수 있는 서로 다른 문장 4~8개를 고르세요.`}
-각 문장에 대해 길이가 서로 다른 대체 문장을 3~6개 제안하세요. 작은 차이도 맞출 수 있도록 1~5자 정도만 바꾸는 안과 10~40자 정도 바꾸는 안을 함께 포함하세요. 서버가 실제 글자 수를 세고 여러 수정안을 조합하므로 스스로 글자 수를 선언하지 마세요.
-before는 현재 본문에서 한 번만 나오는 연속된 문장이나 구절을 정확히 복사하세요. before끼리 겹치면 안 됩니다. after는 before를 그대로 대체할 수 있는 자연스러운 문장이나 구절의 배열입니다.
+${expanding ? `최소 ${minimumDelta}자 부족합니다. 기존 설명을 구체화할 문장 1~3개만 고르세요.` : `최대 길이보다 ${-maximumDelta}자 초과했습니다. 핵심 사실과 결론을 남기고 줄일 문장 1~3개만 고르세요.`}
+각 문장에 대해 길이가 서로 다른 대체 문장 3개를 제안하세요. 각 대체 문장은 가능하면 단독 교체만으로 본문 전체가 허용 범위에 들어오도록 replacementMin~replacementMax 사이를 목표로 하세요. 이 범위의 중간 길이에 가까운 자연스러운 문장을 우선하세요. 다른 문장과 조합해야 하는 대안도 제안할 수 있습니다. 서버가 실제 글자 수를 세므로 스스로 글자 수를 선언하지 마세요.
+sentenceIndex는 아래 서버 문장 목록의 번호(0부터 시작)입니다. 원문 문장을 다시 복사하지 말고 이 번호로 교체 위치를 지정하세요. after는 해당 문장 전체를 대체할 수 있는 자연스러운 문장들의 배열입니다. 대체 문장은 마침표까지 완결하세요.
 원문의 사실·역할·행동·배운 점과 말투를 유지하세요. 새로운 수치, 성과, 감정, 경험을 만들거나 반복 문장, 무의미한 수식어, 공백, 말줄임표로 분량을 채우지 마세요. 어미만 길게 늘이기보다 질문에 필요한 설명을 구체화하세요.
 각 대체안은 다른 수정안의 선택 여부와 관계없이 앞뒤 문장·주어·지시어·시제에 자연스럽게 이어져야 합니다. 핵심 답이나 결론은 삭제하지 마세요.
 기존 문단 사이의 빈 줄을 유지하세요. 서로 다른 문단을 합치거나 문단 경계를 가로지르는 부분 수정은 피하세요.
@@ -116,7 +120,7 @@ ${coverLetterWritingGuide(question.question, question)}
 원문 자료: ${JSON.stringify(input)}
 현재 본문: ${JSON.stringify(draft.answer)}
 서버가 계산한 문장별 글자 수: ${JSON.stringify(passages)}
-JSON만 반환하세요: {"edits":[{"before":"기존 문장 또는 구절","after":["대체 문장 1","대체 문장 2","대체 문장 3"]}]}`;
+JSON만 반환하세요: {"edits":[{"sentenceIndex":0,"after":["대체 문장 1","대체 문장 2","대체 문장 3"]}]}`;
 }
 
 export function buildCoverLetterQualityReviewPrompt(input, draft) {

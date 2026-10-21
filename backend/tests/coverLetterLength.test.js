@@ -98,4 +98,40 @@ test('edit prompt describes a measured 6-character shortage and a 56-character m
   assert.match(prompt, /현재 본문은 644자/);
   assert.match(prompt, /6자 이상, 56자 이하/);
   assert.match(prompt, /전체 본문을 다시 쓰지 마세요/);
+  assert.match(prompt, /sentenceIndex/);
+  assert.match(prompt, /replacementMin/);
+  assert.match(prompt, /문장 1~3개/);
+});
+
+test('sentence IDs apply single-string edits without depending on copied anchors', () => {
+  const answer = '자료를 정리했습니다.\n\n기준을 확인했습니다.';
+  const expected = '자료를 주제에 따라 정리했습니다.\n\n기준을 확인했습니다.';
+  const exact = countAnswerCharacters(expected);
+  assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, [
+    { sentenceIndex: 0, after: '자료를 주제에 따라 정리했습니다.' },
+  ]), expected);
+});
+
+test('sentence IDs distinguish repeated sentences and invalid IDs cannot alter the draft', () => {
+  const answer = '기준을 확인했습니다.\n\n기준을 확인했습니다.';
+  const expected = '기준을 확인했습니다.\n\n기준이 서로 일치하는지 확인했습니다.';
+  const exact = countAnswerCharacters(expected);
+  assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, [
+    { sentenceIndex: 1, after: ['기준이 서로 일치하는지 확인했습니다.'] },
+  ]), expected);
+  for (const sentenceIndex of [-1, 20, '1', 0.5]) {
+    assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, [
+      { sentenceIndex, after: ['없는 위치의 문장은 바꾸지 않습니다.'] },
+    ]), answer);
+  }
+});
+
+test('repeated entries for one anchor combine their alternatives instead of losing useful edits', () => {
+  const answer = '자료를 정리했습니다.';
+  const expected = '자료를 같은 기준으로 정리했습니다.';
+  const exact = countAnswerCharacters(expected);
+  assert.equal(fitCoverLetterEdits(answer, { minLength: exact, maxLength: exact }, [
+    { before: '정리했습니다', after: ['분류했습니다'] },
+    { before: '정리했습니다', after: '같은 기준으로 정리했습니다' },
+  ]), expected);
 });

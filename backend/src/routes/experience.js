@@ -21,6 +21,7 @@ import {
   generateExperienceTags,
 } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
+import { analyzeRoleOnePage, editRoleOnePage } from '../services/roleOnePageService.js';
 import { logError } from '../services/errorLogger.js';
 
 const router = Router();
@@ -265,6 +266,45 @@ router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req,
     // 그 외 실패는 프론트 로컬 폴백을 유도 (502)
     console.warn('[Draft] 빠른 초안 생성 실패 → 프론트 로컬 폴백 유도:', msg);
     return res.status(502).json({ error: '초안 생성에 실패했습니다.', detail: msg });
+  }
+});
+
+// POST /api/experience/analyze-role - PM·마케터 '핵심 경험 한 장' 전용 추출 (개발자의 analyze-git에 대응)
+// body: { jobCategory: 'pm' | 'marketer', material } → { pmOnePage } | { campaignOnePage }
+router.post('/analyze-role', authMiddleware, requireCredits, aiRateLimiter, async (req, res) => {
+  const { jobCategory, material } = req.body || {};
+  if (!['pm', 'marketer'].includes(jobCategory)) return res.status(400).json({ error: 'PM·마케터 경험만 분석할 수 있습니다' });
+  if (!String(material || '').trim()) return res.status(400).json({ error: '분석할 자료가 필요합니다' });
+  try {
+    const result = await analyzeRoleOnePage(jobCategory, material);
+    if (!result) return res.status(400).json({ error: '분석할 자료가 필요합니다' });
+    return res.json(result);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    console.warn('[analyze-role] 한 장 추출 실패:', msg);
+    return res.status(502).json({ error: '핵심 경험 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
+  }
+});
+
+// POST /api/experience/edit-role-chat - 핵심 경험 한 장 고양이 편집 챗봇
+// body: { jobCategory: 'pm' | 'marketer', page, instruction, material, history } → { reply, changes }
+router.post('/edit-role-chat', authMiddleware, requireCredits, aiRateLimiter, async (req, res) => {
+  const { jobCategory, page, instruction, material, history } = req.body || {};
+  if (!['pm', 'marketer'].includes(jobCategory)) return res.status(400).json({ error: 'PM·마케터 경험만 고칠 수 있습니다' });
+  if (!page || typeof page !== 'object') return res.status(400).json({ error: '고칠 한 장이 필요합니다' });
+  if (!String(instruction || '').trim()) return res.status(400).json({ error: '수정할 내용을 입력해주세요' });
+  try {
+    return res.json(await editRoleOnePage(jobCategory, { page, instruction, material, history }));
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    console.warn('[edit-role-chat] 수정 실패:', msg);
+    return res.status(502).json({ error: '수정에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
   }
 });
 

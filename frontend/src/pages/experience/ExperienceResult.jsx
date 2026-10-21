@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import BrandLoader from '../../components/BrandLoader';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
@@ -42,6 +42,10 @@ import InterviewPrepPanel from '../../components/InterviewPrepPanel';
 import OnePagerPanel from '../../components/OnePagerPanel';
 import { collectMissingFields } from '../../utils/missingFields';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import AutoText from '../../components/AutoText';
+import { PmOnePager, CampaignOnePager, collectRoleArtifacts } from '../../components/portfolio/RoleOnePage';
+import RoleEditChat from '../../components/portfolio/RoleEditChat';
+import { buildPmOnePage, buildCampaignOnePage, toSavedPage } from '../../utils/roleOnePage';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
 const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
@@ -351,54 +355,6 @@ function normalizeCaseStudy(cs) {
     body,
     skills: Array.isArray(cs.skills) ? cs.skills : [],
   };
-}
-
-/* ── 자동 높이 조절 + 자동 줄바꿈 인라인 텍스트 (글자 잘림 방지) ── */
-function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false, dense = false, autoFocus = false, onBlur }) {
-  const ref = useRef(null);
-  const resize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
-  // 값이 바뀔 때마다 페인트 전에 높이를 글자량에 맞춘다.
-  useLayoutEffect(() => { resize(ref.current); }, [value]);
-  // 너비가 바뀔 때(아코디언 펼침·반응형 등) 다시 측정 — 좁은 상태에서 잘못 측정돼 박스가 커지는 문제 방지.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    // 그리드 폭 확정 전에 좁은 폭으로 측정돼 부풀어 있을 수 있으므로, 레이아웃이 안정된 뒤 한 번 더 측정
-    resize(el);
-    const raf = requestAnimationFrame(() => resize(el));
-    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(() => resize(el));
-    if (typeof ResizeObserver === 'undefined') return () => cancelAnimationFrame(raf);
-    let lastW = el.offsetWidth;
-    const ro = new ResizeObserver(() => {
-      if (el.offsetWidth !== lastW) { lastW = el.offsetWidth; resize(el); }
-    });
-    ro.observe(el);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, []);
-  const tone = dark
-    ? 'border border-white/10 bg-white/[0.06] placeholder:text-white/45 hover:bg-white/[0.1] focus:bg-white/[0.14] focus:border-white/30'
-    : prose
-      // 큰 본문·제목: 점선 밑줄 + hover (문서 느낌 유지)
-      ? 'border border-transparent border-dashed border-b-bluewood-200 placeholder:text-bluewood-300 hover:bg-surface-50 focus:bg-surface-50/70 focus:border-b-primary-400'
-      : dense
-        // 촘촘한 본문 필드: 평문처럼 보이다가 hover/포커스에만 강조 (회색 박스 없음)
-        ? 'border border-transparent bg-transparent placeholder:text-bluewood-300 hover:bg-surface-100/60 focus:bg-surface-50 focus:border-surface-200'
-        // 짧은 입력 필드: 은은한 회색 필드
-        : 'border border-transparent bg-surface-50/70 placeholder:text-bluewood-300 hover:bg-surface-100 hover:border-surface-200 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
-  return (
-    <textarea
-      ref={ref}
-      rows={1}
-      value={value}
-      placeholder={placeholder}
-      // eslint-disable-next-line jsx-a11y/no-autofocus
-      autoFocus={autoFocus}
-      onBlur={onBlur}
-      onChange={(e) => { onChange(e.target.value); resize(e.target); }}
-      className={`w-full resize-none whitespace-pre-wrap break-words rounded-md -ml-2 px-2 ${dense ? 'py-0.5' : 'py-1'} outline-none transition-colors duration-150 cursor-text ${tone} ${className}`}
-      style={{ overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}
-    />
-  );
 }
 
 function DraftEnhanceGuideModal({ open, onClose, onEnhance }) {
@@ -2833,6 +2789,9 @@ export default function ExperienceResult() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [researching, setResearching] = useState(false); // AI 시장조사 진행 상태
+  const [roleAnalyzing, setRoleAnalyzing] = useState(false); // PM·마케터 한 장 전용 분석 진행 상태
+  // 고양이 편집 챗봇 — 오른쪽에 붙일 자리가 있는 넓은 화면(xl)에서는 처음부터 열어 둔다
+  const [roleChatOpen, setRoleChatOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
   const [findingIdentityPatterns, setFindingIdentityPatterns] = useState(false);
   const [identityPatternCandidates, setIdentityPatternCandidates] = useState([]);
   const [approvingPatternId, setApprovingPatternId] = useState('');
@@ -3047,6 +3006,43 @@ export default function ExperienceResult() {
   };
 
   // AI 시장조사 — 사용자가 넣은 자료가 있으면 유지·보강하고, 없으면 출처 기반으로 새로 채운다
+  // PM·마케터 '핵심 경험 한 장' 전용 분석 — 개발자의 GitHub 분석처럼 결과를 바로 저장하고 화면에 반영한다
+  // auto: 아직 한 장 분석이 없는 경험을 처음 열 때 한 번 — 실패해도 알리지 않고('자료로 분석' 버튼은 그대로), 그사이 사용자가 고친 한 장은 덮지 않는다
+  const roleAutoTried = useRef(false);
+  const roleTouched = useRef(false);
+  const analyzeRoleOnePage = async ({ auto = false } = {}) => {
+    const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory;
+    const material = getRawMaterialText(exp) || [cs?.summary, ...(cs?.keyExps || []).flatMap(k => [k.title, k.problem, k.action, k.result, k.learning])].filter(Boolean).join('\n');
+    if (!material.trim()) {
+      if (!auto) toast.error('분석할 자료가 없어요. 자세히 보기에서 자료를 추가해 주세요.');
+      return;
+    }
+    setRoleAnalyzing(true);
+    try {
+      const { data } = await api.post('/experience/analyze-role', { jobCategory: jc, material }, { timeout: 120000 });
+      const key = jc === 'pm' ? 'pmOnePage' : 'campaignOnePage';
+      if (!data?.[key]) throw new Error('empty');
+      if (auto && roleTouched.current) return;
+      const page = { ...data[key], source: 'analysis' };
+      // 한 장 칸만 저장 — 분석이 도는 동안 바뀐 다른 칸을 옛 값으로 덮지 않게
+      if (id && id !== 'demo') await updateDoc(doc(db, 'experiences', id), { [`structuredResult.${key}`]: page, updatedAt: new Date() });
+      setExp(prev => ({ ...(prev || {}), structuredResult: { ...(prev?.structuredResult || {}), [key]: page } }));
+      toast.success(jc === 'pm' ? '자료로 기획 임팩트를 정리했어요' : '자료로 캠페인 임팩트를 정리했어요');
+    } catch (err) {
+      if (!auto) toast.error(err?.response?.data?.error || '분석에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setRoleAnalyzing(false);
+    }
+  };
+  useEffect(() => {
+    const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory;
+    const key = jc === 'pm' ? 'pmOnePage' : jc === 'marketer' ? 'campaignOnePage' : '';
+    if (loading || !cs || !key || !id || id === 'demo' || roleAutoTried.current || exp?.structuredResult?.[key]) return;
+    roleAutoTried.current = true;
+    analyzeRoleOnePage({ auto: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, cs, exp, id]);
+
   const handleAiResearch = async () => {
     if (researching) return;
     setResearching(true);
@@ -3149,6 +3145,17 @@ export default function ExperienceResult() {
   const isCommonJob = jobCategory === 'common';
   const isDevJob = DEV_GIT_JOBS.includes(jobCategory);
   const isPmJob = jobCategory === 'pm';
+  // PM·마케터 '핵심 경험 한 장' — 전체 폭 한 장(PM: PRODUCT CASE / 마케터: CAMPAIGN CASE)
+  const isRoleOnePage = isPmJob || jobCategory === 'marketer';
+  const roleOnePageKey = isPmJob ? 'pmOnePage' : 'campaignOnePage';
+  const rolePage = isRoleOnePage
+    ? (isPmJob ? buildPmOnePage : buildCampaignOnePage)({ sr: exp?.structuredResult || {}, cs })
+    : null;
+  const patchRolePage = (next) => {
+    roleTouched.current = true;
+    setExp(prev => ({ ...(prev || {}), structuredResult: { ...(prev?.structuredResult || {}), [roleOnePageKey]: toSavedPage(next) } }));
+    setDirty(true);
+  };
   const devStats = exp?.structuredResult?.githubStats || null;
   const devGitExps = Array.isArray(exp?.structuredResult?.gitAnalysis?.experiences) ? exp.structuredResult.gitAnalysis.experiences : [];
   const devRole = devStats ? inferDevRole(devStats, devGitExps) : null;
@@ -3186,7 +3193,7 @@ export default function ExperienceResult() {
     />
     <ContextMenuHost />
     <DraftEnhanceGuideModal open={draftGuideOpen} onClose={closeDraftGuide} onEnhance={goEnhanceDraft} />
-    <div className={`min-h-screen ${isMarketer ? 'bg-surface-50 print:bg-white' : 'bg-white'}`}>
+    <div className={`min-h-screen ${isMarketer && !isRoleOnePage ? 'bg-surface-50 print:bg-white' : 'bg-white'}`}>
       <input ref={keyExpFileRef} type="file" accept="image/*" className="hidden" onChange={onKeyExpFile} />
 
       {/* ── 상단 액션 바 ── */}
@@ -3256,7 +3263,9 @@ export default function ExperienceResult() {
         </div>
       </div>
 
-      <article className={isMarketer ? 'mx-auto max-w-[1520px] px-4 py-8 sm:px-6 xl:px-8 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+      {/* 고양이 편집 챗봇이 열려 있으면 넓은 화면에서 오른쪽에 붙으므로 본문을 그만큼 비켜 둔다 */}
+      <div className={isRoleOnePage && roleChatOpen ? 'xl:pr-[364px] print:pr-0' : ''}>
+      <article className={isMarketer && !isRoleOnePage ? 'mx-auto max-w-[1520px] px-4 py-8 sm:px-6 xl:px-8 print:max-w-none print:p-0' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
         {identityLine && (
           <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4 sm:px-6">
             <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>
@@ -3330,7 +3339,7 @@ export default function ExperienceResult() {
             )}
           </section>
         )}
-        {isMarketer ? (
+        {isMarketer && !isRoleOnePage ? (
           <MarketerDoc
             cs={cs}
             onPatchSr={nextSr => { setExp(prev => ({ ...(prev || {}), structuredResult: nextSr })); setDirty(true); }}
@@ -3349,21 +3358,13 @@ export default function ExperienceResult() {
             onAiResearch={handleAiResearch}
             researching={researching}
           />
-        ) : isPmJob ? (
-          <PmDoc
-            exp={exp}
-            cs={cs}
-            sr={exp?.structuredResult || {}}
-            setField={setField}
-            setMeta={setMeta}
-            setKeyExp={setKeyExp}
-            addKeyExp={addKeyExp}
-            removeKeyExp={removeKeyExp}
-            onPatchSr={(nextSr) => {
-              setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
-              setDirty(true);
-            }}
-          />
+        ) : isRoleOnePage ? (
+          <>
+            {isPmJob
+              ? <PmOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} />
+              : <CampaignOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} />}
+            <RoleEditChat jobCategory={jobCategory} page={rolePage} material={getRawMaterialText(exp)} onApply={patchRolePage} open={roleChatOpen} onOpenChange={setRoleChatOpen} />
+          </>
         ) : isCommonJob ? (
           <CommonLegacyDoc
             id={id}
@@ -3666,6 +3667,7 @@ export default function ExperienceResult() {
           )}
         </div>
       </article>
+      </div>
     </div>
     {fillOpen && (
       <MissingFieldsPanel exp={exp} onApply={applyMissingFields} onClose={() => setFillOpen(false)} />
