@@ -1,6 +1,43 @@
 /* One continuous document. Surface changes indicate information roles. */
 .fp-result { --result-ink: var(--fp-ink, #111111); --result-body: #444440; --result-muted: var(--fp-muted, #6d6d67); --result-line: var(--fp-line, #dcdcd6); --result-line-strong: #b9b9b3; --result-tint: #efefe9; color: var(--result-ink); }
 .fp-result-wrap { width: 100%; max-width: 1400px; margin: 0 auto; }
+.fp-result-body { container: result-body / inline-size; min-width: 0; }
+.fp-result-records { margin-top: 32px; border-block: 1px solid var(--result-line-strong); }
+.fp-result-records > summary { display: flex; align-items: center; gap: 16px; min-height: 80px; padding: 20px 4px; list-style: none; cursor: pointer; }
+.fp-result-records > summary::-webkit-details-marker { display: none; }
+.fp-result-records > summary > span { flex: 1; font-size: 15px; font-weight: 750; }
+.fp-result-records > summary small { display: block; margin-top: 4px; color: var(--result-muted); font-size: 12px; font-weight: 500; }
+.fp-result-records[open] > summary > svg { transform: rotate(180deg); }
+.fp-result-records > div { padding: 12px 0 28px; }
+
+/* The editable one-page report and the detailed evidence share one visual language. */
+.fp-result .role-one-page { display: grid; grid-template-columns: 250px minmax(0, 1fr); align-items: start; gap: 32px; }
+.fp-result .role-one-sidebar { min-width: 0; padding: 24px 20px; background: var(--result-tint); border: 1px solid var(--result-line); border-radius: 12px; }
+.fp-result .role-one-document { min-width: 0; background: var(--fp-paper, #fff); border: 1px solid var(--result-line); border-radius: 14px; overflow: hidden; }
+.fp-result .role-impact-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; background: var(--result-ink); color: #fff; }
+.fp-result .role-impact-header h2 { color: #fff; font-size: 21px; }
+.fp-result .role-impact-header button { min-height: 36px; padding: 6px 10px; border: 1px solid #ffffff55; border-radius: 6px; color: #fff; }
+.fp-result .role-impact-header button:hover { background: #ffffff1a; }
+.fp-result .role-one-section { padding: 24px; border-bottom: 1px solid var(--result-line); }
+.fp-result .role-one-section:last-child { border-bottom: 0; }
+.fp-result .role-one-section h3 { font-size: 15px; }
+.fp-result .role-one-artifact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 12px; }
+.fp-result :is(.role-one-page, .role-edit-chat-panel) :is(.text-bluewood-300, .text-bluewood-400, .text-bluewood-500) { color: var(--result-muted); }
+.fp-result :is(.role-one-page, .role-edit-chat-panel) :is(.text-bluewood-600, .text-bluewood-700) { color: var(--result-body); }
+.fp-result :is(.role-one-page, .role-edit-chat-panel) :is(.text-bluewood-800, .text-bluewood-900, .text-primary-600) { color: var(--result-ink); }
+.fp-result .role-one-page .role-impact-header :is(h2, button) { color: #fff; }
+.fp-result :is(.role-one-page, .role-edit-chat-panel) :is(.bg-surface-50, .bg-surface-100) { background-color: var(--fp-soft, #f6f6f2); }
+.fp-result .role-one-page :is(.border-surface-200, .border-surface-300) { border-color: var(--result-line); }
+.fp-result .role-one-page :is(input, textarea)::placeholder { color: var(--result-muted); }
+@media (min-width: 1280px) {
+  .fp-result-body.is-chat-open { padding-right: 364px; }
+}
+@container result-body (max-width: 900px) {
+  .fp-result .role-one-page, .fp-result .role-visual-workspace { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+}
+@container result-body (max-width: 600px) {
+  .fp-result .role-one-section, .fp-result .role-impact-header { padding: 20px; }
+}
 .fp-result-sticky { position: sticky; top: 0; z-index: 20; padding: 4px 0 20px; background: var(--fp-soft, #f6f6f2); }
 .fp-result-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 64px; padding: 10px 0 14px; border-bottom: 1px solid var(--result-line-strong); background: var(--fp-soft, #f6f6f2); }
 .fp-result-navigation, .fp-result-views, .fp-result-actions { display: flex; align-items: center; gap: 8px; }
@@ -218,6 +255,11 @@
   .fp-result-pattern-body { padding: 0 18px 20px; }
 }
 @media print {
+  .fp-result-body.is-chat-open { padding-right: 0; container-type: normal; }
+  .fp-result .role-one-page { display: block; }
+  .fp-result .role-one-sidebar { margin-bottom: 20px; }
+  .fp-result .role-impact-header { background: #fff; border-bottom: 2px solid var(--result-ink); }
+  .fp-result .role-one-page .role-impact-header h2 { color: var(--result-ink); }
   .fp-result-sticky, .fp-result-patterns, .fp-result-endnote { display: none; }
   .fp-result-wrap { max-width: none; }
   .fp-result .role-visual-workspace { display: block; margin: 0; }

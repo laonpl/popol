@@ -493,35 +493,71 @@ test('persistent underflow or revision outage cannot return an out-of-range succ
         return JSON.stringify({ ...correctAnswer, answer: answerAtLength(330) });
       },
     }), error => error.status === 422 && error.code === 'COVERLETTER_LENGTH_FAILED' && /650~750자/.test(error.message));
-    assert.equal(calls, unavailable ? 3 : 6);
+    assert.equal(calls, unavailable ? 4 : 6);
   }
 });
 
-test('a repeated 644-character near miss is completed with measured local edits for 650–700', async () => {
+test('644 and 645-character near misses use local completion before any whole rewrite', async () => {
   for (const countSpaces of [true, false]) {
-    let calls = 0;
-    const shortAnswer = answerAtLength(644, countSpaces);
-    const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700, countSpaces } }, [rawExperience], {
-      generateAI: async prompt => {
-        calls++;
-        const quality = lengthFixtureQualityReply(prompt);
-        if (quality) return quality;
-        if (calls <= 4) return JSON.stringify({ ...correctAnswer, answer: shortAnswer });
-        assert.match(prompt, /현재 본문은 644자/);
-        assert.match(prompt, /6자 이상, 56자 이하/);
-        return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: [
-          '고객의 문제를 파악하기 위한 인터뷰',
-          '문제 유형을 파악하기 위한 고객 인터뷰',
-        ] }] });
-      },
-    });
-    assert.equal(calls, 6);
-    assert.ok(result.review.charCount >= 650 && result.review.charCount <= 700);
-    assert.equal(result.review.charCount, countAnswerCharacters(result.answer, countSpaces));
-    assert.equal(result.review.withinLimit, true);
-    assert.deepEqual(result.evidence, correctAnswer.evidence);
-    assert.deepEqual(result.linkedExperienceIds, correctAnswer.linkedExperienceIds);
+    for (const shortLength of [644, 645]) {
+      let calls = 0;
+      const shortAnswer = answerAtLength(shortLength, countSpaces);
+      const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700, countSpaces } }, [rawExperience], {
+        generateAI: async prompt => {
+          calls++;
+          const quality = lengthFixtureQualityReply(prompt);
+          if (quality) return quality;
+          if (calls <= 2) return JSON.stringify({ ...correctAnswer, answer: shortAnswer });
+          assert.ok(prompt.startsWith('자기소개서의 일부 문장만'));
+          assert.ok(prompt.includes(`현재 본문은 ${shortLength}자`));
+          assert.ok(prompt.includes(`${650 - shortLength}자 이상, ${700 - shortLength}자 이하`));
+          return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: [
+            '고객의 문제를 파악하기 위한 인터뷰',
+            '문제 유형을 파악하기 위한 고객 인터뷰',
+          ] }] });
+        },
+      });
+      assert.equal(calls, 4);
+      assert.ok(result.review.charCount >= 650 && result.review.charCount <= 700);
+      assert.equal(result.review.charCount, countAnswerCharacters(result.answer, countSpaces));
+      assert.equal(result.review.withinLimit, true);
+      assert.deepEqual(result.evidence, correctAnswer.evidence);
+      assert.deepEqual(result.linkedExperienceIds, correctAnswer.linkedExperienceIds);
+    }
   }
+});
+
+test('a 645-character draft accepts a scalar replacement selected by server sentence ID', async () => {
+  let calls = 0;
+  const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700 } }, [rawExperience], {
+    generateAI: async prompt => {
+      calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      if (calls <= 2) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(645) });
+      return JSON.stringify({ edits: [{ sentenceIndex: 0, after: '문제 유형을 파악하기 위해 고객 인터뷰 12명을 직접 진행했습니다.' }] });
+    },
+  });
+  assert.equal(calls, 4);
+  assert.equal(result.review.withinLimit, true);
+  assert.equal(result.review.charCount, countAnswerCharacters(result.answer));
+  assert.ok(result.answer.startsWith('문제 유형을 파악하기 위해'));
+});
+
+test('a transient edit and rewrite outage still permits the remaining local repair', async () => {
+  let calls = 0;
+  const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700 } }, [rawExperience], {
+    generateAI: async prompt => {
+      calls++;
+      const quality = lengthFixtureQualityReply(prompt);
+      if (quality) return quality;
+      if (calls <= 2) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(645) });
+      if (calls <= 4) throw Object.assign(new Error('unavailable'), { status: 503 });
+      return JSON.stringify({ edits: [{ sentenceIndex: 0, after: ['문제 유형을 파악하기 위해 고객 인터뷰 12명을 직접 진행했습니다.'] }] });
+    },
+  });
+  assert.equal(calls, 6);
+  assert.equal(result.review.withinLimit, true);
 });
 
 test('sentence capping to 644 characters is followed by local completion rather than an error', async () => {
@@ -545,17 +581,21 @@ test('sentence capping to 644 characters is followed by local completion rather 
 
 test('worse whole rewrites do not discard a closer draft before local completion', async () => {
   let calls = 0;
+  let edits = 0;
   const result = await generateCoverLetterAnswer({ question: { ...question, minLength: 650, maxLength: 700 } }, [rawExperience], {
     generateAI: async prompt => {
       calls++;
       const quality = lengthFixtureQualityReply(prompt);
       if (quality) return quality;
-      if (calls <= 4) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(calls <= 2 ? 644 : 600) });
+      if (calls <= 2) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(644) });
+      if (prompt.startsWith('자기소개서 초안을')) return JSON.stringify({ ...correctAnswer, answer: answerAtLength(600) });
+      edits++;
+      if (edits === 1) return JSON.stringify({ edits: [] });
       assert.match(prompt, /현재 본문은 644자/);
       return JSON.stringify({ edits: [{ before: '고객 인터뷰', after: ['고객의 문제를 파악하기 위한 인터뷰'] }] });
     },
   });
-  assert.equal(calls, 6);
+  assert.equal(calls, 7);
   assert.equal(result.review.withinLimit, true);
 });
 

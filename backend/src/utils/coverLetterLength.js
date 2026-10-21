@@ -4,6 +4,15 @@ export function coverLetterLengthDistance(charCount, question) {
   return Math.max(0, (question.minLength || 0) - charCount, question.maxLength ? charCount - question.maxLength : 0);
 }
 
+export function coverLetterPassages(answer) {
+  const source = String(answer || '').replace(/\r\n?/g, '\n').trim();
+  return Array.from(new Intl.Segmenter('ko', { granularity: 'sentence' }).segment(source), item => {
+    const text = item.segment.trim();
+    const start = item.index + item.segment.indexOf(text);
+    return { text, start, end: start + text.length };
+  }).filter(item => item.text).map((item, index) => ({ ...item, index }));
+}
+
 /** Select compatible wording changes by measured length, never by an AI-reported count. */
 export function fitCoverLetterEdits(answer, question, edits) {
   const source = String(answer || '').replace(/\r\n?/g, '\n').trim();
@@ -16,16 +25,29 @@ export function fitCoverLetterEdits(answer, question, edits) {
   const rank = (left, right) => coverLetterLengthDistance(left.length, question) - coverLetterLengthDistance(right.length, question)
     || left.changes.length - right.changes.length || Math.abs(left.length - target) - Math.abs(right.length - target);
   const groups = [];
+  const passages = coverLetterPassages(source);
   for (const edit of edits.slice(0, 12)) {
-    if (typeof edit?.before !== 'string' || !Array.isArray(edit.after)) continue;
-    const before = edit.before.replace(/\r\n?/g, '\n');
-    const start = source.indexOf(before);
+    // Sentence IDs refer to the server's original text, so copying mistakes in
+    // a model-generated anchor cannot silently discard an otherwise usable edit.
+    const passage = Number.isInteger(edit?.sentenceIndex) ? passages.find(item => item.index === edit.sentenceIndex) : null;
+    const anchor = typeof edit?.before === 'string' ? edit.before : passage?.text;
+    const replacements = typeof edit?.after === 'string' ? [edit.after] : edit?.after;
+    if (typeof anchor !== 'string' || !Array.isArray(replacements)) continue;
+    const before = anchor.replace(/\r\n?/g, '\n');
+    const indexed = passage && typeof edit?.before !== 'string';
+    const start = indexed ? passage.start : source.indexOf(before);
     // Exact, unique anchors keep a suggestion from modifying the wrong passage.
-    if (!before.trim() || start < 0 || source.indexOf(before, start + 1) !== -1) continue;
+    if (!before.trim() || start < 0 || (!indexed && source.indexOf(before, start + 1) !== -1)) continue;
     const end = start + before.length;
-    const alternatives = [...new Set(edit.after.filter(value => typeof value === 'string' && value.trim() && value.length <= 4000)
+    const alternatives = [...new Set(replacements.filter(value => typeof value === 'string' && value.trim() && value.length <= 4000)
       .map(value => value.replace(/\r\n?/g, '\n')))].filter(value => value !== before).slice(0, 6);
-    if (!alternatives.length || groups.some(group => start < group.end && end > group.start)) continue;
+    if (!alternatives.length) continue;
+    const sameAnchor = groups.find(group => start === group.start && end === group.end);
+    if (sameAnchor) {
+      sameAnchor.alternatives = [...new Set([...sameAnchor.alternatives, ...alternatives])].slice(0, 12);
+      continue;
+    }
+    if (groups.some(group => start < group.end && end > group.start)) continue;
     groups.push({ start, end, before, alternatives });
   }
   groups.sort((left, right) => left.start - right.start);

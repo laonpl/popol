@@ -2124,6 +2124,11 @@ export default function ExperienceChat() {
     try {
       // AI 빠른 초안 — 실패 시 로컬 초안 폴백 (기존 플로우와 동일한 전략)
       const momentsText = selectedMoments.length > 0 ? buildMomentsText(selectedMoments) : '';
+      // PM·마케터 '핵심 경험 한 장'(개발자의 GitHub 분석에 해당)을 초안과 동시에 추출 — 실패해도 결과 화면이 기존 정리로 채운다
+      const roleOnePagePromise = ['pm', 'marketer'].includes(jobCategory) && allText.trim()
+        ? api.post('/experience/analyze-role', { jobCategory, material: allText.trim() }, { timeout: 120000 })
+          .then(res => res.data).catch(e => { console.warn('[ExperienceChat] 한 장 분석 실패(무시):', e?.message); return null; })
+        : Promise.resolve(null);
       let analysis;
       try {
         const cleaned = cleanRawText(allText) || allText;
@@ -2162,6 +2167,9 @@ export default function ExperienceChat() {
           console.warn('[ExperienceChat] product/다이어그램 전용 추출 실패(무시):', e?.message);
         }
       }
+      const roleOnePage = await roleOnePagePromise;
+      const roleKey = jobCategory === 'pm' ? 'pmOnePage' : 'campaignOnePage';
+      if (roleOnePage?.[roleKey]) analysis = { ...analysis, [roleKey]: { ...roleOnePage[roleKey], source: 'analysis' } };
       window.clearTimeout(slowNotice);
       setBuildSteps([{ label: 'AI 초안 생성', status: 'done' }]);
       // 기본 정보 단계에서 받은 기간을 초안에 반영

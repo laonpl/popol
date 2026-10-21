@@ -418,9 +418,37 @@ export async function generateCoverLetterAnswer(body, ownedExperiences, dependen
   const auditedAnswer = result.answer;
   const resize = async () => {
     // Check both bounds after audit, which can shorten or expand the draft.
-    let lengthAiUnavailable = false;
     const closer = candidate => !candidate.problems.length
       && coverLetterLengthDistance(candidate.review.charCount, question) < coverLetterLengthDistance(result.review.charCount, question);
+    let editAttempts = 0;
+    const edit = async () => {
+      editAttempts++;
+      const revision = parseJSON(await generateAI(buildCoverLetterLengthEditsPrompt(input, result), {
+        ...AI_OPTIONS, config: { ...AI_OPTIONS.config, maxOutputTokens: 5000 },
+      }));
+      const answer = fitCoverLetterEdits(result.answer, question, revision.edits);
+      const candidate = validateGeneratedAnswer({ ...result, answer }, input);
+      if (closer(candidate)) {
+        result = candidate;
+        proposed = { ...proposed, ...result };
+      }
+      // Some models return a full answer despite the edit schema. Measure it
+      // rather than discard a usable in-range response on formatting alone.
+      if (typeof revision.answer === 'string') {
+        const rewritten = validateGeneratedAnswer({ ...proposed, ...revision }, input);
+        if (closer(rewritten)) { result = rewritten; proposed = { ...proposed, ...revision }; }
+      }
+    };
+    // A five-character miss should need one sentence adjustment, not several
+    // full rewrites that can consume the request budget before edits begin.
+    const distance = coverLetterLengthDistance(result.review.charCount, question);
+    if (result.review.charCount < question.minLength && distance <= Math.max(12, Math.ceil((question.maxLength || question.minLength) * 0.1))) {
+      try { await edit(); }
+      catch (error) {
+        if (!isTransientAiError(error)) throw error;
+        // A slow edit is still recoverable through the ordinary rewrite path.
+      }
+    }
     for (let attempt = 0; !result.review.withinLimit && attempt < 2; attempt++) {
       try {
         const revised = parseJSON(await generateAI(buildCoverLetterLengthRevisionPrompt(input, proposed, result.review.charCount), AI_OPTIONS));
@@ -431,7 +459,6 @@ export async function generateCoverLetterAnswer(body, ownedExperiences, dependen
         result = candidate;
       } catch (error) {
         if (!isTransientAiError(error)) throw error;
-        lengthAiUnavailable = true;
         break;
       }
     }
@@ -445,12 +472,9 @@ export async function generateCoverLetterAnswer(body, ownedExperiences, dependen
     }
     // Whole-draft rewrites only estimate length. Choose local edits using actual
     // counts so near misses (e.g. 644 for 650–700) do not stop at an avoidable error.
-    for (let attempt = 0; !result.review.withinLimit && !lengthAiUnavailable && attempt < 2; attempt++) {
+    while (!result.review.withinLimit && editAttempts < 2) {
       try {
-        const revision = parseJSON(await generateAI(buildCoverLetterLengthEditsPrompt(input, result), AI_OPTIONS));
-        const answer = fitCoverLetterEdits(result.answer, question, revision.edits);
-        const candidate = validateGeneratedAnswer({ ...result, answer }, input);
-        if (closer(candidate)) result = candidate;
+        await edit();
       } catch (error) {
         if (!isTransientAiError(error)) throw error;
         break;

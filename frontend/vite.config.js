@@ -45,6 +45,14 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        // 백엔드 기동 전(콜드 스타트 수십 초)에는 503+표시 헤더로 응답 → api.js가 기동될 때까지 재시도
+        configure(proxy) {
+          proxy.on('error', (err, req, res) => {
+            if (res && 'writeHead' in res && !res.headersSent) {
+              res.writeHead(503, { 'x-dev-backend-down': '1' }).end();
+            }
+          });
+        },
       }
     }
   }
