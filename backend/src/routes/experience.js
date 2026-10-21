@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { requireCredits } from '../services/billingService.js';
+import { assertHasCredits, requireCredits } from '../services/billingService.js';
+import { buildSummaryDeck } from '../services/summaryDeckService.js';
+import { collectDeckMaterial, deckSourceHash } from '../../../shared/summaryDeck.mjs';
 import { roleAnalysisContent, preserveRolePresentation } from '../utils/roleMaterials.js';
 import {
   analyzeExperience,
@@ -646,6 +648,56 @@ router.post('/refine-key-experience', authMiddleware, requireCredits, aiRateLimi
   } catch (error) {
     const msg = error.message || '';
     if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
+    next(error);
+  }
+});
+
+async function loadOwnExperience(req, res) {
+  const { experienceId } = req.body || {};
+  if (!experienceId) { res.status(400).json({ error: 'experienceId가 필요합니다' }); return null; }
+  const docRef = adminDb.collection('experiences').doc(String(experienceId));
+  const docSnap = await docRef.get();
+  if (!docSnap.exists) { res.status(404).json({ error: '경험을 찾을 수 없습니다' }); return null; }
+  const data = docSnap.data();
+  if (data.userId !== req.user.uid) { res.status(403).json({ error: '접근 권한이 없습니다' }); return null; }
+  return { docRef, data };
+}
+
+// POST /api/experience/summary-deck - 경험 요약 슬라이드 생성 (경험 내용이 그대로면 저장본 재사용, 크레딧 미사용)
+router.post('/summary-deck', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const loaded = await loadOwnExperience(req, res);
+    if (!loaded) return;
+    const { docRef, data } = loaded;
+    const saved = data.structuredResult?.summaryDeck;
+    const sourceHash = deckSourceHash(collectDeckMaterial(data));
+    if (!req.body.force && saved?.sourceHash === sourceHash && Array.isArray(saved.slides)) {
+      return res.json({ deck: saved, cached: true });
+    }
+    await assertHasCredits(req.user.uid);
+    const deck = await buildSummaryDeck(data);
+    if (!deck.slides.length) return res.status(422).json({ error: '요약할 내용이 부족합니다. 핵심 경험을 먼저 정리해주세요.' });
+    const stored = { ...deck, createdAt: new Date().toISOString() };
+    await docRef.update({ 'structuredResult.summaryDeck': stored });
+    res.json({ deck: stored, cached: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/experience/summary-deck - 사용자가 슬라이드 문구·포인트 색을 고친 덱 저장
+router.put('/summary-deck', authMiddleware, async (req, res, next) => {
+  try {
+    const { deck } = req.body || {};
+    if (!deck || !Array.isArray(deck.slides) || deck.slides.length > 12 || JSON.stringify(deck).length > 200000) {
+      return res.status(400).json({ error: '저장할 슬라이드 형식이 올바르지 않습니다' });
+    }
+    const loaded = await loadOwnExperience(req, res);
+    if (!loaded) return;
+    const stored = { ...deck, editedAt: new Date().toISOString() };
+    await loaded.docRef.update({ 'structuredResult.summaryDeck': stored });
+    res.json({ deck: stored });
+  } catch (error) {
     next(error);
   }
 });

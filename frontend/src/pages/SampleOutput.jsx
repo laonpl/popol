@@ -9,15 +9,17 @@
  *    - buildCoreExperienceSections  내보내기·노션·공유에 실리는 텍스트 산출물
  *   따라서 이 화면에서 보이는 것이 곧 실제 결과물이다.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, FileDown, LayoutGrid, Layers } from 'lucide-react';
+import { ArrowLeft, FileDown, LayoutGrid, Layers, Presentation } from 'lucide-react';
 import JobExperienceCard from '../components/portfolio/JobExperienceCards';
 import RecipeArtifactCover from '../components/portfolio/RecipeArtifactCover';
 import { getJobPortfolioMeta } from '../utils/devPortfolio';
 import { buildCoreExperienceSections } from '../utils/coreExperienceSections';
 import { CAREER_STAGES } from '../constants/careerStages';
 import { SAMPLE_EXPERIENCES, SAMPLE_JOBS, SAMPLE_PLANS, SAMPLE_VISUALS } from './sampleOutputData';
+import SummaryDeckViewer from '../components/summaryDeck/SummaryDeckViewer';
+import { collectDeckMaterial, planSummaryDeck } from '../../../shared/summaryDeck.mjs';
 
 const STAGE_LABEL = Object.fromEntries(CAREER_STAGES.map(s => [s.value, s.label]));
 
@@ -31,17 +33,25 @@ const CHANGES = [
   { tag: '신규', text: '맞춤 구성 파이프라인 — 경험·직군·경력단계·기업분석에 따라 섹션 선택·순서·제목이 매번 달라짐' },
   { tag: '버그', text: '히어로 아티팩트(15종)를 아무도 안 골라 전원 기본 비주얼만 보이던 문제 — 구성 계획이 경험별로 선택' },
   { tag: '신규', text: '데이터 주도 히어로 — 전용 변형이 없는 직군은 시각화 프리미티브 7종을 조합해 경험마다 다른 커버 생성 (톤 5종)' },
+  { tag: '신규', text: '경험 요약 슬라이드 — 정리한 원문·수치로만 만드는 16:9 장표(표지·문제 정의·리서치·과정·AS-IS→TO-BE·성과). 데이터가 있는 장만 생성, 포인트 색 선택, PNG·ZIP 저장' },
 ];
 
 export default function SampleOutput() {
   const [job, setJob] = useState('designer');
   const [tab, setTab] = useState('card');
+  const [deckEdits, setDeckEdits] = useState({});
 
   const exp = SAMPLE_EXPERIENCES[job];
   const accent = getJobPortfolioMeta(job).accent;
   const plans = SAMPLE_PLANS[job] || [];
   const sections = buildCoreExperienceSections({ jobCategory: job, sr: {}, keyExperiences: [exp] })
     .filter(s => s.enabled !== false && s.content?.trim());
+  // 실제 '경험 요약보기'와 같은 덱 생성기 — AI 다듬기 전 단계(정리한 원문 발췌)를 그대로 보여준다.
+  const sampleDeck = useMemo(() => planSummaryDeck(collectDeckMaterial({
+    title: exp.title,
+    structuredResult: { projectOverview: { role: exp.label }, keyExperiences: [exp], portfolioVisuals: SAMPLE_VISUALS[job] || {} },
+  })), [exp, job]);
+  const deck = deckEdits[job] || sampleDeck;
 
   return (
     <div className="min-h-screen bg-surface-50 pb-20">
@@ -109,6 +119,7 @@ export default function SampleOutput() {
             { key: 'card', label: '화면에 보이는 카드', icon: LayoutGrid },
             { key: 'export', label: '내보내기 · 노션 산출물', icon: FileDown },
             { key: 'plan', label: '맞춤 구성 계획', icon: Layers },
+            { key: 'deck', label: '요약 슬라이드', icon: Presentation },
           ].map(t => (
             <button
               key={t.key}
@@ -208,6 +219,19 @@ export default function SampleOutput() {
                 </p>
               </>
             )}
+          </div>
+        )}
+
+        {tab === 'deck' && (
+          <div className="mt-5">
+            <div className="rounded-2xl bg-[#0b0c0e] p-4">
+              <SummaryDeckViewer deck={deck} jobCategory={job} onChange={next => setDeckEdits(prev => ({ ...prev, [job]: next }))} />
+            </div>
+            <p className="mt-4 text-center text-[12px] leading-relaxed text-bluewood-300">
+              결과 화면의 <strong className="text-bluewood-500">경험 요약보기</strong>와 같은 생성기로 만든 장표입니다.
+              여기서는 AI 다듬기 전 단계(정리한 원문 발췌)를 보여주며, 실제로는 각 칸의 문장을 슬라이드 길이로 줄인 뒤
+              원문에 없는 숫자·과장 표현이 섞인 문구는 버립니다. 결과물 이미지를 올린 경험에는 AS-IS → TO-BE 장이 추가됩니다.
+            </p>
           </div>
         )}
 
