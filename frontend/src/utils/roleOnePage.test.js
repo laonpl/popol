@@ -143,3 +143,20 @@ test('기간은 개월 수로 읽는다', async () => {
   assert.equal(periodLength('2025.09 — 2025.12 · 4개월'), '4개월');
   assert.equal(periodLength('상시 운영'), '상시 운영');
 });
+
+test('PM 의사결정: 핵심 경험의 판단과 실행·검증 결과를 제목이 같은 결정에만 채운다', () => {
+  const keyExperiences = [{ title: 'AI 결과물 만족도 100% 달성 (베타 테스트)', roleSummary: { action: '별점 4점 이상 비율을 KPI로 정함', validation: '베타 사용자 12명 설문', result: '전원이 4점 이상을 줬다' } }];
+  const analyzed = buildPmOnePage({ sr: { keyExperiences, pmOnePage: { source: 'analysis', decisions: [
+    { title: 'AI 결과물 만족도 100% 달성(베타 테스트)', action: '', options: [] },
+    { title: '전혀 다른 결정', options: [] },
+  ] } } });
+  assert.equal(analyzed.decisions[0].action, '별점 4점 이상 비율을 KPI로 정함');
+  assert.equal(analyzed.decisions[0].validation, '베타 사용자 12명 설문');
+  assert.equal(analyzed.decisions[0].outcome, '전원이 4점 이상을 줬다');
+  assert.equal(analyzed.decisions[1].action, undefined); // 순서로 짝짓지 않는다
+
+  // 사용자가 편집하며 지운 칸('')은 되살리지 않고, 원래 없던 칸만 채운다
+  const edited = buildPmOnePage({ sr: { keyExperiences, pmOnePage: { edited: true, decisions: [{ title: keyExperiences[0].title, action: '', options: [] }] } } });
+  assert.equal(edited.decisions[0].action, '');
+  assert.equal(edited.decisions[0].validation, '베타 사용자 12명 설문');
+});

@@ -781,7 +781,7 @@ function ThinNote({ show, onAnalyze, analyzing, what }) {
 
 /* ════════════ 기획/PM ════════════ */
 
-const EMPTY_DECISION = { title: '', step: '', tags: [], problem: '', evidence: '', options: [], result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
+const EMPTY_DECISION = { title: '', step: '', tags: [], problem: '', evidence: '', options: [], action: '', validation: '', outcome: '', result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
 
 /** 결정이 바꾼 플로우 단계 번호 — 분석이 준 step이 있으면 그것, 없으면 결정 글에 단계명이 나오는지로 읽는다 (못 찾으면 -1) */
 function stepIndexOf(d = {}, flow = []) {
@@ -808,7 +808,7 @@ function ChainStep({ label, color = '#314157', last, children }) {
   );
 }
 
-/** 의사결정 펼침 — 이 결정을 어떻게 내렸나: 왜 필요했나 → 뺀 대안 → 고른 안과 이유 → 기획서에 옮긴 것 → 결과와 대응 → 배운 점 */
+/** 의사결정 펼침 — 이 결정을 어떻게 내렸나: 고객 문제 → 뺀 대안 → 판단과 실행 → 기획서에 옮긴 것 → 검증 결과 → 배운 점 */
 function DecisionDetail({ d, set, onDelete }) {
   const editing = useEditing();
   const options = d.options || [];
@@ -816,13 +816,14 @@ function DecisionDetail({ d, set, onDelete }) {
   const rejected = options.filter(o => !o.chosen);
   const body = 'text-[12.5px] leading-[1.7] text-bluewood-700';
   const steps = editing ? [
-    { label: '왜 필요했나', node: <div className="space-y-2"><Para value={d.problem} onChange={set('problem')} placeholder="왜 이 결정이 필요했나" className={body} /><Para value={d.evidence} onChange={set('evidence')} placeholder="판단 근거 — 인터뷰 발화·데이터" className={body} /></div> },
+    { label: '고객 문제', node: <div className="space-y-2"><Para value={d.problem} onChange={set('problem')} placeholder="누가 어떤 상황에서 무엇이 불편했나" className={body} /><Para value={d.evidence} onChange={set('evidence')} placeholder="판단 근거 — 인터뷰 발화·데이터" className={body} /></div> },
     { label: '검토한 안', color: ACCENT, node: <LinesEditor label="" hint="'검토안 | 채택 또는 제외 | 이유'" rows={options.map(o => ({ ...o, chosen: o.chosen ? '채택' : '제외' }))} keys={['label', 'chosen', 'reason']} onChange={(rows) => set('options')(rows.map(r => ({ label: r.label, chosen: r.chosen === '채택', reason: r.reason })))} /> },
+    { label: '판단과 실행', color: ACCENT, node: <Para value={d.action} onChange={set('action')} placeholder="그 판단에 따라 내가 실제로 한 일" className={body} /> },
     { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
-    { label: '결과와 대응', color: ACCENT, node: <div className="space-y-2"><ResultLine result={d.result} onChange={set('result')} /><IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} /></div> },
+    { label: '검증 결과', color: ACCENT, node: <div className="space-y-2"><Para value={d.validation} onChange={set('validation')} placeholder="무엇으로·누구를 대상으로 검증했나" className={body} /><ResultLine result={d.result} onChange={set('result')} /><Para value={d.outcome} onChange={set('outcome')} placeholder="검증으로 확인한 결과" className={body} /><IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} /></div> },
     { label: '배운 점', color: '#94a3b8', node: <Txt block value={d.learning} onChange={set('learning')} placeholder="이 결정으로 배운 점" className={body} /> },
   ] : [
-    (t(d.problem) || t(d.evidence)) && { label: '왜 필요했나', node: (
+    (t(d.problem) || t(d.evidence)) && { label: '고객 문제', node: (
       <div className="space-y-1.5">
         <Para value={d.problem} lines={3} className={body} />
         {t(d.evidence) && <p className="border-l-2 border-surface-300 pl-3 text-[12.5px] leading-[1.65] text-bluewood-500" style={WRAP}><span className="mr-1.5 font-bold not-italic text-bluewood-400">근거</span>{d.evidence}</p>}
@@ -833,15 +834,21 @@ function DecisionDetail({ d, set, onDelete }) {
         <li key={oi} className="text-[12.5px] leading-[1.6] text-bluewood-500" style={WRAP}><span className="mr-1.5 text-bluewood-300">✕</span><span className="text-bluewood-600 line-through decoration-bluewood-300">{o.label}</span>{t(o.reason) && <span> — {o.reason}</span>}</li>
       ))}</ul>
     ) },
-    chosen.length > 0 && { label: '고른 안과 이유', color: ACCENT, node: (
-      <ul className="space-y-1">{chosen.map((o, oi) => (
-        <li key={oi} className="text-[13px] leading-[1.6] text-bluewood-800" style={WRAP}><span className="mr-1.5 font-black" style={{ color: ACCENT }}>✓</span><b>{o.label}</b>{t(o.reason) && <span className="font-normal text-bluewood-600"> — {o.reason}</span>}</li>
-      ))}</ul>
+    (chosen.length > 0 || t(d.action)) && { label: '판단과 실행', color: ACCENT, node: (
+      <div className="space-y-1.5">
+        {chosen.length > 0 && <ul className="space-y-1">{chosen.map((o, oi) => (
+          <li key={oi} className="text-[13px] leading-[1.6] text-bluewood-800" style={WRAP}><span className="mr-1.5 font-black" style={{ color: ACCENT }}>✓</span><b>{o.label}</b>{t(o.reason) && <span className="font-normal text-bluewood-600"> — {o.reason}</span>}</li>
+        ))}</ul>}
+        {/* 고른 안을 실제로 어떻게 옮겼나 — 채택안 문장과 같으면 한 번만 */}
+        {t(d.action) && !chosen.some(o => t(o.label) === t(d.action)) && <Para value={d.action} lines={3} className={body} />}
+      </div>
     ) },
     hasSpec(d.spec) && { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
-    (t(d.result?.after) || hasIssue(d.issue)) && { label: '결과와 대응', color: ACCENT, node: (
+    (t(d.validation) || t(d.result?.after) || t(d.outcome) || hasIssue(d.issue)) && { label: '검증 결과', color: ACCENT, node: (
       <div className="space-y-2">
+        {t(d.validation) && <p className="text-[12.5px] leading-[1.65] text-bluewood-500" style={WRAP}><span className="mr-1.5 font-bold text-bluewood-400">검증</span>{d.validation}</p>}
         <ResultLine result={d.result} onChange={set('result')} />
+        {t(d.outcome) && t(d.outcome) !== t(d.result?.after) && <Para value={d.outcome} lines={3} className={body} />}
         <IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} />
       </div>
     ) },

@@ -192,7 +192,25 @@ function pmDecisionFrom(k = {}) {
     issue: { signal: text(jd.obstacle), cause: '', fix: text(jd.resolution) },
     learning: firstText(summary.learning, k.learning),
     action: firstText(summary.action, k.action),
+    validation: firstText(summary.validation, jd.validation),
+    outcome: firstText(summary.result, k.result),
   };
+}
+
+const sameTitle = (a, b) => {
+  const x = text(a).replace(/\s+/g, '');
+  const y = text(b).replace(/\s+/g, '');
+  return !!x && !!y && (x === y || (Math.min(x.length, y.length) >= 6 && (x.includes(y) || y.includes(x))));
+};
+
+/** 저장된 의사결정의 판단과 실행·검증 칸을 제목이 같은 핵심 경험에서 채운다 — 순서로 짝짓지 않는다(엉뚱한 경험 내용이 붙지 않게).
+ *  사용자가 편집한 한 장은 지운 칸을 되살리지 않도록 원래 없던 칸(undefined)만 채운다 */
+function withExperienceFields(decisions, fromExperiences, edited) {
+  return list(decisions).map(d => {
+    const match = fromExperiences.find(e => sameTitle(e.title, d?.title));
+    if (!match) return d;
+    return { ...d, ...Object.fromEntries(['action', 'validation', 'outcome'].map(k => [k, (edited ? d?.[k] !== undefined : text(d?.[k])) ? d[k] : match[k]])) };
+  });
 }
 
 export function buildPmOnePage({ sr = {}, cs = {} } = {}) {
@@ -212,7 +230,8 @@ export function buildPmOnePage({ sr = {}, cs = {} } = {}) {
     exceptions: [],
     decisions: list(sr.keyExperiences).map(pmDecisionFrom).filter(d => d.title || d.problem).slice(0, 4),
   };
-  return resolve(sr.pmOnePage, derived);
+  const page = resolve(sr.pmOnePage, derived);
+  return { ...page, decisions: withExperienceFields(page.decisions, list(sr.keyExperiences).map(pmDecisionFrom), page.edited) };
 }
 
 /* ════════ 마케터 ════════ */

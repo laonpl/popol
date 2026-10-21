@@ -26,7 +26,8 @@ const PM_SCHEMA = `{
     "title": "의사결정 제목", "step": "이 결정이 바꾼 flow 단계명 — 모르면 \"\"", "tags": ["우선순위"],
     "problem": "판단이 필요했던 문제", "evidence": "판단 근거가 된 리서치·데이터",
     "options": [ { "label": "검토한 대안", "chosen": true, "reason": "채택/기각 이유" } ],
-    "result": { "label": "결과 지표", "before": "", "after": "" },
+    "action": "그 판단에 따라 내가 실제로 한 일", "validation": "무엇으로·누구를 대상으로 검증했나",
+    "result": { "label": "결과 지표", "before": "", "after": "" }, "outcome": "검증으로 확인한 결과 한두 문장",
     "spec": { "story": "사용자로서 ~하고 싶다", "criteria": ["수용 기준"], "policies": [ { "condition": "조건", "rule": "처리 규칙" } ] },
     "issue": { "signal": "드러난 문제", "cause": "원인", "fix": "대응" },
     "learning": "배운 점"
@@ -79,6 +80,7 @@ ${COMMON_RULES}
 - flow: 사용자가 서비스를 쓰는 핵심 흐름 3~6단계. exceptions: 그 흐름의 예외 상황과 정책 최대 4개.
 - decisions: 핵심 기획 의사결정 2~4개. options에는 실제로 비교한 대안만(채택 chosen=true, 기각 false).
   step은 그 결정이 바꾼 flow 단계명을 flow의 label 그대로(자료로 알 수 있을 때만, 모르면 "").
+  action은 본인이 직접 한 실행만, validation은 검증 방법·대상, outcome은 그 검증에서 실제로 확인한 결과(자료에 없으면 "").
   spec은 그 결정이 PRD·화면 정책·수용 기준으로 어떻게 옮겨졌는지(자료에 있을 때만). issue는 QA·출시·운영 중 드러난 문제와 대응.
 
 자료:
@@ -138,6 +140,7 @@ function normalizePm(raw = {}) {
       title: str(d?.title, 80), step: str(d?.step, 24), tags: strList(d?.tags, 4, 20),
       problem: str(d?.problem), evidence: str(d?.evidence),
       options: arr(d?.options).map(o => ({ label: str(o?.label, 100), chosen: o?.chosen === true, reason: str(o?.reason, 200) })).filter(o => o.label).slice(0, 4),
+      action: str(d?.action), validation: str(d?.validation), outcome: str(d?.outcome),
       result: change(d?.result),
       spec: {
         story: str(d?.spec?.story, 200),

@@ -3408,14 +3408,6 @@ export default function ExperienceResult() {
             {isPmJob
               ? <PmOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} artifactActions={artifactActions} />
               : <CampaignOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} />}
-            <details className="fp-result-records print:hidden">
-              <summary><span>경험별 상세 기록과 원본 자료<small>개별 경험 편집 · 근거 대조 · 자료 보관</small></span><ChevronDown size={18} /></summary>
-              <div>
-                {isPmJob
-                  ? <PmDoc exp={exp} cs={cs} sr={exp?.structuredResult || {}} setField={setField} setMeta={setMeta} onPatchSr={nextSr => { setExp(prev => ({ ...prev, structuredResult: nextSr })); setDirty(true); }} />
-                  : <MarketerDoc cs={cs} sr={exp?.structuredResult || {}} sourceText={getRawMaterialText(exp)} setField={setField} setMeta={setMeta} onPatchSr={nextSr => { setExp(prev => ({ ...prev, structuredResult: nextSr })); setDirty(true); }} />}
-              </div>
-            </details>
           </>
         ) : isCommonJob ? (
           <CommonLegacyDoc
