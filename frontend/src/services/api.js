@@ -54,7 +54,16 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error) => {
+    // 개발 모드: 백엔드가 아직 뜨는 중이면(vite 프록시가 표시) 최대 60초간 1초 간격 재시도
+    const cfg = error.config;
+    if (import.meta.env.DEV && cfg && error.response?.headers?.['x-dev-backend-down']) {
+      cfg._devRetry = (cfg._devRetry || 0) + 1;
+      if (cfg._devRetry <= 60) {
+        await new Promise(r => setTimeout(r, 1000));
+        return api(cfg);
+      }
+    }
     const reqUrl = error.config?.url;
     // 오류 보고 자체의 실패가 다시 보고되지 않도록 수집 엔드포인트는 제외
     const isLogEndpoint = typeof reqUrl === 'string' && reqUrl.includes('/logs/client');
