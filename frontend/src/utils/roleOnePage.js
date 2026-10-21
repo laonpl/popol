@@ -178,6 +178,7 @@ function pmDecisionFrom(k = {}) {
   const evidence = list(jd.pmEvidence).find(e => e?.dimension === 'discovery' && text(e?.claim));
   return {
     title: isPlaceholderTitle(k.title) ? '' : text(k.title),
+    step: '', // 화면이 결정 글에 나온 플로우 단계명으로 읽는다
     tags: list(k.keywords).map(text).filter(Boolean).slice(0, 3),
     problem: firstText(k.context, k.situation, jd.problemSignal),
     evidence: firstText(evidence?.quote, evidence?.claim, jd.problemSignal !== firstText(k.context, k.situation) ? jd.problemSignal : ''),

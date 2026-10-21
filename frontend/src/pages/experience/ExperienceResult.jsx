@@ -2032,6 +2032,45 @@ function CommonLegacyDoc({
 const pmFileExt = name => String(name || '').split('.').pop().toUpperCase().slice(0, 5);
 const pmSafeUrl = value => /^https?:\/\//i.test(String(value || '').trim()) ? String(value).trim() : `https://${String(value || '').trim()}`;
 
+/** 산출물 파일 올리기 — 원본은 Storage에, 읽을 수 있는 본문은 분석 자료(additionalMaterials)로 */
+async function uploadArtifactFiles(picked, prevMaterials = []) {
+  const added = [];
+  const materials = [...(prevMaterials || [])];
+  for (const file of picked) {
+    try {
+      const uploaded = await uploadDocumentFile(file);
+      const asset = { id: uid(), kind: 'file', name: uploaded.name || file.name, url: uploaded.url, size: uploaded.size || file.size, ext: String(file.name).split('.').pop().toLowerCase() };
+      added.push(asset);
+      const remaining = Math.max(0, 60000 - materials.reduce((sum, row) => sum + (row.text?.length || 0), 0));
+      if (remaining) {
+        try {
+          const form = new FormData(); form.append('file', file);
+          const imported = await importFileUpload(form);
+          const extracted = imported?.imported?.content || '';
+          if (extracted.trim()) {
+            const text = extracted.slice(0, Math.min(20000, remaining));
+            materials.push({ assetId: asset.id, name: asset.name, text });
+            if (text.length < extracted.length) toast('추가 자료의 일부 본문만 분석에 포함됩니다. 필요한 페이지로 나누어 올리면 더 정확합니다.');
+          } else toast('원본은 보관했습니다. 본문을 읽지 못해 자동 추출 근거에는 포함하지 않습니다.');
+        } catch { toast('원본은 보관했습니다. 본문 추출에 실패해 파일 연결과 설명 작성만 가능합니다.'); }
+      } else toast('추가 본문 한도에 도달해 원본 파일만 보관합니다.');
+    } catch (error) {
+      toast.error(error?.response?.data?.error || `'${file.name}' 업로드에 실패했어요`);
+    }
+  }
+  return { added, materials };
+}
+
+/** 링크 산출물 — 웹 주소가 아니면 null */
+function linkArtifact(value) {
+  try {
+    const url = pmSafeUrl(value);
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    return { id: uid(), kind: 'link', name: parsed.hostname.replace(/^www\./, ''), url };
+  } catch { return null; }
+}
+
 export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchSr, role = 'pm', minimal = false }) {
   const [uploading, setUploading] = useState(false);
   const [link, setLink] = useState('');
@@ -2048,42 +2087,16 @@ export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchS
     event.target.value = '';
     if (!picked.length) return;
     setUploading(true);
-    const added = [];
-    const materials = [...(sr.additionalMaterials || [])];
-    for (const file of picked) {
-      try {
-        const uploaded = await uploadDocumentFile(file);
-        const asset = { id: uid(), kind: 'file', name: uploaded.name || file.name, url: uploaded.url, size: uploaded.size || file.size, ext: String(file.name).split('.').pop().toLowerCase() };
-        added.push(asset);
-        const remaining = Math.max(0, 60000 - materials.reduce((sum, row) => sum + (row.text?.length || 0), 0));
-        if (remaining) {
-          try {
-            const form = new FormData(); form.append('file', file);
-            const imported = await importFileUpload(form);
-            const extracted = imported?.imported?.content || '';
-            if (extracted.trim()) {
-              const text = extracted.slice(0, Math.min(20000, remaining));
-              materials.push({ assetId: asset.id, name: asset.name, text });
-              if (text.length < extracted.length) toast('추가 자료의 일부 본문만 분석에 포함됩니다. 필요한 페이지로 나누어 올리면 더 정확합니다.');
-            } else toast('원본은 보관했습니다. 본문을 읽지 못해 자동 추출 근거에는 포함하지 않습니다.');
-          } catch { toast('원본은 보관했습니다. 본문 추출에 실패해 파일 연결과 설명 작성만 가능합니다.'); }
-        } else toast('추가 본문 한도에 도달해 원본 파일만 보관합니다.');
-      } catch (error) {
-        toast.error(error?.response?.data?.error || `'${file.name}' 업로드에 실패했어요`);
-      }
-    }
+    const { added, materials } = await uploadArtifactFiles(picked, sr.additionalMaterials);
     if (added.length) onPatchSr({ ...sr, deliverables: [...files, ...added], pmFiles: [], additionalMaterials: materials });
     setUploading(false);
   };
   const addLink = event => {
     event.preventDefault();
-    try {
-      const url = pmSafeUrl(link);
-      const parsed = new URL(url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid');
-      updateFiles([...files, { id: uid(), kind: 'link', name: parsed.hostname.replace(/^www\./, ''), url }]);
-      setLink('');
-    } catch { toast.error('올바른 웹 링크를 입력해 주세요'); }
+    const asset = linkArtifact(link);
+    if (!asset) { toast.error('올바른 웹 링크를 입력해 주세요'); return; }
+    updateFiles([...files, asset]);
+    setLink('');
   };
   return (
     <aside className="pm-profile-sidebar">
@@ -2792,6 +2805,7 @@ export default function ExperienceResult() {
   const [saving, setSaving] = useState(false);
   const [researching, setResearching] = useState(false); // AI 시장조사 진행 상태
   const [roleAnalyzing, setRoleAnalyzing] = useState(false); // PM·마케터 한 장 전용 분석 진행 상태
+  const [artifactUploading, setArtifactUploading] = useState(false); // PM 한 장 기획 산출물 올리는 중
   // 고양이 편집 챗봇 — 오른쪽에 붙일 자리가 있는 넓은 화면(xl)에서는 처음부터 열어 둔다
   const [roleChatOpen, setRoleChatOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
   const [findingIdentityPatterns, setFindingIdentityPatterns] = useState(false);
@@ -3158,6 +3172,30 @@ export default function ExperienceResult() {
     setExp(prev => ({ ...(prev || {}), structuredResult: { ...(prev?.structuredResult || {}), [roleOnePageKey]: toSavedPage(next) } }));
     setDirty(true);
   };
+  // PM 한 장 기획 산출물 — 산출물 보관함(PmProfileSidebar)과 같은 저장 자리(deliverables·additionalMaterials)
+  const patchArtifacts = (fn) => {
+    setExp(prev => ({ ...(prev || {}), structuredResult: fn(prev?.structuredResult || {}) }));
+    setDirty(true);
+  };
+  const artifactActions = {
+    uploading: artifactUploading,
+    addFiles: async (picked) => {
+      setArtifactUploading(true);
+      const { added, materials } = await uploadArtifactFiles(picked, exp?.structuredResult?.additionalMaterials);
+      if (added.length) patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s), ...added], pmFiles: [], additionalMaterials: materials }));
+      setArtifactUploading(false);
+    },
+    addLink: (value) => {
+      const asset = linkArtifact(value);
+      if (!asset) { toast.error('올바른 웹 링크를 입력해 주세요'); return false; }
+      patchArtifacts(s => ({ ...s, deliverables: [...roleArtifacts(s), asset], pmFiles: [] }));
+      return true;
+    },
+    remove: (url) => patchArtifacts(s => {
+      const next = roleArtifacts(s).filter(f => f.url !== url);
+      return { ...s, deliverables: next, pmFiles: [], additionalMaterials: (s.additionalMaterials || []).filter(row => next.some(f => f.id === row.assetId)) };
+    }),
+  };
   const devStats = exp?.structuredResult?.githubStats || null;
   const devGitExps = Array.isArray(exp?.structuredResult?.gitAnalysis?.experiences) ? exp.structuredResult.gitAnalysis.experiences : [];
   const devRole = devStats ? inferDevRole(devStats, devGitExps) : null;
@@ -3370,7 +3408,7 @@ export default function ExperienceResult() {
         ) : isRoleOnePage ? (
           <>
             {isPmJob
-              ? <PmOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} />
+              ? <PmOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} artifactActions={artifactActions} />
               : <CampaignOnePager title={cs.title} onTitle={(v) => setField('title', v)} meta={cs.meta} page={rolePage} onPatch={patchRolePage} onAnalyze={() => analyzeRoleOnePage()} analyzing={roleAnalyzing} artifacts={collectRoleArtifacts(exp?.structuredResult, cs)} />}
             <RoleEditChat jobCategory={jobCategory} page={rolePage} material={getRawMaterialText(exp)} onApply={patchRolePage} open={roleChatOpen} onOpenChange={setRoleChatOpen} />
           </>

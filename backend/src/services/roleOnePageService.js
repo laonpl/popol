@@ -23,7 +23,7 @@ const PM_SCHEMA = `{
   "flow": [ { "label": "단계명(8자 이내)", "desc": "사용자가 하는 일 한 줄" } ],
   "exceptions": [ { "step": "flow의 단계명", "label": "예외 상황", "handling": "정책·처리 방식" } ],
   "decisions": [ {
-    "title": "의사결정 제목", "tags": ["우선순위"],
+    "title": "의사결정 제목", "step": "이 결정이 바꾼 flow 단계명 — 모르면 \"\"", "tags": ["우선순위"],
     "problem": "판단이 필요했던 문제", "evidence": "판단 근거가 된 리서치·데이터",
     "options": [ { "label": "검토한 대안", "chosen": true, "reason": "채택/기각 이유" } ],
     "result": { "label": "결과 지표", "before": "", "after": "" },
@@ -78,6 +78,7 @@ ${COMMON_RULES}
 - deliverables: 직접 만든 기획 산출물(PRD·와이어프레임·정책서·테스트케이스·이벤트 명세 등) 최대 5개. 분량 숫자가 없으면 value는 "".
 - flow: 사용자가 서비스를 쓰는 핵심 흐름 3~6단계. exceptions: 그 흐름의 예외 상황과 정책 최대 4개.
 - decisions: 핵심 기획 의사결정 2~4개. options에는 실제로 비교한 대안만(채택 chosen=true, 기각 false).
+  step은 그 결정이 바꾼 flow 단계명을 flow의 label 그대로(자료로 알 수 있을 때만, 모르면 "").
   spec은 그 결정이 PRD·화면 정책·수용 기준으로 어떻게 옮겨졌는지(자료에 있을 때만). issue는 QA·출시·운영 중 드러난 문제와 대응.
 
 자료:
@@ -134,7 +135,7 @@ function normalizePm(raw = {}) {
     flow: arr(raw.flow).map(s => ({ label: str(s?.label, 24), desc: str(s?.desc, 160) })).filter(s => s.label).slice(0, 6),
     exceptions: arr(raw.exceptions).map(e => ({ step: str(e?.step, 24), label: str(e?.label, 80), handling: str(e?.handling, 200) })).filter(e => e.label).slice(0, 4),
     decisions: arr(raw.decisions).map(d => ({
-      title: str(d?.title, 80), tags: strList(d?.tags, 4, 20),
+      title: str(d?.title, 80), step: str(d?.step, 24), tags: strList(d?.tags, 4, 20),
       problem: str(d?.problem), evidence: str(d?.evidence),
       options: arr(d?.options).map(o => ({ label: str(o?.label, 100), chosen: o?.chosen === true, reason: str(o?.reason, 200) })).filter(o => o.label).slice(0, 4),
       result: change(d?.result),

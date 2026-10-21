@@ -2,7 +2,8 @@
  * PM·마케터 '핵심 경험 한 장' — 개발자 화면(좌 GitHeroCard + 우 DevImpactSection)과 같은 2열 틀.
  *   좌측 사이드바 = 사람과 역할만: 제목 · 한 문장 요약 · 역할/팀/기간 · 내가 한 일 · 도구 (수치·그래프는 두지 않는다 — 2026-10-20 사용자 요청)
  *   우측 = 직군 임팩트 문서, 수치는 모두 여기서 그래프·도표로
- *     PM     : 프로젝트 소개 → 주요 성과(지표 줄 + 이전→이후 비교) → 리서치와 산출물 → 사용자 플로우 → 기획 의사결정 과정 → 회고 → 작업물
+ *     PM     : 의사결정 사슬 중심 — 프로젝트 소개 → 주요 성과(지표 줄 + 이전→이후 비교) → 사용자 플로우(단계마다 그 단계를 바꾼 결정 D번호)
+ *              → 기획 의사결정(한 줄 요약 표: 문제 → 채택안 → 결과, 누르면 판단 과정 사슬) → 리서치와 산출물(산출물 카드 = 이름 + 올린 파일·사진·링크) → 회고
  *     마케터 : 퍼널 중심 — 캠페인 소개(규모 지표 줄) → 주요 성과 → 캠페인 구조(+채널 믹스) → 전환 퍼널(단계 사이 전환율·최적화 표시)
  *              → 단계별 최적화(본 것 → 바꾼 것 → 결과 · 광고 소재) → 회고 → 작업물
  * 다이어그램은 개발자 아키텍처(ArchDiagram)와 같은 모양(흰 박스·회색 화살표·첫 박스 남색 테두리)으로 그린다 —
@@ -10,7 +11,7 @@
  * 보기/편집 분리: 기본은 빈 칸 없는 완성 화면, '편집'을 누르면 모든 칸이 입력칸이 된다.
  * ⚠ 전역 brand.css가 bg-white + rounded-2xl/3xl 박스에 검은 테두리·그림자를 입히므로 그 조합을 쓰지 않는다.
  */
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import AutoText from '../AutoText';
 import { parseAmount, periodLength, splitChange } from '../../utils/roleOnePage';
@@ -51,7 +52,8 @@ export function collectRoleArtifacts(sr = {}, cs = {}) {
     seen.add(item.url);
     (item.image ? images : files).push(item);
   };
-  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext).toUpperCase(), image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
+  // removable = 산출물로 올린 것(지울 수 있음), 핵심 경험·본문 이미지는 그쪽에서 관리
+  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext || (t(f.name).match(/\.([a-z0-9]{2,5})$/i) || [])[1]).toUpperCase(), link: f.kind === 'link', removable: true, image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
   (cs.keyExps || []).forEach(k => (k.images || []).forEach(img => push({ url: img.url, name: k.title, image: true })));
   (cs.body || []).filter(seg => seg.type === 'image').forEach(seg => push({ url: seg.content, name: '', image: true }));
   return { images, files };
@@ -301,20 +303,6 @@ function ResultsBoard({ page, onPatch }) {
   );
 }
 
-/** 이름 | 값 목록 (산출물처럼 단위가 제각각인 것) — 막대 없이 가는 선 표 */
-function FactList({ rows }) {
-  return (
-    <dl className="divide-y divide-surface-100 border-y border-surface-200 text-[13px]">
-      {rows.map(([k, v], i) => (
-        <div key={i} className="flex items-baseline justify-between gap-4 px-1 py-2">
-          <dt className="min-w-0 font-semibold text-bluewood-800" style={WRAP}>{k}</dt>
-          {t(v) && <dd className="flex-shrink-0 font-bold tabular-nums text-bluewood-600">{v}</dd>}
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function Table({ head, rows, widths }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-surface-200">
@@ -384,8 +372,8 @@ function DiagramBox({ x, y, w, h, title, desc, accent, warn, top }) {
   );
 }
 
-/** PM — 사용자 흐름: 가로 단계 + 단계 아래 예외 정책 */
-function FlowDiagram({ steps, exceptions }) {
+/** PM — 사용자 흐름: 가로 단계 + 단계 아래 예외 정책. marks[i] = 그 단계를 바꾼 의사결정 번호들 (박스 오른쪽 위 D1·D2) */
+function FlowDiagram({ steps, exceptions, marks = [] }) {
   const W = 132, GAP = 30, PAD = 6, EX_GAP = 36;
   const exOf = (label) => exceptions.filter(e => t(e.step) === t(label));
   const H = Math.max(92, ...steps.map(s => boxHeight(W, s.label, s.desc, true)));
@@ -401,6 +389,15 @@ function FlowDiagram({ steps, exceptions }) {
         return (
           <g key={i}>
             <DiagramBox x={x} y={PAD} w={W} h={H} top={`${i + 1}`} title={s.label} desc={s.desc} accent={i === 0} />
+            {(marks[i] || []).slice(0, 3).map((n, mi, arr) => {
+              const bx = x + W - 8 - (arr.length - mi) * 26 + 2;
+              return (
+                <g key={`m${n}`}>
+                  <rect x={bx} y={PAD + 7} width="24" height="15" rx="4" fill={ACCENT} />
+                  <text x={bx + 12} y={PAD + 18} textAnchor="middle" fontSize="9.5" fontWeight="800" fill="#fff">D{n}</text>
+                </g>
+              );
+            })}
             {i < steps.length - 1 && <path d={`M ${x + W} ${PAD + H / 2} L ${x + W + GAP} ${PAD + H / 2}`} stroke="#94a3b8" strokeWidth="1.5" markerEnd="url(#role-arrow)" fill="none" />}
             {ex && (
               <>
@@ -613,6 +610,77 @@ function Artifacts({ artifacts }) {
   );
 }
 
+/** 산출물 이름의 첫 낱말 — 올린 파일 이름과 짝지을 때 쓴다 ("PRD 24쪽" → "prd", "와이어프레임 12화면" → "와이어프레임") */
+const keyword = (name) => (t(name).toLowerCase().match(/[a-z가-힣]{2,}/) || [])[0] || '';
+
+/** 산출물 카드 하나 — 위 미리보기(사진·파일 종류·링크) + 아래 이름·분량 */
+function ArtifactCard({ title, value, item, onRemove }) {
+  const preview = item && (item.image
+    ? <img src={item.url} alt={title || item.name || '산출물'} loading="lazy" className="h-full w-full object-cover" />
+    : <span className="text-[13px] font-black tracking-wide text-bluewood-400">{item.link ? '링크' : item.ext || '파일'}</span>);
+  const inner = (
+    <>
+      {preview && <div className="flex h-[132px] items-center justify-center overflow-hidden border-b border-surface-200 bg-surface-50">{preview}</div>}
+      <div className="px-3.5 py-2.5">
+        <p className="text-[13px] font-bold leading-snug text-bluewood-900" style={WRAP}>{title || item?.name || '산출물'}</p>
+        {(t(value) || (item && title && item.name !== title)) && (
+          <p className="mt-0.5 truncate text-[11.5px] text-bluewood-400">{[t(value), item && title && item.name !== title ? item.name : ''].filter(Boolean).join(' · ')}</p>
+        )}
+      </div>
+    </>
+  );
+  return (
+    <div className="group relative min-w-0 overflow-hidden rounded-lg border border-surface-200 bg-white">
+      {item ? <a href={item.url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{inner}</a> : inner}
+      {item?.removable && onRemove && (
+        <button type="button" onClick={() => onRemove(item.url)} aria-label="산출물 빼기" className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[13px] text-bluewood-400 shadow-sm hover:text-red-500 group-hover:flex print:hidden">×</button>
+      )}
+    </div>
+  );
+}
+
+/** 기획 산출물 — 분석이 찾은 산출물 이름과 실제로 올린 파일·사진·링크를 한 카드로. 이름이 같은 낱말로 시작하면 짝짓는다 */
+function DeliverableBoard({ deliverables, artifacts, actions }) {
+  const [link, setLink] = useState('');
+  const fileRef = useRef(null);
+  const items = [...(artifacts?.images || []), ...(artifacts?.files || [])];
+  const used = new Set();
+  const cards = deliverables.map(d => {
+    const k = keyword(d.name);
+    const item = k ? items.find(x => !used.has(x.url) && t(x.name).toLowerCase().includes(k)) : null;
+    if (item) used.add(item.url);
+    return { title: d.name, value: d.value, item };
+  });
+  items.filter(x => !used.has(x.url)).forEach(item => cards.push({ title: '', value: '', item }));
+  const submitLink = (e) => {
+    e.preventDefault();
+    if (actions?.addLink(link)) setLink('');
+  };
+  return (
+    <div>
+      {cards.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((c, i) => <ArtifactCard key={c.item?.url || `d${i}`} {...c} onRemove={actions?.remove} />)}
+        </div>
+      )}
+      {actions && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] print:hidden">
+          <input ref={fileRef} type="file" multiple className="hidden" accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.csv,.key,.fig,.zip,.png,.jpg,.jpeg,.webp,.gif"
+            onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; if (picked.length) actions.addFiles(picked); }} />
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={actions.uploading} className="inline-flex items-center gap-1 font-semibold text-bluewood-400 hover:text-primary-600 disabled:opacity-50">
+            {actions.uploading ? <><Loader2 size={12} className="animate-spin" />올리는 중…</> : '+ 파일·사진 올리기'}
+          </button>
+          <form onSubmit={submitLink} className="flex min-w-0 flex-1 items-center gap-1.5 sm:max-w-[320px]">
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="+ 링크 (Notion·Figma·Drive)" className="min-w-0 flex-1 border-b border-surface-200 bg-transparent py-0.5 text-[12px] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:border-primary-300" />
+            {t(link) && <button type="submit" className="font-semibold text-primary-600">추가</button>}
+          </form>
+        </div>
+      )}
+      {!cards.length && <p className="mt-1.5 text-[12px] text-bluewood-300 print:hidden">PRD·와이어프레임·정책서 같은 기획 문서를 올리면 여기에 함께 보여요.</p>}
+    </div>
+  );
+}
+
 function Learnings({ items, retrospective, onRetro, placeholder }) {
   const editing = useEditing();
   const rows = [...new Set(items.map(t).filter(x => x && x !== t(retrospective)))];
@@ -650,43 +718,130 @@ function ThinNote({ show, onAnalyze, analyzing, what }) {
 
 /* ════════════ 기획/PM ════════════ */
 
-const EMPTY_DECISION = { title: '', tags: [], problem: '', evidence: '', options: [], result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
+const EMPTY_DECISION = { title: '', step: '', tags: [], problem: '', evidence: '', options: [], result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
 
+/** 결정이 바꾼 플로우 단계 번호 — 분석이 준 step이 있으면 그것, 없으면 결정 글에 단계명이 나오는지로 읽는다 (못 찾으면 -1) */
+function stepIndexOf(d = {}, flow = []) {
+  const named = flow.findIndex(s => t(s.label) && t(s.label) === t(d.step));
+  if (named >= 0) return named;
+  const body = [d.title, d.problem, ...(d.options || []).filter(o => o.chosen).map(o => o.label), d.spec?.story].map(t).join(' ');
+  return flow.findIndex(s => t(s.label).length >= 2 && body.includes(t(s.label)));
+}
+
+const chosenOf = (d = {}) => (d.options || []).find(o => o.chosen)?.label || '';
+const resultText = (r = {}) => (t(r.after) ? `${t(r.label) ? `${r.label} ` : ''}${t(r.before) ? `${r.before} → ` : ''}${r.after}` : '');
+// 요약 표 칸 — 큰 화면은 D# · 문제 · 채택안 · 결과 · 펼침 단추, 작은 화면은 세로로 쌓는다
+const DECISION_COLS = 'sm:grid-cols-[52px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.8fr)_28px]';
+
+/** 판단 과정 한 단계 — 왼쪽 단계 이름, 오른쪽 내용, 단계 사이 세로선 (위에서 아래로 읽는 사슬) */
+function ChainStep({ label, color = '#314157', last, children }) {
+  return (
+    <li className="relative grid grid-cols-1 gap-x-4 gap-y-1 pb-4 pl-5 sm:grid-cols-[112px_minmax(0,1fr)]">
+      {!last && <span className="absolute bottom-0 left-[4px] top-[14px] w-px bg-surface-200" />}
+      <span className="absolute left-0 top-[5px] h-[9px] w-[9px] rounded-full border-2 bg-white" style={{ borderColor: color }} />
+      <span className="text-[12px] font-bold leading-[1.5]" style={{ color }}>{label}</span>
+      <div className="min-w-0">{children}</div>
+    </li>
+  );
+}
+
+/** 의사결정 펼침 — 이 결정을 어떻게 내렸나: 왜 필요했나 → 뺀 대안 → 고른 안과 이유 → 기획서에 옮긴 것 → 결과와 대응 → 배운 점 */
+function DecisionDetail({ d, set, onDelete }) {
+  const editing = useEditing();
+  const options = d.options || [];
+  const chosen = options.filter(o => o.chosen);
+  const rejected = options.filter(o => !o.chosen);
+  const body = 'text-[12.5px] leading-[1.7] text-bluewood-700';
+  const steps = editing ? [
+    { label: '왜 필요했나', node: <div className="space-y-2"><Para value={d.problem} onChange={set('problem')} placeholder="왜 이 결정이 필요했나" className={body} /><Para value={d.evidence} onChange={set('evidence')} placeholder="판단 근거 — 인터뷰 발화·데이터" className={body} /></div> },
+    { label: '검토한 안', color: ACCENT, node: <LinesEditor label="" hint="'검토안 | 채택 또는 제외 | 이유'" rows={options.map(o => ({ ...o, chosen: o.chosen ? '채택' : '제외' }))} keys={['label', 'chosen', 'reason']} onChange={(rows) => set('options')(rows.map(r => ({ label: r.label, chosen: r.chosen === '채택', reason: r.reason })))} /> },
+    { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
+    { label: '결과와 대응', color: ACCENT, node: <div className="space-y-2"><ResultLine result={d.result} onChange={set('result')} /><IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} /></div> },
+    { label: '배운 점', color: '#94a3b8', node: <Txt block value={d.learning} onChange={set('learning')} placeholder="이 결정으로 배운 점" className={body} /> },
+  ] : [
+    (t(d.problem) || t(d.evidence)) && { label: '왜 필요했나', node: (
+      <div className="space-y-1.5">
+        <Para value={d.problem} lines={3} className={body} />
+        {t(d.evidence) && <p className="border-l-2 border-surface-300 pl-3 text-[12.5px] leading-[1.65] text-bluewood-500" style={WRAP}><span className="mr-1.5 font-bold not-italic text-bluewood-400">근거</span>{d.evidence}</p>}
+      </div>
+    ) },
+    rejected.length > 0 && { label: '검토했지만 뺀 안', node: (
+      <ul className="space-y-1">{rejected.map((o, oi) => (
+        <li key={oi} className="text-[12.5px] leading-[1.6] text-bluewood-500" style={WRAP}><span className="mr-1.5 text-bluewood-300">✕</span><span className="text-bluewood-600 line-through decoration-bluewood-300">{o.label}</span>{t(o.reason) && <span> — {o.reason}</span>}</li>
+      ))}</ul>
+    ) },
+    chosen.length > 0 && { label: '고른 안과 이유', color: ACCENT, node: (
+      <ul className="space-y-1">{chosen.map((o, oi) => (
+        <li key={oi} className="text-[13px] leading-[1.6] text-bluewood-800" style={WRAP}><span className="mr-1.5 font-black" style={{ color: ACCENT }}>✓</span><b>{o.label}</b>{t(o.reason) && <span className="font-normal text-bluewood-600"> — {o.reason}</span>}</li>
+      ))}</ul>
+    ) },
+    hasSpec(d.spec) && { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
+    (t(d.result?.after) || hasIssue(d.issue)) && { label: '결과와 대응', color: ACCENT, node: (
+      <div className="space-y-2">
+        <ResultLine result={d.result} onChange={set('result')} />
+        <IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} />
+      </div>
+    ) },
+    t(d.learning) && { label: '배운 점', color: '#94a3b8', node: <p className={body} style={WRAP}>{d.learning}</p> },
+  ].filter(Boolean);
+  return (
+    <div className="pb-5 sm:pl-[68px]">
+      <EditOnly>
+        <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px]">
+          <AutoText value={d.title} onChange={set('title')} placeholder="의사결정 제목" className="text-[14px] font-extrabold text-bluewood-900" />
+          <AutoText value={d.step || ''} onChange={set('step')} placeholder="바꾼 플로우 단계명" className="text-[12.5px] text-bluewood-700" />
+        </div>
+      </EditOnly>
+      <ol>{steps.map((s, si) => <ChainStep key={s.label} label={s.label} color={s.color} last={si === steps.length - 1}>{s.node}</ChainStep>)}</ol>
+      <EditOnly><button type="button" onClick={onDelete} className="text-[11.5px] text-bluewood-300 hover:text-red-500">이 의사결정 삭제</button></EditOnly>
+    </div>
+  );
+}
+
+/** 의사결정 — 펼치지 않아도 한 줄에 문제 → 채택안 → 결과, 누르면 이 결정을 내린 과정 */
 function DecisionRows({ page, onPatch }) {
   const editing = useEditing();
-  const [open, setOpen] = useState([0]);
+  const [open, setOpen] = useState([]);
   const decisions = page.decisions;
   const setDecision = (i, changes) => onPatch({ ...page, decisions: patchAt(decisions, i, changes) });
   const toggle = (i) => setOpen(prev => (prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]));
   return (
     <>
+      <div className={`hidden gap-4 border-b border-surface-200 pb-2 text-[11.5px] font-bold text-bluewood-400 sm:grid ${DECISION_COLS}`}>
+        <span>결정</span><span>문제</span><span>채택안</span><span>결과</span><span />
+      </div>
       {decisions.map((d, i) => {
         const options = d.options || [];
         const set = (k) => (v) => setDecision(i, { [k]: v });
+        const isOpen = open.includes(i) || editing;
+        const step = stepIndexOf(d, page.flow);
+        const extras = [...(options.length > 1 ? [`검토안 ${options.length}`] : []), ...(hasSpec(d.spec) ? ['PRD'] : []), ...(hasIssue(d.issue) ? ['이슈 대응'] : [])];
         return (
-          <ProcessRow key={i} index={i} title={d.title || `의사결정 ${i + 1}`} line={t(d.problem).split('\n')[0]} lineLabel="문제" open={open.includes(i)} onToggle={() => toggle(i)}
-            badges={[...(options.length ? [{ label: `검토안 ${options.length}` }] : []), ...(hasSpec(d.spec) ? [{ label: 'PRD' }] : []), ...(hasIssue(d.issue) ? [{ label: '이슈', issue: true }] : [])]}>
-            <EditOnly><AutoText value={d.title} onChange={set('title')} placeholder="의사결정 제목" className="text-[14px] font-extrabold text-bluewood-900" /></EditOnly>
-            {(t(d.problem) || editing) && <Labeled label="문제"><Para value={d.problem} onChange={set('problem')} lines={3} placeholder="왜 이 결정이 필요했나" className="text-[12.5px] leading-[1.7] text-bluewood-700" /></Labeled>}
-            {(t(d.evidence) || editing) && <div className="border-l-2 border-surface-300 pl-3"><Para value={d.evidence} onChange={set('evidence')} lines={2} placeholder="판단 근거 — 인터뷰 발화·데이터" className="text-[12.5px] italic leading-[1.65] text-bluewood-500" /></div>}
-            {(options.length > 0 || editing) && (
-              <Labeled label="검토안" color={ACCENT}>
-                {editing
-                  ? <LinesEditor label="" hint="'검토안 | 채택 또는 제외 | 이유'" rows={options.map(o => ({ ...o, chosen: o.chosen ? '채택' : '제외' }))} keys={['label', 'chosen', 'reason']}
-                      onChange={(rows) => set('options')(rows.map(r => ({ label: r.label, chosen: r.chosen === '채택', reason: r.reason })))} />
-                  : <Table head={['검토안', '판단', '이유']} widths={['42%', '56px', 'auto']} rows={options.map(o => [
-                      <span key="l" className={o.chosen ? 'font-bold text-bluewood-900' : 'text-bluewood-500'}>{o.label}</span>,
-                      <span key="c" className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${o.chosen ? 'text-white' : 'bg-surface-100 text-bluewood-400'}`} style={o.chosen ? { backgroundColor: ACCENT } : undefined}>{o.chosen ? '채택' : '제외'}</span>,
-                      <span key="r" className="text-bluewood-600">{o.reason}</span>,
-                    ])} />}
-              </Labeled>
+          <div key={i} className="border-b border-surface-200">
+            <button type="button" onClick={() => toggle(i)} aria-expanded={isOpen} className={`group grid w-full grid-cols-1 gap-x-4 gap-y-1.5 py-3.5 text-left ${DECISION_COLS}`}>
+              <span className="flex items-center gap-2 sm:block">
+                <span className="inline-flex h-[20px] items-center rounded px-1.5 text-[11.5px] font-black text-white" style={{ backgroundColor: ACCENT }}>D{i + 1}</span>
+                {step >= 0 && <span className="text-[11px] font-semibold text-bluewood-400 sm:mt-1 sm:block" style={WRAP}>{step + 1}. {page.flow[step].label}</span>}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-extrabold leading-snug text-bluewood-900" style={WRAP}>{d.title || `의사결정 ${i + 1}`}</span>
+                {sentences(d.problem)[0] && <span className="mt-0.5 block text-[12.5px] leading-[1.55] text-bluewood-500" style={WRAP}>{sentences(d.problem)[0]}</span>}
+              </span>
+              <span className="min-w-0 text-[13px] font-semibold leading-[1.55] text-bluewood-800" style={WRAP}>
+                <span className="mr-1.5 text-[11px] font-bold text-bluewood-400 sm:hidden">채택</span>{chosenOf(d) || <span className="text-bluewood-300">—</span>}
+              </span>
+              <span className="min-w-0 text-[13px] font-bold leading-[1.55]" style={{ ...WRAP, color: ACCENT }}>
+                <span className="mr-1.5 text-[11px] font-bold text-bluewood-400 sm:hidden">결과</span>{resultText(d.result) || <span className="font-normal text-bluewood-300">—</span>}
+              </span>
+              <span className="hidden h-7 w-7 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:text-primary-600 sm:flex print:hidden" style={isOpen ? { transform: 'rotate(180deg)' } : undefined}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </span>
+              {!isOpen && extras.length > 0 && <span className="text-[11.5px] text-bluewood-400 sm:col-start-2 sm:col-end-5">판단 과정 보기 · {extras.join(' · ')}</span>}
+            </button>
+            {isOpen && (
+              <DecisionDetail d={d} set={set} onDelete={() => onPatch({ ...page, decisions: decisions.filter((_, di) => di !== i) })} />
             )}
-            <ResultLine result={d.result} onChange={set('result')} />
-            {(hasSpec(d.spec) || editing) && <Labeled label="PRD 스펙"><PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /></Labeled>}
-            <IssueTrack label="이슈 대응" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} />
-            {(t(d.learning) || editing) && <Labeled label="배운 점" color="#94a3b8"><Txt block value={d.learning} onChange={set('learning')} placeholder="이 결정으로 배운 점" className="text-[12.5px] leading-[1.65] text-bluewood-600" /></Labeled>}
-            <EditOnly><button type="button" onClick={() => onPatch({ ...page, decisions: decisions.filter((_, di) => di !== i) })} className="text-[11.5px] text-bluewood-300 hover:text-red-500">이 의사결정 삭제</button></EditOnly>
-          </ProcessRow>
+          </div>
         );
       })}
       <div className="mt-2"><AddLink onClick={() => { onPatch({ ...page, decisions: [...decisions, EMPTY_DECISION] }); setOpen(prev => [...prev, decisions.length]); }}>의사결정 추가</AddLink></div>
@@ -694,12 +849,13 @@ function DecisionRows({ page, onPatch }) {
   );
 }
 
-export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze, analyzing, artifacts }) {
+export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze, analyzing, artifacts, artifactActions }) {
   const [editing, setEditing] = useState(false);
   const set = (k) => (v) => onPatch({ ...page, [k]: v });
   const thin = !t(page.headline.value) && !page.decisions.length;
   const results = resultItems(page);
   const research = page.research.filter(r => t(r.value));
+  const flowMarks = page.flow.map((_, si) => page.decisions.map((d, di) => (stepIndexOf(d, page.flow) === si ? di + 1 : 0)).filter(Boolean));
   return (
     <EditCtx.Provider value={editing}>
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
@@ -724,29 +880,27 @@ export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze
           <Block title="주요 성과" note={results.length ? `${results.length}개 지표` : ''} show={results.length > 0}>
             <ResultsBoard page={page} onPatch={onPatch} />
           </Block>
-          <Block title="리서치와 산출물" note="판단의 근거와 직접 만든 문서" show={research.length > 0 || page.deliverables.length > 0}>
-            {editing ? (
-              <div className="space-y-2">
-                <LinesEditor label="리서치 규모" hint="'조사 | 규모'" rows={page.research} keys={['label', 'value']} onChange={set('research')} />
-                <LinesEditor label="기획 산출물" hint="'산출물 | 분량'" rows={page.deliverables} keys={['name', 'value']} onChange={set('deliverables')} />
-              </div>
-            ) : (
-              <div className="space-y-5">
-                {research.length > 0 && <div><MiniLabel>리서치 규모</MiniLabel><KpiRow compact items={research.map(r => ({ label: r.label, value: r.value }))} /></div>}
-                {page.deliverables.length > 0 && <div><MiniLabel>기획 산출물</MiniLabel><FactList rows={page.deliverables.map(d => [d.name, d.value])} /></div>}
-              </div>
-            )}
-          </Block>
-          <Block title="사용자 플로우" note={page.exceptions.length ? `예외 정책 ${page.exceptions.length}건` : '서비스 흐름'} show={page.flow.length > 0}>
+          <Block title="사용자 플로우" note={flowMarks.some(m => m.length) ? 'D = 그 단계를 바꾼 의사결정' : page.exceptions.length ? `예외 정책 ${page.exceptions.length}건` : '서비스 흐름'} show={page.flow.length > 0}>
             {editing
               ? <div className="space-y-2"><LinesEditor label="단계" hint="'단계 | 사용자가 하는 일'" rows={page.flow} keys={['label', 'desc']} onChange={set('flow')} /><LinesEditor label="예외 정책" hint="'단계 | 예외 상황 | 처리'" rows={page.exceptions} keys={['step', 'label', 'handling']} onChange={set('exceptions')} /></div>
-              : <FlowDiagram steps={page.flow} exceptions={page.exceptions} />}
+              : <FlowDiagram steps={page.flow} exceptions={page.exceptions} marks={flowMarks} />}
           </Block>
-          <Block title="기획 의사결정 과정" note={`${page.decisions.length}건 · 눌러서 펼치기`} show={page.decisions.length > 0}>
-            <div className="border-t border-surface-200"><DecisionRows page={page} onPatch={onPatch} /></div>
+          <Block title="기획 의사결정" note={`${page.decisions.length}건 · 문제 → 채택안 → 결과`} show={page.decisions.length > 0}>
+            <DecisionRows page={page} onPatch={onPatch} />
+          </Block>
+          <Block title="리서치와 산출물" note="판단의 근거와 직접 만든 문서">
+            <div className="space-y-5">
+              {editing
+                ? <LinesEditor label="리서치 규모" hint="'조사 | 규모'" rows={page.research} keys={['label', 'value']} onChange={set('research')} />
+                : research.length > 0 && <div><MiniLabel>리서치 규모</MiniLabel><KpiRow compact items={research.map(r => ({ label: r.label, value: r.value }))} /></div>}
+              <div>
+                <MiniLabel>기획 산출물</MiniLabel>
+                {editing && <div className="mb-3"><LinesEditor label="" hint="'산출물 | 분량' — 올린 파일 이름이 같은 낱말로 시작하면 한 카드로 묶여요" rows={page.deliverables} keys={['name', 'value']} onChange={set('deliverables')} /></div>}
+                <DeliverableBoard deliverables={page.deliverables} artifacts={artifacts} actions={artifactActions} />
+              </div>
+            </div>
           </Block>
           <Learnings items={page.decisions.map(d => d.learning)} retrospective={page.retrospective} onRetro={set('retrospective')} placeholder="다음에 다르게 할 점·배운 점" />
-          <Artifacts artifacts={artifacts} />
         </section>
       </div>
     </EditCtx.Provider>
