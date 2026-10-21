@@ -1,6 +1,7 @@
 // Deterministic source matching, not a claim that the source itself is true.
 // No model call, scores, or invented evidence is used in this post-processing step.
 import { PM_WORK_PRODUCT_FIELDS, PM_WORK_PRODUCT_LIMITS } from '../prompts/pmWorkProducts.js';
+import { quoteInSource } from '../../../shared/quoteMatch.mjs';
 export { matchQuote, planOnly, supported, observedValue };
 const DIMENSIONS = new Set(['discovery', 'prioritization', 'delivery', 'validation', 'outcome', 'learning']);
 const STAGES = new Set(['planned', 'executed', 'observed', 'changed', 'unknown']);
@@ -40,7 +41,7 @@ function matchQuote(value, sourceHint, sources) {
   const quote = text(value).slice(0, 1000);
   const needle = compact(quote);
   if (needle.length < 12) return { quote, basis: 'unlocated', sourceId: '', sourceName: '', location: '' };
-  const matches = sources.filter(source => source.kind !== 'unread' && compact(source.text).includes(needle));
+  const matches = sources.filter(source => source.kind !== 'unread' && quoteInSource(source.text, quote));
   // Duplicate excerpts from different files must not be attributed to an arbitrary source.
   const hinted = matches.filter(source => compact(source.name) === compact(sourceHint));
   const source = matches.length === 1 ? matches[0] : hinted.length === 1 ? hinted[0] : null;
@@ -50,25 +51,54 @@ function matchQuote(value, sourceHint, sources) {
   return { quote, basis: source.kind === 'artifact' ? 'source_excerpt' : 'self_report', sourceId: source.id, sourceName: source.name, location: line ? `추출 본문 ${line}행` : '추출 본문 (공백 정규화 대조)' };
 }
 
-const planOnly = quote => /예정|계획|목표|예상|가설|기대/.test(quote) && !/관찰(?:한|했|값)|측정(?:한|했|값)|실측(?:값|치|[:：])|실제\s*(?:결과|관찰|전환|수치|[:：]?\s*\d)|결과(?:는|:|：)|확인했다/.test(quote);
-const supported = (value, quote) => {
-  const candidate = compact(value);
-  if (!candidate) return '';
+const PLAN_SENTENCE = /예정|계획|미측정|미관찰/;
+// "12명 → 31명", "늘었다"처럼 실제로 일어난 변화를 적은 문장은 '목표' 단어가 함께 있어도 계획서가 아니다.
+const OBSERVED_CHANGE = /\d\s*[^\d\s]{0,3}\s*(?:→|->|⇒|에서\s*\S{0,6}\d)/;
+const OBSERVED_VERB = /(?:늘|줄|올|높|낮)았|늘어났|줄어들었|떨어졌|나왔|(?:증가|감소|상승|하락|개선|달성|기록|확보)(?:했|됐|되었|하였)/;
+const sentencesOf = quote => text(quote).split(/\n|(?<=[.!?。])\s+/);
+const planOnly = quote => /예정|계획|목표|예상|가설|기대/.test(quote)
+  && !/관찰(?:한|했|값)|측정(?:한|했|값)|실측(?:값|치|[:：])|실제\s*(?:결과|관찰|전환|수치|[:：]?\s*\d)|결과(?:는|:|：)|확인했다/.test(quote)
+  && !sentencesOf(quote).some(sentence => !PLAN_SENTENCE.test(sentence) && (OBSERVED_VERB.test(sentence) || (OBSERVED_CHANGE.test(sentence) && !/목표|예상|기대/.test(sentence))));
+const valuePattern = candidate => {
   const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // 10 must not be accepted from 100, 0.10 or 10,000.
   const prefix = /^\d/.test(candidate) ? '(?<![\\d+−-])(?<!\\d[.,])' : '';
   const suffix = /\d$/.test(candidate) ? '(?!\\d|[.,]\\d)' : '';
-  return new RegExp(`${prefix}${escaped}${suffix}`).test(compact(quote)) ? text(value) : '';
+  return new RegExp(`${prefix}${escaped}${suffix}`, 'g');
+};
+// 천 단위 쉼표는 표기 차이일 뿐이다("3400"과 "3,400회"는 같은 수).
+const numeric = value => compact(value).replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+const supported = (value, quote) => {
+  const candidate = numeric(value);
+  if (!candidate) return '';
+  return valuePattern(candidate).test(numeric(quote)) ? text(value) : '';
 };
 
+// 실측값은 원문에서 그 숫자 바로 앞이 목표·예상·기준값 표현이 아니고, "→ / 에서"의 출발값도 아닌 자리에 있을 때만 인정한다.
+// 계획 문장(예정·계획·미측정) 안의 숫자는 실측이 아니다.
+const GOAL_WORD = /목표(?!\s*(?:대비|를?\s*(?:초과|넘|달성)))|예상|기대|가설/;
+const BASELINE_WORD = /기준값|기준치|기존|이전|전월|전년|도입\s*전|개선\s*전|변경\s*전|baseline|before/i;
+// 바로 앞 숫자(또는 문장 시작) 이후의 말 — "기존 12명에서 31명"의 31명 앞말은 '명에서'다.
+const wordsBefore = (sentence, end) => {
+  const head = sentence.slice(0, end);
+  const last = [...head.matchAll(/\d[\d.,]*/g)].at(-1);
+  return { last, words: last ? head.slice(last.index + last[0].length) : head };
+};
 function observedValue(value, quote) {
-  if (!supported(value, quote) || planOnly(quote)) return '';
-  // Conservative: keep an actual only in an explicitly observed clause, never a goal clause.
-  const clauses = quote.split(/[\n;。]|\.(?!\d)|목표|예상|기대/);
-  return clauses.some(clause => /실제|실측|관찰(?:값|한|했)|측정(?:값|한|했)|결과\s*[:：는]/.test(clause)
-    && !/예정|계획|미측정|미관찰/.test(clause)
-    && supported(value, clause.replace(/^.*?(?:실제|실측|관찰(?:값|한|했)|측정(?:값|한|했)|결과\s*[:：는])/, '')))
-    ? text(value) : '';
+  const candidate = numeric(value);
+  if (!candidate || !supported(value, quote)) return '';
+  const observed = sentencesOf(quote).map(numeric).filter(sentence => !PLAN_SENTENCE.test(sentence)).some(sentence => {
+    for (const match of sentence.matchAll(valuePattern(candidate))) {
+      if (/^\s*(?:에서|→|->|⇒)/.test(sentence.slice(match.index + match[0].length))) continue;
+      const own = wordsBefore(sentence, match.index);
+      if (GOAL_WORD.test(own.words) || BASELINE_WORD.test(own.words)) continue;
+      // "목표: 1.2% → 2%"처럼 변화의 도착값이면 출발값 앞에 목표 표현이 있는지도 본다
+      if (own.last && /^\s*[^\d\s]{0,3}\s*(?:→|->|⇒|에서)\s*$/.test(own.words) && GOAL_WORD.test(wordsBefore(sentence, own.last.index).words)) continue;
+      return true;
+    }
+    return false;
+  });
+  return observed ? text(value) : '';
 }
 
 export function groundPmEvidence(analysis, content) {

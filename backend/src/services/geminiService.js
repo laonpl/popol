@@ -1233,12 +1233,12 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
         retries: 2,
         delayMs: 1200,
         rateLimitDelayMs: 4000,
-        // 실측 스토리 파트 38~50초로 편차가 크다. 상한이 빡빡하면 느린 날에 통째로
-        // 폴백되므로 여유를 준다(클라이언트 상한 90초).
-        callTimeoutMs: 70000,
+        // Bedrock deep 티어 실측(2026-10-21): 자료가 풍부하면 파트당 60~90초. 상한이 빡빡하면 로컬 초안으로
+        // 폴백되어 직군 산출물(마케터 타깃·채널·성과 등)이 통째로 빠지므로 여유를 준다(클라이언트 상한 165초).
+        callTimeoutMs: 140000,
       }),
       // 두 파트를 병렬로 돌리므로 전체 대기는 느린 쪽 하나에 좌우된다.
-      82000,
+      150000,
       label,
     );
     return parseJSON(text);

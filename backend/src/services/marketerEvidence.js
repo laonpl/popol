@@ -4,13 +4,28 @@ const text = v => typeof v === 'string' || typeof v === 'number' ? String(v).tri
 const list = v => Array.isArray(v) ? v : [];
 const stages = new Set(['planned', 'executed', 'observed', 'changed', 'unknown']);
 const dimensions = new Set(['conversion', 'targeting', 'creative', 'activation', 'experiment', 'attribution', 'learning']);
+// jobData.channels 는 여러 화면에서 채널 이름(문자열) 목록으로 쓴다. 모델이 채널별 객체를 돌려주면 이름만 남기고,
+// 역할·선택 이유가 담긴 객체는 같은 채널이 없을 때 marketerWorkProducts.channels 로 옮겨 원문 대조를 거치게 한다.
+function normalizeChannels(jd) {
+  const named = row => text(row?.channel || row?.name);
+  const objects = list(jd.channels).filter(row => row && typeof row === 'object' && named(row));
+  const existing = list(jd.marketerWorkProducts?.channels);
+  const moved = objects.filter(row => !existing.some(other => text(other?.channel) === named(row)))
+    .map(row => ({ ...row, channel: named(row), rationale: text(row.rationale || row.why), purpose: text(row.purpose || row.role) }));
+  return {
+    ...jd,
+    channels: [...new Set(list(jd.channels).map(row => (typeof row === 'string' ? text(row) : named(row))).filter(Boolean))],
+    ...(moved.length ? { marketerWorkProducts: { ...(jd.marketerWorkProducts || {}), channels: [...existing, ...moved] } } : {}),
+  };
+}
+
 export function groundMarketerEvidence(analysis, content) {
   if (analysis?.jobCategory !== 'marketer') return analysis;
   const sources = collectPmSources(content);
   const referenceFor = row => matchQuote(row.quote, row.source || row.sourceName, sources);
   const stageFor = (row, ref) => ref.basis === 'unlocated' ? 'unknown' : planOnly(ref.quote) ? 'planned' : stages.has(row.stage) ? row.stage : 'unknown';
   const keyExperiences = list(analysis.keyExperiences).filter(row => row && typeof row === 'object').map(experience => {
-    const jd = experience.jobData || {};
+    const jd = normalizeChannels(experience.jobData || {});
     const marketerWorkProducts = Object.fromEntries(Object.entries(MARKETER_WORK_PRODUCT_FIELDS).map(([kind, fields]) => [kind,
       list(jd.marketerWorkProducts?.[kind]).filter(row => row && fields.some(field => text(row[field]))).slice(0, MARKETER_WORK_PRODUCT_LIMITS[kind]).map(row => {
         const ref = referenceFor(row), stage = stageFor(row, ref);

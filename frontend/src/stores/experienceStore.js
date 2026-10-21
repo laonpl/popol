@@ -338,9 +338,10 @@ const useExperienceStore = create((set, get) => ({
 
   /** 빠른 초안 생성 (flash 1회, 검색 없음). 경험 생성 전 호출. 실패 시 throw → 호출부에서 로컬 폴백. */
   draftAnalyze: async ({ content, jobCategory, careerStage, interviewMode = 'basic' }) => {
+    // 서버는 파트당 최대 150초까지 기다린다(자료가 풍부한 경험의 실측 60~90초). 그보다 약간 길게 잡는다.
     const { data } = await api.post('/experience/draft', {
       content, jobCategory, careerStage, interviewMode,
-    }, { timeout: 90000 });
+    }, { timeout: 165000 });
     return data;
   },
 

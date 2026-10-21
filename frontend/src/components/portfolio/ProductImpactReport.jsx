@@ -1,4 +1,4 @@
-import { ArrowRight, Network } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { splitProductDecisions, roleReportCounts } from '../../utils/roleImpactReport';
 import { ReportChapter, ReportField, ReportEmpty, ReportStats, ReportJump } from './ImpactReportParts';
 import { ProductDecisionCanvas, MvpScopeCanvas, ServiceDesignCanvas, PolicyCanvas, ReleaseTimeline, MetricGraphic, ExperimentStoryboard, ImprovementTrail } from './RoleVisualCanvas';
@@ -17,7 +17,7 @@ export default function ProductImpactReport({ item, sr, Source, renderRecord, on
   const notes = dimensions => narrative(dimensions).map(row => <article className="pir-narrative" key={row.id}>{renderRecord(item, row)}</article>);
   const chapter = (key, number, title, subtitle, groups) => ({ id: `${prefix}-${key}`, number, title, subtitle, groups, sr, item, role: 'pm', onChange });
   return <div className="pir-report visual-report" aria-label="제품 판단과 설계 리포트">
-    <header className="pir-hero"><div><span>PRODUCT DESIGN / DECISION CANVAS</span><h2>{item.title}</h2></div><div className="pir-visual-kicker"><Network size={27} /><div><b>{scope.selected[0]?.option || '제품 의사결정'}</b><small>{scope.selected.length ? 'MVP에 선택한 방향' : '고객 발견 · 설계 · 검증'}</small></div></div></header>
+    <header className="pir-hero"><div><span>PRODUCT DESIGN / DECISION CANVAS</span><h2>{item.title}</h2></div><div className="pir-visual-kicker"><div><b>{scope.selected[0]?.option || '제품 의사결정'}</b><small>{scope.selected.length ? 'MVP에 선택한 방향' : '고객 발견 · 설계 · 검증'}</small></div></div></header>
     <ReportStats rows={roleReportCounts(item, 'pm')} />
     <ReportJump entries={[['context', '문제 · 판단 지도'], ['decisions', 'MVP 범위'], ['spec', '서비스 설계'], ['release', '출시 · 조율'], ['validation', '검증 · 임팩트'], ['learning', '회고']].map(([key, label]) => [`${prefix}-${key}`, label])} />
 

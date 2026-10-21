@@ -4,6 +4,7 @@
  * 없거나 내용이 바뀌었으면 원문 발췌 덱을 먼저 띄운 뒤 AI 가 문구를 줄인 덱으로 교체한다.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, RefreshCw, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
@@ -73,7 +74,8 @@ export default function SummaryDeckModal({ exp, experienceId, unsaved = false, o
 
   const button = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px] font-bold transition-colors disabled:opacity-50';
 
-  return (
+  // 앱 본문(.app-shell main) 밖에 그린다 — brand.css 의 "본문 제목은 검정" 규칙이 슬라이드·모달 제목을 덮지 않게.
+  return createPortal(
     <div className="fixed inset-0 z-[110] overflow-y-auto bg-[#0b0c0e]/95 p-4 sm:p-8" {...backdropProps}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label="경험 요약 슬라이드" tabIndex={-1} className="mx-auto flex max-w-[1280px] flex-col gap-4" onClick={e => e.stopPropagation()}>
         <header className="flex items-start justify-between gap-4">
@@ -113,5 +115,5 @@ export default function SummaryDeckModal({ exp, experienceId, unsaved = false, o
         />
       </div>
     </div>
-  );
+  , document.body);
 }

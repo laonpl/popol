@@ -57,6 +57,35 @@ function hasOutcomeEvidence(analysis) {
     && (/\d/.test(asText(analysis?.output)) || bundles.some(item => asText(item?.sourceRef || item?.claim)));
 }
 
+// 마케터 캠페인 요약의 빈칸 — 자료에 없던 타깃의 근거·채널을 고른 이유·목표 대비 결과만 짧게 묻는다.
+// 답은 AI 다듬기 없이 본인 말 그대로 한 장 요약(roleSummary)에 들어간다.
+function marketerBriefGaps(analysis) {
+  const ke = (analysis?.keyExperiences || [])[0] || {};
+  const jd = ke.jobData || {}, wp = jd.marketerWorkProducts || {}, rs = ke.roleSummary || {};
+  const target = asText(rs.audience) || asText(jd.target) || asText((wp.audiences || [])[0]?.segment);
+  const channels = [...(wp.channels || []).map(row => asText(row?.channel)), ...(jd.channels || []).map(asText)].filter((name, i, all) => name && all.indexOf(name) === i);
+  const gaps = [];
+  if (!target || !(asText(jd.audienceInsight) || (wp.audiences || []).some(row => asText(row?.signal) || asText(row?.need)))) {
+    gaps.push({ field: 'audience', label: '타깃과 고른 근거', valueScore: 99,
+      question: target ? `‘${target.slice(0, 40)}’ 고객을 타깃으로 고른 이유는 무엇이었나요?` : '이 캠페인은 누구를 겨냥했나요? 그 고객을 고른 이유도 함께 적어주세요.',
+      why: '채용 담당자는 타깃을 왜 그렇게 잡았는지부터 봐요. 직접 본 반응이나 숫자가 근거가 됩니다.',
+      placeholder: '예: 시험기간 기숙사생 — 인터뷰 9명 중 7명이 밤 9시 이후 갈 곳이 편의점뿐이라고 답함' });
+  }
+  if (!asText(rs.channel) && !(wp.channels || []).some(row => asText(row?.rationale))) {
+    gaps.push({ field: 'channel', label: '채널을 고른 이유', valueScore: 98,
+      question: channels.length ? `${channels.slice(0, 3).join(' · ')} 채널을 고른 이유는 무엇이었나요? 다른 채널 대신 택한 까닭을 적어주세요.` : '어떤 채널에서 진행했고, 왜 그 채널을 골랐나요?',
+      why: '채널 이름보다 그 채널을 고른 판단이 마케터의 실력으로 읽혀요.',
+      placeholder: '예: 에브리타임 — 기숙사생이 학교 소식을 가장 먼저 보는 곳이라 광고보다 먼저 택함' });
+  }
+  if (!asText(rs.result) && !(jd.marketerMetrics || []).some(row => asText(row?.actual))) {
+    gaps.push({ field: 'result', label: '목표 대비 결과', valueScore: 97, target: 'evidence', kind: 'evidence',
+      question: '목표로 한 수치와 실제 결과를 적어주세요. 수치가 없다면 확인한 고객 반응도 괜찮아요.',
+      why: '목표와 실제를 나란히 두면 성과가 얼마나 의미 있었는지 바로 읽혀요.',
+      placeholder: '예: 목표 하루 방문 25명 → 시험기간 2주 평균 31명 (기존 12명)' });
+  }
+  return gaps.map(gap => ({ id: `mk-${gap.field}`, key: 'mkBrief', keIndex: 0, kind: 'essential', target: 'decision', ...gap }));
+}
+
 function buildLowBurdenQueue(analysis, mode = 'basic', jobCategory = analysis?.jobCategory) {
   const limit = INTERVIEW_LIMITS[mode] || 5;
   const aiQuestions = Array.isArray(analysis?.interviewPlan?.questions)
@@ -159,7 +188,9 @@ function buildLowBurdenQueue(analysis, mode = 'basic', jobCategory = analysis?.j
 
   const roleFallback = roleInterviewFallback(jobCategory);
   const fallbackQuestions = roleFallback.length && !normalized.length ? roleFallback : fallback;
-  const deduped = [...filtered, ...fallbackQuestions]
+  // 직군 기본 질문(roleFallback)이 쓰일 때는 같은 내용을 묻게 되므로 캠페인 빈칸 질문은 AI 질문과 함께일 때만 더한다
+  const briefGaps = jobCategory === 'marketer' && fallbackQuestions !== roleFallback ? marketerBriefGaps(analysis) : [];
+  const deduped = [...briefGaps, ...filtered, ...fallbackQuestions.filter(item => !(item.id === 'outcome' && briefGaps.some(gap => gap.field === 'result')))]
     .sort((a, b) => (Number(b.valueScore) || 0) - (Number(a.valueScore) || 0))
     .filter((item, index, list) => list.findIndex(candidate => candidate.id === item.id || candidate.question === item.question) === index);
   const essential = deduped.filter(item => item.kind === 'essential' || item.kind === 'evidence');
@@ -418,42 +449,56 @@ const PHASE_STEP = {
   saving: 3,
 };
 
-/* ── 마케터 세부 분야 — 분야별 핵심 목표·역량·평가 지표를 챗봇이 짚어준 뒤 정리 시작 ── */
+/* ── 마케터 세부 분야 — 마케터 취업 포트폴리오가 실제로 나뉘는 유형(2026-10 조사, docs/role-portfolio-rebuild.md).
+   focus 는 그 유형의 포트폴리오가 읽히는 순서로, 초안 작성 가이드에 함께 넣는다. ── */
 const MARKETER_FIELDS = [
   {
-    key: 'contentPlan', label: '콘텐츠 기획',
-    desc: '타깃·채널별 콘텐츠 주제와 톤앤매너 기획, 캠페인 컨셉 설계',
-    goal: '타깃이 반응할 콘텐츠 방향과 캠페인 컨셉을 설계해 브랜드 인지→관심→행동으로 이어지는 흐름을 만드는 것',
-    skills: '타깃 정의 · 컨셉/톤앤매너 설계 · 기획서 작성 · 채널 이해',
-    metrics: '도달·노출, 반응률(좋아요·저장·공유·댓글), 기획안 채택률, 캠페인 목표(KPI) 달성 여부',
+    key: 'performance', label: '퍼포먼스 마케팅',
+    desc: '메타·구글·네이버 등 광고 집행, 타깃팅·소재 테스트, 예산 운영',
+    goal: '정해진 예산으로 원하는 행동(구매·가입·문의)을 더 싸게, 더 많이 만들어 내는 것',
+    skills: '매체 이해 · 타깃팅 설계 · 소재 A/B 테스트 · 예산 배분 · 광고 리포트 해석',
+    metrics: 'CTR·CPC·CVR·CPA·ROAS, 예산·기간, 소재별 성과 비교, 목표 대비 실적',
+    focus: '매체·예산·기간 → 타깃팅 설정 → 소재 테스트(바꾼 변수·판단 기준) → 예산 재배분 근거 → 목표 대비 성과',
   },
   {
-    key: 'contentMake', label: '콘텐츠 제작',
-    desc: '카피라이팅, 카드뉴스·숏폼·상세페이지 등 제작 및 편집',
-    goal: '기획 의도를 실제 결과물(카피·이미지·영상)로 완성도 있게 구현해 클릭과 반응을 끌어내는 것',
-    skills: '카피라이팅 · 디자인/편집 툴 활용 · 포맷별 문법 이해(카드뉴스·숏폼·상세페이지) · 마감 관리',
-    metrics: '제작물 수·제작 주기, 콘텐츠별 CTR·조회수·완주율, 저장/공유 수, 전환 기여',
+    key: 'content', label: '콘텐츠·SNS 마케팅',
+    desc: '인스타그램·블로그·유튜브·숏폼 기획·제작·채널 운영',
+    goal: '타깃이 반응할 주제와 형식을 찾아 꾸준히 발행하고, 반응을 다음 콘텐츠에 반영하는 것',
+    skills: '타깃·주제 기획 · 카피/편집 · 채널 문법 이해 · 발행 캘린더 · 반응 분석',
+    metrics: '도달·조회, 참여율(저장·공유·댓글), 팔로워 증감, 프로필 방문·링크 클릭, 운영 기간·발행 빈도',
+    focus: '문제 상황 → 타깃 → 기획 의도·톤 → 대표 콘텐츠 → 반응 수치 → 다음 콘텐츠에서 바꾼 점',
   },
   {
-    key: 'channelOps', label: '채널 운영',
-    desc: '블로그·인스타·유튜브 등 온드미디어 운영, 발행 일정 관리',
-    goal: '채널을 꾸준히 운영해 팔로워·구독자를 자산으로 쌓고, 브랜드와 고객의 접점을 유지하는 것',
-    skills: '콘텐츠 캘린더 운영 · 커뮤니티 소통 · 채널 알고리즘 이해 · 일관된 브랜딩 유지',
-    metrics: '팔로워/구독자 증가율, 게시 빈도·운영 기간, 도달·프로필 방문, 참여율(ER)',
+    key: 'brand', label: '브랜드 마케팅',
+    desc: '브랜드 캠페인·포지셔닝·메시지 설계, 오프라인·협업 프로모션',
+    goal: '고객이 브랜드를 어떻게 기억할지 정하고, 그 인식을 캠페인으로 만들어 내는 것',
+    skills: '시장·경쟁 분석 · 타깃 인사이트 · 콘셉트·메시지 설계 · 통합 캠페인 운영',
+    metrics: '인지도·검색량·언급량 변화, 캠페인 참여·방문, 선호·재구매 의향, 목표 대비 성과',
+    focus: '시장·경쟁 상황 → 타깃 인사이트 → 콘셉트·핵심 메시지 → 접점별 실행 → 반응과 인식 변화',
   },
   {
-    key: 'analytics', label: '성과 분석',
-    desc: '도달·클릭·전환 등 데이터 측정 후 다음 콘텐츠에 반영',
-    goal: '데이터로 무엇이 통했는지 검증하고, 다음 실행의 우선순위를 바꿔 성과를 반복 개선하는 것',
-    skills: '지표 정의 · 데이터 수집/해석(GA·인사이트 등) · A/B 테스트 · 리포팅과 개선 제안',
-    metrics: 'CTR·전환율·CPA/ROAS, 실험 횟수와 개선폭(전/후 비교), 리포트 기반 의사결정 사례',
+    key: 'crm', label: 'CRM·리텐션',
+    desc: '앱 푸시·알림톡·이메일·멤버십으로 재방문·재구매 만들기',
+    goal: '이미 만난 고객을 다시 오게 하고, 떠나려는 고객을 붙잡는 것',
+    skills: '고객 세그먼트 설계 · 발송 시나리오(조건·시점) · 메시지·혜택 기획 · 성과 측정',
+    metrics: '오픈율·클릭률·전환율, 재방문·재구매율, 이탈률, 세그먼트별 비교',
+    focus: '세그먼트 조건과 발송 계기 → 메시지·혜택 → 발송 시점·빈도 → 오픈·클릭·전환 → 다음 가설',
   },
   {
-    key: 'trend', label: '트렌드 리서치',
-    desc: '밈·트렌드·경쟁사 모니터링으로 콘텐츠 아이디어 발굴',
-    goal: '시장·밈·경쟁사 흐름을 빠르게 포착해 우리 브랜드가 쓸 수 있는 아이디어로 번역하는 것',
-    skills: '트렌드 감지력 · 경쟁사/레퍼런스 분석 · 인사이트 요약 · 아이디어 제안',
-    metrics: '리서치→실제 반영된 아이디어 수, 반영 콘텐츠의 반응, 리서치 주기·아카이브 축적량',
+    key: 'growth', label: '그로스·성과 분석',
+    desc: '퍼널 분석으로 병목을 찾고 실험(A/B 테스트)으로 개선',
+    goal: '데이터로 병목을 찾고, 가설을 실험해 전환을 반복해서 높이는 것',
+    skills: '퍼널·지표 정의 · GA4 등 분석 도구 · 가설 수립 · A/B 테스트 설계 · 결과 해석',
+    metrics: '단계별 전환율, 실험 전후 개선폭, 활성·유지율, 표본·기간',
+    focus: '퍼널 병목 → 가설 → 실험 설계(비교 대상·기간·성공 기준) → 결과 → 결론과 다음 실험(실패 포함)',
+  },
+  {
+    key: 'proposal', label: '공모전·캠페인 기획',
+    desc: '마케팅 공모전, 수업·학회 프로젝트의 캠페인 기획안',
+    goal: '상황 분석에서 타깃과 전략을 끌어내고, 채널별 실행안과 측정 방법까지 설계하는 것',
+    skills: '시장·경쟁·고객 분석 · 타깃 설정 · 콘셉트·전략 · 채널별 실행안 · 예산·KPI 설계',
+    metrics: '목표 KPI와 측정 방법(집행 전이면 예상치로 구분), 수상·채택 여부, 실제 집행 시 반응',
+    focus: '상황 분석 → 목표(KPI) → 타깃 → 콘셉트·메시지 → 채널별 실행안 → 예산·일정·측정 계획',
   },
 ];
 
@@ -2013,9 +2058,11 @@ export default function ExperienceChat() {
         await pushAi('자료에서 내용을 읽지 못했어요. 다른 자료를 올리거나 직접 조금 적어주시겠어요?');
         return;
       }
-      // 마케터 세부 분야 컨텍스트 — AI가 분야 관점(목표·지표)으로 정리하도록 자료 앞에 명시
+      // 마케터 세부 분야 컨텍스트 — AI가 분야 관점(목표·지표)으로 정리하도록 자료 뒤에 '작성 가이드'로 붙인다.
+      // 앞에 제목 줄로 붙이면 사용자가 쓴 자료 전체가 이 제목의 '문서'로 묶여 본인 진술로 인식되지 않고,
+      // 안내 문구가 근거 인용으로 잡힐 수 있다. '작성 가이드' 구간은 근거 대조에서 제외된다.
       if (marketerField) {
-        allText = `--- 마케팅 세부 분야 ---\n${marketerField.label}: ${marketerField.desc}\n이 경험은 '${marketerField.label}' 관점에서 정리하세요. 이 분야의 주요 지표: ${marketerField.metrics}\n${allText}`;
+        allText = `${allText}\n--- 작성 가이드: 마케팅 세부 분야 ---\n${marketerField.label}: ${marketerField.desc}\n이 경험은 '${marketerField.label}' 관점에서 정리하세요.${marketerField.focus ? ` 이 분야 포트폴리오는 ${marketerField.focus} 순서로 읽힙니다.` : ''} 이 분야의 주요 지표: ${marketerField.metrics}`;
       }
       setSourceText(allText.trim());
 
@@ -2067,6 +2114,12 @@ export default function ExperienceChat() {
   const generateDraft = async (allText, selectedMoments) => {
     setPhase('building');
     setBuildSteps([{ label: 'AI 초안 생성', desc: '선택한 경험을 포트폴리오 초안 구조에 맞게 정리하고 있어요', status: 'loading' }]);
+    // 자료가 많으면 1~2분 넘게 걸린다. 멈춘 것처럼 보이지 않게 안내를 바꾼다.
+    const slowNotice = window.setTimeout(() => {
+      setBuildSteps(steps => steps.map(step => (step.status === 'loading'
+        ? { ...step, desc: '자료가 많아 조금 더 걸리고 있어요. 길면 2분 정도 걸릴 수 있어요' }
+        : step)));
+    }, 45000);
 
     try {
       // AI 빠른 초안 — 실패 시 로컬 초안 폴백 (기존 플로우와 동일한 전략)
@@ -2109,6 +2162,7 @@ export default function ExperienceChat() {
           console.warn('[ExperienceChat] product/다이어그램 전용 추출 실패(무시):', e?.message);
         }
       }
+      window.clearTimeout(slowNotice);
       setBuildSteps([{ label: 'AI 초안 생성', status: 'done' }]);
       // 기본 정보 단계에서 받은 기간을 초안에 반영
       const withPeriod = (startMonth && endMonth)
@@ -2135,6 +2189,8 @@ export default function ExperienceChat() {
       setPhase(moments.length > 0 ? 'moments' : 'materials');
       toast.error(err?.response?.data?.error || '초안 생성에 실패했습니다');
       await pushAi('초안 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      window.clearTimeout(slowNotice);
     }
   };
 
@@ -2216,6 +2272,18 @@ export default function ExperienceChat() {
       });
       setFlashKey('process');
       setTypeFx({ key: 'process', from: processWasWeak ? 0 : displayText(before).length });
+    } else if (item.key === 'mkBrief') {
+      // 본인 답을 그대로 한 장 요약(roleSummary)의 해당 칸에 — 결과 화면 캠페인 브리프와 요약 슬라이드가 먼저 쓴다
+      const index = Number.isInteger(Number(item.keIndex)) ? Number(item.keIndex) : 0;
+      before = asText(draft?.keyExperiences?.[index]?.roleSummary?.[item.field]);
+      setDraft(prev => {
+        const keyExperiences = [...(prev?.keyExperiences || [])];
+        if (keyExperiences[index]) {
+          keyExperiences[index] = { ...keyExperiences[index], roleSummary: { ...(keyExperiences[index].roleSummary || {}), [item.field]: a } };
+        }
+        return { ...prev, keyExperiences };
+      });
+      setFlashKey('keyExperiences');
     } else if (item.key === 'mkTarget') {
       setDraft(prev => ({
         ...prev,

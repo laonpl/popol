@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { createPortal } from 'react-dom';
 import BrandLoader from '../../components/BrandLoader';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Github, Loader2, Search, Lightbulb, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
+import { Github, Loader2, Search, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
 import {
   ResponsiveContainer,
   PieChart as RePieChart,
@@ -41,6 +41,7 @@ import MissingFieldsPanel from '../../components/MissingFieldsPanel';
 import InterviewPrepPanel from '../../components/InterviewPrepPanel';
 import OnePagerPanel from '../../components/OnePagerPanel';
 import SummaryDeckModal from '../../components/summaryDeck/SummaryDeckModal';
+import './experience-result.css';
 import { collectMissingFields } from '../../utils/missingFields';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -80,6 +81,61 @@ const hlStyle = (tone) => ({
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // 본문 안에서 중요한 부분을 자동 강조 — 수치(굵게+밑줄), 키워드(형광펜)
 const METRIC_RE_SRC = '\\d[\\d,.]*\\s*(?:%p?|배|명|건|회|차|원|만원|억원|억|점|위|개|시간|분|초|일|주|개월|년|ms|명당|배수)';
+// 상단 툴바의 보조 기능 모음 — 바깥을 누르거나 Esc 로 닫힌다
+function ToolbarMoreMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = e => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const onKey = e => {
+      if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus(); }
+      if (!ref.current?.contains(e.target)) return;
+      const buttons = [...ref.current.querySelectorAll('[role="menuitem"]')];
+      const current = buttons.indexOf(document.activeElement);
+      const next = e.key === 'ArrowDown' ? (current + 1) % buttons.length : e.key === 'ArrowUp' ? (current - 1 + buttons.length) % buttons.length : e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : null;
+      if (next !== null && buttons.length) { e.preventDefault(); buttons[next]?.focus(); }
+    };
+    const frame = requestAnimationFrame(() => ref.current?.querySelector('[role="menuitem"]')?.focus());
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 rounded-[11px] border-2 border-transparent px-3 py-1.5 text-[13px] font-extrabold text-[#111] transition-colors hover:bg-[#f1f1ec]"
+      >
+        더보기 <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-2xl border-2 border-[#111] bg-white py-1.5 shadow-[5px_5px_0_#e4e4de]">
+          {items.map(item => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); item.onClick(); }}
+              className="block w-full px-4 py-2.5 text-left transition-colors hover:bg-surface-50"
+            >
+              <span className="block text-[13px] font-bold text-bluewood-800">{item.label}</span>
+              <span className="mt-0.5 block text-[11.5px] leading-snug text-bluewood-400">{item.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmphasizedText({ text, keywords = [], tone = 'core', className = '' }) {
   const str = String(text || '');
   if (!str) return null;
@@ -2079,6 +2135,13 @@ const pmSafeUrl = value => /^https?:\/\//i.test(String(value || '').trim()) ? St
 export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchSr, role = 'pm', minimal = false }) {
   const [uploading, setUploading] = useState(false);
   const [link, setLink] = useState('');
+  const [profileOpen, setProfileOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 600px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 600px)');
+    const sync = () => setProfileOpen(!media.matches);
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
   const fileRef = useRef(null);
   const files = roleArtifacts(sr);
   const allRecords = evidence.cases.flatMap(item => item.records);
@@ -2131,6 +2194,8 @@ export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchS
   };
   return (
     <aside className="pm-profile-sidebar">
+      <details className="pm-profile-disclosure" open={profileOpen} onToggle={event => setProfileOpen(event.currentTarget.open)}>
+      <summary><span>프로젝트 정보 · 자료<small>{cs.title || '프로젝트 맥락과 원본 파일'}</small></span><ChevronDown size={18} /></summary>
       <div className="pm-profile-sticky">
         <div className="pm-project-kicker"><span>{role === 'marketer' ? 'MARKETING' : 'PRODUCT MANAGER'}</span><span>CASE STUDY</span></div>
         <AutoText prose value={cs.title} onChange={value => setField('title', value)} placeholder={role === 'marketer' ? '어떤 캠페인·브랜드의 작업인가요?' : '어떤 제품의 문제를 해결했나요?'} className="pm-profile-title" />
@@ -2149,11 +2214,13 @@ export function PmProfileSidebar({ cs, sr, evidence, setField, setMeta, onPatchS
           {files.length > 0 ? <div className="pm-source-files">{files.map(file => <div key={file.id || file.url} className="pm-source-file"><a href={file.url} target="_blank" rel="noreferrer"><span>{file.kind === 'link' ? <Link2 size={14} /> : pmFileExt(file.name) || 'FILE'}</span><b title={file.name}>{file.name || '산출물 열기'}</b></a><button type="button" onClick={() => updateFiles(files.filter(item => item.url !== file.url))} aria-label={`${file.name || '산출물'} 삭제`}><Trash2 size={12} /></button></div>)}</div> : <p className="pm-source-empty">{role === 'marketer' ? '광고 시안, 콘텐츠, 미디어 플랜, 성과 리포트를 보관하세요.' : 'PRD, 회의록, 리서치, 지표 리포트를 올리면 판단과 함께 보여줍니다.'}</p>}
           <input ref={fileRef} className="hidden" type="file" multiple accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.csv,.tsv,.txt,.md,.zip,.png,.jpg,.jpeg,.webp,.gif" onChange={pickFiles} />
           <button type="button" className="pm-add-file print:hidden" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}{uploading ? '올리는 중…' : '파일 추가'}</button>
-          {role === 'marketer' && <div className="rpm-source-advice print:hidden"><b>이 자료에서 직무의 핵심을 추출합니다</b>광고·분석 CSV → 측정 조건 / 소재·카피 → 표현 선택 / 미디어 플랜 → 채널·예산 / CRM 기록 → 발송 조건·개선</div>}
-          <p className="pm-source-empty print:hidden">파일 본문을 읽어 저장합니다. 저장 후 ‘산출물 다시 추출’을 실행하면 반영됩니다. 링크는 원본 열기용이며 내용을 자동 분석하지 않습니다.</p>
-          <form className="pm-add-link print:hidden" onSubmit={addLink}><Link2 size={13} /><input value={link} onChange={event => setLink(event.target.value)} placeholder="Notion · Figma · Drive" /><button disabled={!link.trim()}>추가</button></form>
+          <p className="pm-source-help print:hidden">파일 추가 후 저장하고, 더보기에서 ‘산출물 다시 추출’을 실행하세요.</p>
+          {role === 'marketer' && <details className="pm-source-guide print:hidden"><summary>어떤 자료를 올리면 좋나요?<ChevronDown size={13} /></summary><div className="rpm-source-advice">광고·분석 CSV → 측정 조건<br />소재·카피 → 표현 선택<br />미디어 플랜 → 채널·예산<br />CRM 기록 → 발송 조건·개선</div></details>}
+          <form className="pm-add-link print:hidden" onSubmit={addLink}><Link2 size={13} /><input aria-label="산출물 원본 링크" value={link} onChange={event => setLink(event.target.value)} placeholder="Notion · Figma · Drive" /><button disabled={!link.trim()}>추가</button></form>
+          <p className="pm-source-help print:hidden">링크는 원본 열기용이며, 내용을 자동 분석하지 않습니다.</p>
         </div>
       </div>
+      </details>
     </aside>
   );
 }
@@ -3188,152 +3255,81 @@ export default function ExperienceResult() {
     />
     <ContextMenuHost />
     <DraftEnhanceGuideModal open={draftGuideOpen} onClose={closeDraftGuide} onEnhance={goEnhanceDraft} />
-    <div className={`min-h-screen ${isMarketer ? 'bg-surface-50 print:bg-white' : 'bg-white'}`}>
+    <div className="fp-result">
       <input ref={keyExpFileRef} type="file" accept="image/*" className="hidden" onChange={onKeyExpFile} />
 
       {/* ── 상단 액션 바 ── */}
-      <div className="sticky top-0 z-20 border-b border-surface-200 bg-white/90 backdrop-blur print:hidden">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <button onClick={() => guardedNav('/app/experience')} className="shrink-0 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← <span className="hidden sm:inline">경험 목록</span></button>
+      <div className="fp-result-sticky print:hidden">
+        <div className="fp-result-wrap fp-result-toolbar">
+          <div className="fp-result-navigation">
+            <button aria-label="경험 목록으로 돌아가기" onClick={() => guardedNav('/app/experience')} className="fp-result-back">← <span className="hidden sm:inline">경험 목록</span></button>
 
             {/* 보기 전환 — 핵심 경험 ↔ 자세히 보기 */}
-            <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
-              <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">{isCommonJob ? '케이스 스터디' : '핵심 경험'}</span>
-              <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">자세히 보기</button>
+            <div className="fp-result-views" aria-label="경험 보기 방식">
+              <span aria-current="page">{isCommonJob ? '케이스 스터디' : '핵심 경험'}</span>
+              <button onClick={() => guardedNav(`/app/experience/structured/${id}`)}>전체 내용</button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            {(isPmJob || isMarketer) && <button type="button" onClick={goEnhanceDraft} className="hidden sm:inline-flex rounded-lg border border-primary-200 bg-white px-3.5 py-2 text-[13px] font-bold text-primary-700">산출물 다시 추출</button>}
-            {dirty && <span className="hidden sm:inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-500"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />저장 안 됨</span>}
+          <div className="fp-result-actions">
+            <span className={`fp-result-save-state ${dirty ? 'is-dirty' : ''}`} role="status">{saving ? '저장 중…' : dirty ? '저장하지 않은 변경' : id === 'demo' ? '샘플 미리보기' : '저장됨'}</span>
             {missingCount > 0 && (
               <button
                 onClick={() => setFillOpen(true)}
                 title="AI가 원본에서 근거를 못 찾은 항목을 한 번에 채웁니다"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3.5 py-2 text-[13px] font-bold text-primary-700 transition-colors hover:bg-primary-50"
+                className="fp-result-fill"
               >
-                채우면 좋은 항목
-                <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[11.5px] font-black leading-none text-white">{missingCount}</span>
+                보완할 항목
+                <span className="rounded-full bg-[#111] px-1.5 py-0.5 text-[11.5px] font-black leading-none text-white">{missingCount}</span>
               </button>
             )}
             <button
               onClick={() => setSummaryDeckOpen(true)}
               title="정리한 경험을 포트폴리오에 바로 붙일 수 있는 슬라이드로 보여줍니다"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-bluewood-900 px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-bluewood-800"
+              className="fp-result-secondary"
             >
-              경험 요약보기
+              요약 슬라이드
             </button>
-            <button
-              onClick={() => setOnePagerOpen(true)}
-              title="요구 역량 순서로 근거 한 줄씩 세운 A4 한 장 (60초 검토용)"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-bold text-bluewood-600 transition-colors hover:border-surface-300 hover:bg-surface-50"
-            >
-              한 장 요약
-            </button>
-            <button
-              onClick={() => setPrepOpen(true)}
-              title="정리한 판단·근거로 예상 질문과 취약 지점을 뽑습니다 (본인용, 산출물에는 포함되지 않음)"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-bold text-bluewood-600 transition-colors hover:border-surface-300 hover:bg-surface-50"
-            >
-              면접 준비
-            </button>
-            {isMarketer && (
+            <ToolbarMoreMenu
+              items={[
+                { label: 'A4 역량 요약', desc: '요구 역량 순서로 근거를 정리한 문서', onClick: () => setOnePagerOpen(true) },
+                { label: '면접 준비', desc: '예상 질문과 취약 지점 · 나만 보는 화면', onClick: () => setPrepOpen(true) },
+                ...((isPmJob || isMarketer) ? [{ label: '산출물 다시 추출', desc: '원본 자료로 직군 산출물을 다시 뽑습니다', onClick: goEnhanceDraft }] : []),
+                ...((isPmJob || isMarketer) ? [{ label: '인쇄 · PDF 저장', desc: "경험 리포트를 인쇄하거나 PDF로 저장합니다", onClick: () => window.print() }] : []),
+              ]}
+            />
+            {/* 저장할 게 있으면 저장, 다 저장됐으면 다음 단계(사실 확인)로 */}
+            {dirty || saving ? (
               <button
-                onClick={() => window.print()}
-                title="브라우저 인쇄 창에서 'PDF로 저장'을 선택하세요"
-                className="hidden sm:inline-flex px-3.5 py-2 rounded-lg border border-surface-200 bg-white text-[13px] font-bold text-bluewood-600 hover:bg-surface-50 hover:border-surface-300 transition-colors"
+                onClick={handleSave}
+                disabled={saving}
+                title="저장 (Ctrl+S)"
+                className="fp-result-primary"
               >
-                PDF 저장
+                {saving ? '저장 중…' : '변경사항 저장'}
+              </button>
+            ) : (
+              <button
+                onClick={() => guardedNav(`/app/experience/complete/${id}`)}
+                title="저장된 내용의 사실 여부를 확인하고 다음 경험으로 넘어갑니다"
+                className="fp-result-primary"
+              >
+                확인하고 다음 →
               </button>
             )}
-            <button
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              title="저장 (Ctrl+S)"
-              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-[13px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
-            >
-              {saving ? '저장 중…' : dirty ? '저장' : '저장됨'}
-            </button>
-            <button
-              onClick={() => guardedNav(`/app/experience/complete/${id}`)}
-              className="hidden sm:inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[13px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-            >
-              사실 확인·다음 경험
-            </button>
           </div>
         </div>
       </div>
 
-      <article className={isMarketer ? 'mx-auto max-w-[1520px] px-4 py-8 sm:px-6 xl:px-8 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+      <article className="fp-result-wrap pb-10 print:p-0">
         {identityLine && (
-          <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4 sm:px-6">
-            <p className="text-[11.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>
-            <p className="mt-1.5 text-[17px] font-extrabold leading-[1.55] text-bluewood-900">“{identityLine}”</p>
+          <section className="fp-result-identity">
+            <p className="text-[12px] font-black tracking-[0.12em] text-[#6d6d67]">이 경험이 보여주는 나의 방식</p>
+            <p className="mt-1.5 text-[18px] font-extrabold leading-[1.55] text-[#111]">“{identityLine}”</p>
             {identityProofs.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {identityProofs.map((proof, index) => (
-                  <span key={`${proof}-${index}`} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-primary-700">{proof}</span>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-        {id !== 'demo' && (
-          <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-surface-200 bg-white px-5 py-4 shadow-sm print:hidden sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[12px] font-black text-bluewood-800">여러 경험에서 반복된 나의 방식</p>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-400">
-                  서로 다른 경험 2개 이상에서 같은 판단·행동이 반복될 때만 후보를 제안합니다. 승인 전에는 프로필에 저장되지 않아요.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={findIdentityPatterns}
-                disabled={findingIdentityPatterns}
-                className="inline-flex min-h-[40px] flex-shrink-0 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3.5 text-[12.5px] font-bold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50"
-              >
-                {findingIdentityPatterns ? <Loader2 size={14} className="animate-spin" /> : <Lightbulb size={14} />}
-                {findingIdentityPatterns ? '패턴 찾는 중' : '반복 패턴 찾기'}
-              </button>
-            </div>
-            {identityPatternCandidates.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {identityPatternCandidates.map(candidate => (
-                  <article key={candidate.id} className="rounded-xl border border-primary-100 bg-primary-50/40 p-4">
-                    <p className="text-[12px] font-bold text-primary-600">AI가 찾은 후보 · 아직 미승인</p>
-                    <p className="mt-1 text-[15px] font-extrabold leading-relaxed text-bluewood-900">“{candidate.sentence}”</p>
-                    {candidate.meaning && (
-                      <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">{candidate.meaning}</p>
-                    )}
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {(candidate.proofs || []).map(proof => (
-                        <span key={`${candidate.id}-${proof.experienceId}`} title={proof.evidence} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-primary-700">
-                          {proof.title || '근거 경험'}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => dismissPattern(candidate)}
-                        disabled={!!approvingPatternId}
-                        className="rounded-lg px-3 py-2 text-[12px] font-semibold text-bluewood-400 hover:bg-white"
-                      >
-                        지금은 사용하지 않기
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => approvePattern(candidate)}
-                        disabled={!!approvingPatternId}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white hover:bg-primary-700 disabled:opacity-50"
-                      >
-                        {approvingPatternId === candidate.id && <Loader2 size={13} className="animate-spin" />}
-                        내 대표 방식으로 승인
-                      </button>
-                    </div>
-                  </article>
+                  <span key={`${proof}-${index}`} className="rounded-full border-[1.5px] border-[#111] bg-white px-2.5 py-1 text-[12px] font-bold text-[#111]">{proof}</span>
                 ))}
               </div>
             )}
@@ -3655,25 +3651,70 @@ export default function ExperienceResult() {
         </div>
         )}
 
-        {/* 하단 CTA */}
-        <div className="mt-9 flex flex-wrap gap-3 border-t border-surface-200 pt-7 print:hidden">
-          <button
-            onClick={handleSave}
-            disabled={saving || !dirty}
-            className="px-5 py-3 rounded-xl bg-primary-600 text-white text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
-          >
-            {saving ? '저장 중…' : '저장하기'}
-          </button>
-          <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="inline-flex items-center gap-1.5 px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 hover:border-surface-300 transition-colors">
-            자세히 보기로 전환
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-          </button>
-          {isMarketer && (
-            <button onClick={() => window.print()} title="브라우저 인쇄 창에서 'PDF로 저장'을 선택하세요" className="px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 hover:border-surface-300 transition-colors">
-              PDF로 저장
-            </button>
-          )}
-        </div>
+        {id !== 'demo' && (
+          <details className="fp-result-patterns print:hidden">
+            <summary><span>경험을 연결해 나의 강점 찾기<small>여러 경험에서 반복되는 판단과 행동을 살펴보세요.</small></span><ChevronDown size={18} /></summary>
+            <div className="fp-result-pattern-body">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[12px] font-black text-bluewood-800">여러 경험에서 반복된 나의 방식</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-400">
+                  서로 다른 경험 2개 이상에서 같은 판단·행동이 반복될 때만 후보를 제안합니다. 승인 전에는 프로필에 저장되지 않아요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={findIdentityPatterns}
+                disabled={findingIdentityPatterns}
+                className="inline-flex min-h-[40px] flex-shrink-0 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3.5 text-[12.5px] font-bold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50"
+              >
+                {findingIdentityPatterns && <Loader2 size={14} className="animate-spin" />}
+                {findingIdentityPatterns ? '패턴 찾는 중' : '반복 패턴 찾기'}
+              </button>
+            </div>
+            {identityPatternCandidates.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {identityPatternCandidates.map(candidate => (
+                  <article key={candidate.id} className="rounded-xl border border-primary-100 bg-primary-50/40 p-4">
+                    <p className="text-[12px] font-bold text-primary-600">AI가 찾은 후보 · 아직 미승인</p>
+                    <p className="mt-1 text-[15px] font-extrabold leading-relaxed text-bluewood-900">“{candidate.sentence}”</p>
+                    {candidate.meaning && (
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">{candidate.meaning}</p>
+                    )}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {(candidate.proofs || []).map(proof => (
+                        <span key={`${candidate.id}-${proof.experienceId}`} title={proof.evidence} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-primary-700">
+                          {proof.title || '근거 경험'}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => dismissPattern(candidate)}
+                        disabled={!!approvingPatternId}
+                        className="rounded-lg px-3 py-2 text-[12px] font-semibold text-bluewood-400 hover:bg-white"
+                      >
+                        지금은 사용하지 않기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => approvePattern(candidate)}
+                        disabled={!!approvingPatternId}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {approvingPatternId === candidate.id && <Loader2 size={13} className="animate-spin" />}
+                        내 대표 방식으로 승인
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+            </div>
+          </details>
+        )}
+        <footer className="fp-result-endnote print:hidden"><span>경험 검토를 마쳤나요?</span><p>수정한 내용은 상단에서 저장하고, ‘확인하고 다음’으로 이어가세요.</p></footer>
       </article>
     </div>
     {fillOpen && (
