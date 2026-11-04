@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import BrandLoader from '../../components/BrandLoader';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
   ExternalLink, Mail, Phone, Globe, ChevronUp, X, FileText,
@@ -385,7 +386,7 @@ export default function NotionPortfolioPreview() {
     />
   );
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
+  if (loading) return <BrandLoader label="포트폴리오를 불러오는 중" />;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
   // 비주얼 템플릿이면 별도 렌더러로 분기

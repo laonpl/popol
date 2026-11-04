@@ -1108,6 +1108,7 @@ export default function NotionPortfolioEditor() {
 
   const loadData = async () => {
     try {
+      const experienceRequest = useExperienceStore.getState().fetchExperiences(user.uid);
       const portfolioSnap = await getDoc(doc(db, 'portfolios', id));
       if (portfolioSnap.exists()) {
         const pData = { id: portfolioSnap.id, ...portfolioSnap.data() };
@@ -1136,8 +1137,16 @@ export default function NotionPortfolioEditor() {
         setPortfolio(merged);
         setCurrentPortfolio(merged);
         setAnalysisOpen(!!merged.jobAnalysis); // 기업이 연결돼 있으면 패널 기본 열림
+        if (!merged.pendingAutofill && !location.state?.exportConfig) {
+          // Existing documents are ready to edit before the optional experience picker loads.
+          setUserExperiences(useExperienceStore.getState().experiences);
+          experienceRequest.then(() => setUserExperiences(useExperienceStore.getState().experiences));
+          setTimeout(() => { initialLoaded.current = true; }, 0);
+          setLoading(false);
+          return;
+        }
       }
-      await useExperienceStore.getState().fetchExperiences(user.uid);
+      await experienceRequest;
       setUserExperiences(useExperienceStore.getState().experiences);
       // 초기 로드 완료 표시 — 이후 변경분부터 저장 안 됨 상태로 표시
       setTimeout(() => { initialLoaded.current = true; }, 500);

@@ -12,6 +12,7 @@ import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import BrandLoader from './components/BrandLoader';
+import { appPageImports } from './services/routePreload';
 
 // ── 초기 로드 필수 (로그인 전 접근 가능) ──────────────────────────
 import Landing from './pages/Landing';
@@ -22,26 +23,26 @@ import NotFound from './pages/NotFound';
 
 // ── 코드 스플리팅: 인증 후에만 필요한 페이지 ─────────────────────
 const ProfileSetup          = lazy(() => import('./pages/ProfileSetup'));
-const ExperienceHub         = lazy(() => import('./pages/experience/ExperienceHub'));
+const ExperienceHub         = lazy(appPageImports.experienceHub);
 const ExperienceStart       = lazy(() => import('./pages/experience/ExperienceStart'));
 const TemplateSelect        = lazy(() => import('./pages/experience/TemplateSelect'));
 const ExperienceInterview   = lazy(() => import('./pages/experience/ExperienceInterview'));
 const ExperienceChat        = lazy(() => import('./pages/experience/ExperienceChat'));
-const ExperienceResult      = lazy(() => import('./pages/experience/ExperienceResult'));
+const ExperienceResult      = lazy(appPageImports.experienceResult);
 const ExperienceCompletion  = lazy(() => import('./pages/experience/ExperienceCompletion'));
 const QuickExperienceCapture = lazy(() => import('./pages/experience/QuickExperienceCapture'));
 const ExperienceCandidateInbox = lazy(() => import('./pages/experience/ExperienceCandidateInbox'));
 const ExperienceEditor      = lazy(() => import('./pages/experience/ExperienceEditor'));
 const AnalysisResult        = lazy(() => import('./pages/experience/AnalysisResult'));
-const StructuredResult      = lazy(() => import('./pages/experience/StructuredResult'));
+const StructuredResult      = lazy(appPageImports.structuredResult);
 const DeveloperPortfolio    = lazy(() => import('./pages/experience/DeveloperPortfolio'));
-const PortfolioHub          = lazy(() => import('./pages/portfolio/PortfolioHub'));
+const PortfolioHub          = lazy(appPageImports.portfolioHub);
 const CoverLetterHub        = lazy(() => import('./pages/coverletter/CoverLetterHub'));
-const CoverLetterWorkspace  = lazy(() => import('./pages/coverletter/CoverLetterWorkspace'));
+const CoverLetterWorkspace  = lazy(appPageImports.coverLetterWorkspace);
 const PortfolioPlanBuilder  = lazy(() => import('./pages/portfolio/PortfolioPlanBuilder'));
 const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTemplateSelect'));
-const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
-const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfolioPreview'));
+const NotionPortfolioEditor = lazy(appPageImports.portfolioEditor);
+const NotionPortfolioPreview = lazy(appPageImports.portfolioPreview);
 const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfolioView'));
 const PortfolioViewAnalytics = lazy(() => import('./pages/portfolio/PortfolioViewAnalytics'));
 const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
@@ -50,7 +51,6 @@ const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
 const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
 const QuestionCatalogAdmin  = lazy(() => import('./pages/coverletter/QuestionCatalogAdmin'));
 const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')); // 웹사이트형 템플릿 검토용
-const SampleOutput          = lazy(() => import('./pages/SampleOutput')); // 개선된 산출물 예시 확인용
 const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
 const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioPreview'));
 const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
@@ -129,7 +129,6 @@ const router = createBrowserRouter(
       <Route path="/video2" element={<PmReelsVideo />} />
       <Route path="/video3" element={<FitPolyProductReel />} />
       <Route path="/motion" element={<MotionFilm />} />
-      <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
@@ -187,5 +186,5 @@ const router = createBrowserRouter(
 );
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return <RouterProvider router={router} future={{ v7_startTransition: true }} />;
 }

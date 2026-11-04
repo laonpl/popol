@@ -1,4 +1,4 @@
-import { FileText, Globe, Image, PenLine, ScrollText } from 'lucide-react';
+import { FileSpreadsheet, FileText, Globe, Image, PenLine, Presentation, ScrollText } from 'lucide-react';
 import './DocumentFileIcon.css';
 
 const formats = {
@@ -39,9 +39,16 @@ export function documentFilePresentation(file = {}, kind = '') {
   return { id: 'file', label: '문서', stamp: '문서', Icon: FileText };
 }
 
-export default function DocumentFileIcon({ file, kind, presentation, className = '' }) {
+const outlineIcons = { powerpoint: Presentation, excel: FileSpreadsheet };
+
+export default function DocumentFileIcon({ file, kind, presentation, appearance = 'file', className = '' }) {
   const format = presentation || documentFilePresentation(file, kind);
-  const Icon = format.Icon || FileText;
+  const Icon = format.Icon || outlineIcons[format.id] || FileText;
+  if (appearance === 'outline') {
+    return <span className={`document-file-icon document-file-icon--outline ${className}`} data-file-format={format.id} role="img" aria-label={`${format.stamp || format.label} 아이콘`}>
+      <Icon size={22} strokeWidth={2} aria-hidden="true" />
+    </span>;
+  }
   return <span className={`document-file-icon document-file-icon--${format.id} ${className}`} data-file-format={format.id} role="img" aria-label={`${format.stamp || format.label} 아이콘`}>
     {format.src ? <img src={format.src} alt="" draggable="false" /> : <span className="document-file-sheet"><Icon size={23} strokeWidth={1.6} /><b>{format.stamp || format.label}</b></span>}
   </span>;

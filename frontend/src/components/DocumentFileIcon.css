@@ -10,3 +10,6 @@
 .document-file-icon--small .document-file-sheet{width:34px;height:43px;gap:3px}
 .document-file-icon--small .document-file-sheet>svg{width:19px;height:19px}
 .document-file-icon--small .document-file-sheet>b{font-size:9px}
+.document-file-icon--outline{width:40px;height:40px;border:1px solid var(--fp-line,#dcdcd6);border-radius:8px;background:var(--fp-soft,#f6f6f2);color:var(--fp-muted,#6d6d67)}
+.document-file-icon--outline.document-file-icon--small{width:36px;height:36px}
+.document-file-icon--outline.document-file-icon--small>svg{width:19px;height:19px}

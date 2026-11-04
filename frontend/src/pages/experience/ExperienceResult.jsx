@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import BrandLoader from '../../components/BrandLoader';
 import LocalStarSummary from '../../components/LocalStarSummary';
+import { preloadAppRoute } from '../../services/routePreload';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Github, Loader2, Search, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
 import {
@@ -3321,7 +3322,7 @@ export default function ExperienceResult() {
             {/* 보기 전환 — 핵심 경험 ↔ 자세히 보기 */}
             <div className="fp-result-views" aria-label="경험 보기 방식">
               <span aria-current="page">{isCommonJob ? '케이스 스터디' : '핵심 경험'}</span>
-              <button onClick={() => guardedNav(`/app/experience/structured/${id}`)}>전체 내용</button>
+              <button onMouseEnter={() => preloadAppRoute(`/app/experience/structured/${id}`)} onFocus={() => preloadAppRoute(`/app/experience/structured/${id}`)} onClick={() => guardedNav(`/app/experience/structured/${id}`)}>전체 내용</button>
             </div>
           </div>
 

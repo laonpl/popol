@@ -17,7 +17,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import api from '../services/api';
+import api, { clearApiReadCache } from '../services/api';
 
 const googleProvider = new GoogleAuthProvider();
 const kakaoProvider = new OAuthProvider('oidc.kakao');
@@ -34,6 +34,7 @@ const useAuthStore = create((set, get) => ({
     getRedirectResult(auth).catch(() => {});
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (get().user?.uid !== firebaseUser?.uid) clearApiReadCache();
       if (firebaseUser) {
         await firebaseUser.reload().catch(() => {});
         const refreshedUser = auth.currentUser || firebaseUser;
@@ -174,6 +175,7 @@ const useAuthStore = create((set, get) => ({
 
   signOut: async () => {
     await firebaseSignOut(auth);
+    clearApiReadCache();
     set({ user: null, profile: null });
   },
 }));

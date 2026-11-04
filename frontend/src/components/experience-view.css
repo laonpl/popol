@@ -1,0 +1,24 @@
+/* The detailed editor adopts the original core report's width and toolbar. */
+.experience-view-frame { --result-ink: var(--fp-ink, #111); --result-body: #444440; --result-muted: var(--fp-muted, #6d6d67); --result-line: var(--fp-line, #dcdcd6); --result-line-strong: #b9b9b3; --result-tint: #efefe9; width: 100%; max-width: 1400px; min-width: 0; margin-inline: auto; }
+.experience-view-leading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.experience-view-frame .fp-result-back { display: inline-flex; align-items: center; gap: 4px; }
+.experience-view-frame .fp-result-views > a { color: var(--result-muted); }
+.experience-view-frame .fp-result-views > a:hover { background: var(--result-tint); color: var(--result-ink); }
+.experience-view-frame .fp-result-views :focus-visible { outline: 2px solid var(--result-ink); outline-offset: 3px; }
+.experience-view-frame [id^="story-"] { scroll-margin-top: 110px; }
+@media (max-width: 1200px) {
+  .experience-view-leading { flex: 1; }
+}
+@media (max-width: 900px) {
+  .experience-view-frame [id^="story-"] { scroll-margin-top: 170px; }
+}
+/* Keep the existing experience rail outside the wider document on laptops. */
+@media (min-width: 1024px) and (max-width: 1535px) {
+  .experience-timeline[data-expanded="false"] { width: 32px; }
+  .experience-timeline[data-expanded="false"] > div { padding-inline: 3px; }
+  .experience-timeline[data-expanded="false"] .experience-timeline-line { left: 12px; }
+  .experience-timeline[data-expanded="false"] .experience-timeline-number { width: 24px; height: 24px; font-size: 11px; }
+}
+@media print {
+  .experience-view-frame { max-width: none; }
+}

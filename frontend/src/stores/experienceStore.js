@@ -220,15 +220,22 @@ const useExperienceStore = create((set, get) => ({
   experiences: [],
   loading: false,
   loadError: null,
+  _hasLoaded: false,
+  _userId: null,
+  _scopeVersion: 0,
+  _fetchVersion: 0,
   // 경험별 편집 히스토리: { [experienceId]: { past: [], future: [] } }
   // 각 스냅샷: { content, title, structuredResult }
   _editHistory: {},
 
   // 로그아웃 시 호출 — 스토어는 메모리에만 있어서 비우지 않으면 다음 방문자에게 이전 사용자 데이터가 보인다.
-  clearExperiences: () => set({ experiences: [], loading: false, loadError: null, _editHistory: {} }),
+  clearExperiences: () => set(state => ({ experiences: [], loading: false, loadError: null, _editHistory: {}, _hasLoaded: false, _userId: null, _scopeVersion: state._scopeVersion + 1, _fetchVersion: state._fetchVersion + 1 })),
 
   fetchExperiences: async (userId) => {
-    set({ loading: true, loadError: null });
+    if (userId && get()._userId !== userId) get().clearExperiences();
+    set(state => ({ _userId: userId || state._userId, loading: !state._hasLoaded, loadError: null, _fetchVersion: state._fetchVersion + 1 }));
+    const { _scopeVersion: scope, _fetchVersion: request } = get();
+    const current = () => get()._scopeVersion === scope && get()._fetchVersion === request;
     try {
       const { data } = await api.get('/experience/list');
       const experiences = (Array.isArray(data) ? data : [])
@@ -240,13 +247,13 @@ const useExperienceStore = create((set, get) => ({
           if (b.sortOrder != null) return 1;
           return toMillis(b.createdAt) - toMillis(a.createdAt);
         });
-      set({ experiences });
+      if (current()) set({ experiences, _hasLoaded: true });
     } catch (error) {
       console.error('경험 목록 불러오기 실패:', error);
       // 실패를 '데이터 없음'으로 오인하면 사용자가 데이터가 사라진 줄 안다. 구분해서 알린다.
-      set({ loadError: error?.message || '경험 목록을 불러오지 못했습니다' });
+      if (current()) set({ loadError: error?.message || '경험 목록을 불러오지 못했습니다' });
     }
-    set({ loading: false });
+    if (current()) set({ loading: false });
   },
 
   createExperience: async (userId, data) => {
@@ -263,7 +270,7 @@ const useExperienceStore = create((set, get) => ({
       lifecycleStatus: data.lifecycleStatus || (data.structuredResult ? 'needs_confirmation' : 'captured'),
     });
     const { data: newExp } = await api.post('/experience', payload);
-    set(state => ({ experiences: [newExp, ...state.experiences] }));
+    set(state => ({ experiences: [newExp, ...state.experiences], _fetchVersion: state._fetchVersion + 1, loading: false }));
     return newExp.id;
   },
 
@@ -271,6 +278,7 @@ const useExperienceStore = create((set, get) => ({
     await api.patch(`/experience/${id}`, data);
     set(state => ({
       experiences: state.experiences.map(e => e.id === id ? { ...e, ...data } : e),
+      _fetchVersion: state._fetchVersion + 1, loading: false,
     }));
   },
 
@@ -292,6 +300,7 @@ const useExperienceStore = create((set, get) => ({
     await api.delete(`/experience/${id}`);
     set(state => ({
       experiences: state.experiences.filter(e => e.id !== id),
+      _fetchVersion: state._fetchVersion + 1, loading: false,
     }));
   },
 

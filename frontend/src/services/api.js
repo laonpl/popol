@@ -2,6 +2,7 @@ import axios from 'axios';
 import { auth } from '../config/firebase';
 import { getApiBaseUrl } from './apiBase';
 import { reportClientError } from './errorReporter';
+import { createReadCache, isCacheableRead, readResource } from './readCache';
 
 // [주의] Vercel 배포 시 VITE_API_URL 환경변수를 빈 값으로 두어야 Vercel의 Rewrite(vercel.json)가 올바르게 작동하여 CORS 에러를 방지할 수 있습니다.
 const api = axios.create({
@@ -9,25 +10,50 @@ const api = axios.create({
   timeout: 300000,
 });
 
+const reads = createReadCache({ getScope: () => auth.currentUser?.uid || 'guest' });
+const networkGet = api.get.bind(api);
+const copyData = data => data == null ? data : structuredClone(data);
+export const peekApiData = url => copyData(reads.peek(url)?.data);
+export function clearApiReadCache() {
+  reads.clear();
+  _tokenCache = { value: null, exp: 0, uid: null };
+}
+api.get = (url, config = {}) => {
+  if (!isCacheableRead(url, config)) return networkGet(url, config);
+  // These list endpoints return complete documents, so opening a row needs no second read.
+  const match = url.match(/^\/(experience|portfolio|coverletter)\/([^/]+)$/);
+  const list = !config.forceRefresh && match && match[2] !== 'list' && reads.peek(`/${match[1]}/list`);
+  const document = Array.isArray(list?.data) && list.data.find(item => item.id === match[2]);
+  return reads.read(url, () => document ? { ...list, data: document } : networkGet(url, config), { force: config.forceRefresh })
+    .then(response => ({ ...response, data: copyData(response.data) }));
+};
+
+function invalidateChangedResources(config) {
+  if (['get', 'head', 'options'].includes(config?.method || 'get')) return;
+  const resource = readResource(config?.url);
+  if (resource === 'company-folders' || config?.url === '/auth/recover-data') reads.invalidate();
+  else if (resource) reads.invalidate(url => readResource(url) === resource);
+}
+
 /**
  * 요청마다 Firebase ID Token을 Authorization 헤더에 첨부
  *
  * 토큰은 인메모리에 캐시하여 매 요청마다 Firebase SDK를 호출하지 않음.
  * 만료 5분 전부터 강제 갱신 → 실질적으로 새 토큰 발급은 ~55분 간격.
  */
-let _tokenCache = { value: null, exp: 0 };
+let _tokenCache = { value: null, exp: 0, uid: null };
 
 async function getToken(user) {
   const now = Date.now() / 1000;
   // 만료까지 5분 이상 남아 있으면 캐시 재사용
-  if (_tokenCache.value && _tokenCache.exp - now > 300) {
+  if (_tokenCache.uid === user.uid && _tokenCache.value && _tokenCache.exp - now > 300) {
     return _tokenCache.value;
   }
   const idToken = await user.getIdToken();
   try {
     // JWT payload의 exp 파싱 (외부 검증 없음 — 로컬 캐시 만료 계산 전용)
     const payload = JSON.parse(atob(idToken.split('.')[1]));
-    _tokenCache = { value: idToken, exp: payload.exp };
+    _tokenCache = { value: idToken, exp: payload.exp, uid: user.uid };
   } catch {
     // 파싱 실패 시 캐시 없이 반환 (다음 요청에서 재시도)
     _tokenCache = { value: null, exp: 0 };
@@ -36,6 +62,7 @@ async function getToken(user) {
 }
 
 api.interceptors.request.use(async (config) => {
+  invalidateChangedResources(config);
   try {
     const user = auth.currentUser;
     if (user) {
@@ -49,7 +76,11 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => {
-    if (typeof window !== 'undefined' && !response.config?.url?.includes('/billing/wallet')) {
+    invalidateChangedResources(response.config);
+    if (typeof window !== 'undefined'
+      && !['get', 'head', 'options'].includes(response.config?.method || 'get')
+      && !/^\/(?:analytics|logs|auth)(?:\/|$)/.test(response.config?.url || '')
+      && !response.config?.url?.includes('/billing/wallet')) {
       window.dispatchEvent(new Event('credits:refresh'));
     }
     return response;
