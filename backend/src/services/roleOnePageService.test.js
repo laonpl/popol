@@ -8,11 +8,14 @@ test('PM 한 장: 형식이 틀린 응답도 정해진 모양으로 맞춘다', 
   const page = normalizePm({
     headline: { label: '기록 완료율', value: '71%' },
     research: [{ label: '인터뷰', value: '15명' }, { value: '라벨 없음' }],
-    decisions: [{ title: 'OCR 실패 복구', step: '영수증 촬영', options: [{ label: '자동 확정', chosen: true }, { label: '전부 수동', chosen: 'yes' }], spec: { criteria: '문자열' } }, { title: '단계 없음' }],
+    decisions: [{ title: 'OCR 실패 복구', step: '영수증 촬영', action: '신뢰도 구간별 처리 정책 작성', options: [{ label: '자동 확정', chosen: true }, { label: '전부 수동', chosen: 'yes' }], spec: { criteria: '문자열' } }, { title: '단계 없음' }],
   });
   assert.equal(page.research.length, 1);
   assert.equal(page.decisions[0].step, '영수증 촬영');
   assert.equal(page.decisions[1].step, '');
+  assert.equal(page.decisions[0].action, '신뢰도 구간별 처리 정책 작성');
+  assert.equal(page.decisions[0].validation, ''); // 응답에 없으면 빈 칸
+  assert.equal(page.decisions[0].outcome, '');
   assert.equal(page.decisions[0].options[1].chosen, false);
   assert.deepEqual(page.decisions[0].spec.criteria, []);
   assert.deepEqual(page.flow, []);

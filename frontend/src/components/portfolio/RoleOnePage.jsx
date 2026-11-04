@@ -17,8 +17,8 @@ import AutoText from '../AutoText';
 import { parseAmount, periodLength, splitChange } from '../../utils/roleOnePage';
 import { roleArtifacts } from '../../utils/roleArtifacts';
 
-const ACCENT = 'var(--fp-ink, #111111)';
-const ISSUE = 'var(--fp-muted, #6d6d67)';
+const ACCENT = '#002F6C';
+const ISSUE = '#b45309';
 const t = (v) => String(v ?? '').trim();
 const has = (v) => (Array.isArray(v) ? v.length > 0 : t(v) !== '');
 const patchAt = (rows, i, changes) => rows.map((r, ri) => (ri === i ? { ...r, ...changes } : r));
@@ -42,6 +42,9 @@ const rowsToLines = (rows = [], keys) => rows.map(r => keys.map(k => t(r?.[k])).
 const linesToRows = (value, keys) => String(value || '').split('\n').map(line => line.split('|').map(s => s.trim()))
   .filter(cells => cells.some(Boolean)).map(cells => Object.fromEntries(keys.map((k, i) => [k, cells[i] || ''])));
 
+// 예전 Firebase Storage 주소 — 무료 요금제에서 막혀(402) 열리지 않는다. 지금 업로드는 /api/files(Firestore)로 간다
+const LEGACY_STORAGE = /firebasestorage\.googleapis\.com|storage\.googleapis\.com|\.firebasestorage\.app/i;
+
 /** 결과 화면이 넘겨줄 실제 작업물 — 올린 파일(deliverables·pmFiles) + 핵심 경험·본문에 붙인 이미지 */
 export function collectRoleArtifacts(sr = {}, cs = {}) {
   const seen = new Set();
@@ -53,9 +56,10 @@ export function collectRoleArtifacts(sr = {}, cs = {}) {
     (item.image ? images : files).push(item);
   };
   // removable = 산출물로 올린 것(지울 수 있음), 핵심 경험·본문 이미지는 그쪽에서 관리
-  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext || (t(f.name).match(/\.([a-z0-9]{2,5})$/i) || [])[1]).toUpperCase(), link: f.kind === 'link', removable: true, image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
-  (cs.keyExps || []).forEach(k => (k.images || []).forEach(img => push({ url: img.url, name: k.title, image: true })));
-  (cs.body || []).filter(seg => seg.type === 'image').forEach(seg => push({ url: seg.content, name: '', image: true }));
+  roleArtifacts(sr).forEach(f => push({ url: f.url, name: f.name, ext: t(f.ext || (t(f.name).match(/\.([a-z0-9]{2,5})$/i) || [])[1]).toUpperCase(), link: f.kind === 'link', removable: true, deliverable: t(f.deliverable), expired: LEGACY_STORAGE.test(f.url), image: /\.(png|jpe?g|webp|gif)(?:[?#]|$)/i.test(f.url) || /^(png|jpe?g|webp|gif)$/i.test(f.ext || '') }));
+  // 핵심 경험·본문 사진은 여기서 지울 수 없으므로 예전 저장소(열리지 않는) 주소는 아예 싣지 않는다
+  (cs.keyExps || []).forEach(k => (k.images || []).filter(img => !LEGACY_STORAGE.test(img.url || '')).forEach(img => push({ url: img.url, name: k.title, image: true })));
+  (cs.body || []).filter(seg => seg.type === 'image' && !LEGACY_STORAGE.test(seg.content || '')).forEach(seg => push({ url: seg.content, name: '', image: true }));
   return { images, files };
 }
 
@@ -146,7 +150,7 @@ const Chips = ({ items }) => (
 function Sidebar({ title, onTitle, summary, onSummary, children }) {
   const editing = useEditing();
   return (
-    <div className="role-one-sidebar">
+    <div className="lg:pr-2">
       <p className="mb-3 text-[11.5px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>핵심 경험 리포트</p>
       {editing
         ? <AutoText prose value={title} onChange={onTitle} placeholder="경험 제목" className="text-[22px] font-black leading-[1.22] tracking-tight text-bluewood-900 sm:text-[26px]" />
@@ -161,7 +165,7 @@ function Sidebar({ title, onTitle, summary, onSummary, children }) {
 
 function ImpactHeader({ title, editing, setEditing, page, onAnalyze, analyzing }) {
   return (
-    <div className="role-impact-header">
+    <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
       <h2 className="text-[15px] font-extrabold text-bluewood-900">{title}</h2>
       <div className="flex items-center gap-3 text-[12px] print:hidden">
         {onAnalyze && (
@@ -179,7 +183,7 @@ function Block({ title, note, children, show = true }) {
   const editing = useEditing();
   if (!show && !editing) return null;
   return (
-    <section className="role-one-section">
+    <section className="mb-9">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-[13.5px] font-extrabold text-bluewood-900">{title}</h3>
         {note && <span className="text-[11.5px] text-bluewood-300">{note}</span>}
@@ -226,12 +230,16 @@ function KpiRow({ items, compact = false }) {
       {/* 칸마다 왼쪽·위 선 — 첫 칸·첫 줄의 선은 -m으로 밖에 숨긴다. 칸 수는 폭에 맞춰 자동 */}
       <div className="-ml-px -mt-px grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 118 : 148}px, 1fr))` }}>
         {items.map((m, i) => {
-          const long = m.value.length > 9;
-          const size = compact ? (long ? 'text-[16px]' : 'text-[22px]') : (long ? 'text-[18px]' : 'text-[30px]');
+          // 한 줄의 숫자는 모두 같은 크기 — 가장 긴 값에 맞춘다. 짧은 값은 줄바꿈하지 않는다
+          const longest = Math.max(...items.map(x => x.value.length));
+          const size = compact
+            ? (longest > 9 ? 'text-[16px]' : 'text-[22px]')
+            : (longest > 9 ? 'text-[18px]' : longest > 5 ? 'text-[24px]' : 'text-[30px]');
           return (
             <div key={i} className={`min-w-0 border-l border-t border-surface-200 ${compact ? 'px-4 py-3' : 'px-5 py-4'}`}>
-              <p className="text-[12px] font-semibold leading-snug text-bluewood-500" style={WRAP}>{m.label}</p>
-              <p className={`mt-1 font-extrabold leading-tight tracking-tight text-bluewood-900 ${size}`} style={WRAP}>{m.value}</p>
+              {/* 이름 칸은 두 줄 높이로 고정 — 이름 길이가 달라도 숫자가 같은 높이에 선다 */}
+              <p className={`text-[12px] font-semibold leading-snug text-bluewood-500 ${items.some(x => x.label.length > 10) ? 'min-h-[2.75em]' : ''}`} style={WRAP}>{m.label}</p>
+              <p className={`mt-1 font-extrabold leading-tight tracking-tight text-bluewood-900 ${size} ${m.value.length <= 12 ? 'whitespace-nowrap' : ''}`} style={WRAP}>{m.value}</p>
               {(m.change || t(m.before) || m.target) && (
                 <p className="mt-1.5 text-[12px] leading-snug text-bluewood-400" style={WRAP}>
                   <Delta change={m.change} />{m.change && ' · '}{t(m.before) && `이전 ${m.before}`}{m.target && `${t(m.before) || m.change ? ' · ' : ''}목표 ${m.target}`}
@@ -252,7 +260,7 @@ function ChangeChart({ items }) {
     <div className="mt-6">
       <div className="mb-2 flex items-center gap-4 text-[11.5px] text-bluewood-400">
         <span className="font-bold text-bluewood-500">이전 → 이후</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b9b9b3]" />이전</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b8c4d4]" />이전</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: ACCENT }} />이후</span>
       </div>
       <div className="divide-y divide-surface-100">
@@ -268,7 +276,7 @@ function ChangeChart({ items }) {
               <div className="relative h-[46px]">
                 <span className="absolute inset-x-0 top-1/2 h-px bg-surface-200" />
                 <span className="absolute top-1/2 h-[2px] -translate-y-1/2" style={{ left: `${Math.min(pa, pb)}%`, width: `${Math.abs(pa - pb)}%`, background: ACCENT, opacity: 0.45 }} />
-                <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b9b9b3] ring-2 ring-white" style={{ left: `${pb}%` }} />
+                <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b8c4d4] ring-2 ring-white" style={{ left: `${pb}%` }} />
                 <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white" style={{ left: `${pa}%`, background: ACCENT }} />
                 <span className="absolute top-0 whitespace-nowrap text-[11px] text-bluewood-400" style={place(pb)}>{m.before}</span>
                 <span className="absolute bottom-0 whitespace-nowrap text-[11.5px] font-bold text-bluewood-900" style={place(pa)}>{m.value}</span>
@@ -339,7 +347,7 @@ function DiagramFrame({ width, height, children }) {
     <div className="overflow-x-auto rounded-xl border border-surface-200 bg-surface-50/40 p-4 sm:p-5">
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: width, minWidth: Math.min(width, 520), display: 'block', margin: '0 auto' }}>
         <defs>
-          <marker id="role-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6d6d67" /></marker>
+          <marker id="role-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" /></marker>
         </defs>
         {children}
       </svg>
@@ -361,13 +369,13 @@ const boxHeight = (w, title, desc, top) => {
 /** 박스 하나 — 위 작은 라벨 + 굵은 제목 + 회색 설명 */
 function DiagramBox({ x, y, w, h, title, desc, accent, warn, top }) {
   const { titleLines, descLines } = boxLines(w, title, desc);
-  const stroke = warn ? '#b9b9b3' : accent ? ACCENT : '#dcdcd6';
+  const stroke = warn ? '#f0c48a' : accent ? ACCENT : '#cbd5e1';
   return (
     <g>
-      <rect x={x} y={y} width={w} height={h} rx="11" fill={warn ? '#f6f6f2' : '#ffffff'} stroke={stroke} strokeWidth={accent ? 1.9 : 1.2} />
-      {top && <text x={x + 12} y={y + 17} fontSize="10" fontWeight="700" fill={warn ? ISSUE : '#6d6d67'}>{top}</text>}
-      {titleLines.map((line, i) => <text key={`t${i}`} x={x + w / 2} y={y + (top ? 36 : 24) + i * 16} textAnchor="middle" fontSize="12.5" fontWeight="700" fill={warn ? ISSUE : '#111111'}>{line}</text>)}
-      {descLines.map((line, i) => <text key={`d${i}`} x={x + w / 2} y={y + (top ? 36 : 24) + titleLines.length * 16 + 4 + i * 14} textAnchor="middle" fontSize="10.5" fill="#6d6d67">{line}</text>)}
+      <rect x={x} y={y} width={w} height={h} rx="11" fill={warn ? '#fff8ee' : '#ffffff'} stroke={stroke} strokeWidth={accent ? 1.9 : 1.2} />
+      {top && <text x={x + 12} y={y + 17} fontSize="10" fontWeight="700" fill={warn ? ISSUE : '#94a3b8'}>{top}</text>}
+      {titleLines.map((line, i) => <text key={`t${i}`} x={x + w / 2} y={y + (top ? 36 : 24) + i * 16} textAnchor="middle" fontSize="12.5" fontWeight="700" fill={warn ? ISSUE : '#0f2747'}>{line}</text>)}
+      {descLines.map((line, i) => <text key={`d${i}`} x={x + w / 2} y={y + (top ? 36 : 24) + titleLines.length * 16 + 4 + i * 14} textAnchor="middle" fontSize="10.5" fill="#64748b">{line}</text>)}
     </g>
   );
 }
@@ -398,10 +406,10 @@ function FlowDiagram({ steps, exceptions, marks = [] }) {
                 </g>
               );
             })}
-            {i < steps.length - 1 && <path d={`M ${x + W} ${PAD + H / 2} L ${x + W + GAP} ${PAD + H / 2}`} stroke="#6d6d67" strokeWidth="1.5" markerEnd="url(#role-arrow)" fill="none" />}
+            {i < steps.length - 1 && <path d={`M ${x + W} ${PAD + H / 2} L ${x + W + GAP} ${PAD + H / 2}`} stroke="#94a3b8" strokeWidth="1.5" markerEnd="url(#role-arrow)" fill="none" />}
             {ex && (
               <>
-                <path d={`M ${x + W / 2} ${PAD + H} L ${x + W / 2} ${PAD + H + EX_GAP}`} stroke="#b9b9b3" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#role-arrow)" fill="none" />
+                <path d={`M ${x + W / 2} ${PAD + H} L ${x + W / 2} ${PAD + H + EX_GAP}`} stroke="#e7b37a" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#role-arrow)" fill="none" />
                 <DiagramBox x={x} y={PAD + H + EX_GAP} w={W} h={EX_H} top="예외" title={ex.label} desc={ex.handling} warn />
               </>
             )}
@@ -426,7 +434,7 @@ function CampaignDiagram({ structure }) {
   const colX = (c) => PAD + c * (W + GAP);
   const boxY = mid - BOX_H / 2;
   const chY = (i) => mid - chStack / 2 + i * (CH_H + CH_GAP);
-  const arrow = (x1, y1, x2, y2, key) => <path key={key} d={`M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`} stroke="#6d6d67" strokeWidth="1.4" fill="none" markerEnd="url(#role-arrow)" />;
+  const arrow = (x1, y1, x2, y2, key) => <path key={key} d={`M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`} stroke="#94a3b8" strokeWidth="1.4" fill="none" markerEnd="url(#role-arrow)" />;
   return (
     <DiagramFrame width={width} height={height}>
       <DiagramBox x={colX(0)} y={boxY} w={W} h={BOX_H} top="타깃" title={structure.target || '—'} desc={structure.insight} accent />
@@ -434,8 +442,8 @@ function CampaignDiagram({ structure }) {
       {arrow(colX(0) + W, mid, colX(1), mid, 'a1')}
       {(channels.length ? channels : ['—']).map((ch, i) => (
         <g key={i}>
-          <rect x={colX(2)} y={chY(i)} width={W} height={CH_H} rx="10" fill="#fff" stroke="#dcdcd6" strokeWidth="1.2" />
-          <text x={colX(2) + W / 2} y={chY(i) + CH_H / 2 + 4.5} textAnchor="middle" fontSize="12.5" fontWeight="700" fill="#111111">{wrapChars(ch, 11, 1)[0]}</text>
+          <rect x={colX(2)} y={chY(i)} width={W} height={CH_H} rx="10" fill="#fff" stroke="#cbd5e1" strokeWidth="1.2" />
+          <text x={colX(2) + W / 2} y={chY(i) + CH_H / 2 + 4.5} textAnchor="middle" fontSize="12.5" fontWeight="700" fill="#0f2747">{wrapChars(ch, 11, 1)[0]}</text>
           {arrow(colX(1) + W, mid, colX(2), chY(i) + CH_H / 2, `b${i}`)}
           {arrow(colX(2) + W, chY(i) + CH_H / 2, colX(3), mid, `c${i}`)}
         </g>
@@ -454,11 +462,11 @@ function ProcessRow({ index, title, line, lineLabel, badges, open, onToggle, chi
         <div className="min-w-0 flex-1">
           <p className="text-[14.5px] font-extrabold leading-snug text-bluewood-900" style={WRAP}>{title}</p>
           {/* 접힌 줄은 첫 문장을 통째로 — 말줄임으로 자르지 않는다 */}
-          {!open && sentences(line)[0] && <p className="mt-0.5 text-[12px] leading-[1.55] text-bluewood-500" style={WRAP}><span className="font-bold" style={{ color: '#444440' }}>{lineLabel} </span>{sentences(line)[0]}</p>}
+          {!open && sentences(line)[0] && <p className="mt-0.5 text-[12px] leading-[1.55] text-bluewood-500" style={WRAP}><span className="font-bold" style={{ color: '#314157' }}>{lineLabel} </span>{sentences(line)[0]}</p>}
         </div>
         {!open && badges.length > 0 && (
           <span className="hidden flex-shrink-0 items-center gap-1.5 font-mono text-[11.5px] sm:flex">
-            {badges.map(b => <span key={b.label} className="rounded px-1.5 py-0.5 font-semibold" style={b.issue ? { color: ISSUE, backgroundColor: '#efefe9' } : { color: '#6d6d67', backgroundColor: '#f6f6f2' }}>{b.label}</span>)}
+            {badges.map(b => <span key={b.label} className="rounded px-1.5 py-0.5 font-semibold" style={b.issue ? { color: ISSUE, backgroundColor: '#fef7ec' } : { color: '#64748b', backgroundColor: '#f1f4f8' }}>{b.label}</span>)}
           </span>
         )}
         <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600 print:hidden" style={open ? { transform: 'rotate(180deg)' } : undefined}>
@@ -471,7 +479,7 @@ function ProcessRow({ index, title, line, lineLabel, badges, open, onToggle, chi
 }
 
 /** 행 안의 라벨 + 내용 (개발자 '문제·해결·성과' 줄과 같은 모양) */
-function Labeled({ label, color = '#444440', children }) {
+function Labeled({ label, color = '#314157', children }) {
   return (
     <div>
       <p className="mb-0.5 text-[11.5px] font-black uppercase tracking-wide" style={{ color }}>{label}</p>
@@ -558,7 +566,7 @@ function AdPreview({ creative, onChange, onDelete }) {
   const editing = useEditing();
   const set = (k) => (v) => onChange({ ...creative, [k]: v });
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border bg-white" style={{ borderColor: creative.winner ? ACCENT : '#dcdcd6' }}>
+    <div className="min-w-0 overflow-hidden rounded-lg border bg-white" style={{ borderColor: creative.winner ? ACCENT : '#e2e8f0' }}>
       <div className="flex items-center gap-2 border-b border-surface-100 bg-surface-50 px-3 py-1.5 text-[11px] text-bluewood-400">
         <span className="font-bold text-bluewood-600">소재 {creative.variant}</span>{t(creative.format) && <span>· {creative.format}</span>}
         <span className="ml-auto">
@@ -613,45 +621,87 @@ function Artifacts({ artifacts }) {
 /** 산출물 이름의 첫 낱말 — 올린 파일 이름과 짝지을 때 쓴다 ("PRD 24쪽" → "prd", "와이어프레임 12화면" → "와이어프레임") */
 const keyword = (name) => (t(name).toLowerCase().match(/[a-z가-힣]{2,}/) || [])[0] || '';
 
-/** 산출물 카드 하나 — 위 미리보기(사진·파일 종류·링크) + 아래 이름·분량 */
-function ArtifactCard({ title, value, item, onRemove }) {
-  const preview = item && (item.image
-    ? <img src={item.url} alt={title || item.name || '산출물'} loading="lazy" className="h-full w-full object-cover" />
-    : <span className="text-[13px] font-black tracking-wide text-bluewood-400">{item.link ? '링크' : item.ext || '파일'}</span>);
-  const inner = (
-    <>
-      {preview && <div className="flex h-[132px] items-center justify-center overflow-hidden border-b border-surface-200 bg-surface-50">{preview}</div>}
-      <div className="px-3.5 py-2.5">
-        <p className="text-[13px] font-bold leading-snug text-bluewood-900" style={WRAP}>{title || item?.name || '산출물'}</p>
-        {(t(value) || (item && title && item.name !== title)) && (
-          <p className="mt-0.5 truncate text-[11.5px] text-bluewood-400">{[t(value), item && title && item.name !== title ? item.name : ''].filter(Boolean).join(' · ')}</p>
-        )}
-      </div>
-    </>
-  );
+/** 파일·사진 올리기 / 링크 붙이기 — 카드 안에서 연다. target = 이 첨부를 붙일 산출물 이름·바꿀 예전 파일 */
+function AttachPanel({ actions, target, onPickFile, onDone }) {
+  const [link, setLink] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (actions.addLink(link, target)) { setLink(''); onDone(); }
+  };
   return (
-    <div className="group relative min-w-0 overflow-hidden rounded-lg border border-surface-200 bg-white">
-      {item ? <a href={item.url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{inner}</a> : inner}
-      {item?.removable && onRemove && (
-        <button type="button" onClick={() => onRemove(item.url)} aria-label="산출물 빼기" className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[13px] text-bluewood-400 shadow-sm hover:text-red-500 print:hidden">×</button>
-      )}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-100 px-3 py-2.5 text-[12px] print:hidden">
+      <button type="button" onClick={() => onPickFile(target)} disabled={actions.uploading} className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2.5 py-1 font-semibold text-bluewood-600 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50">
+        {actions.uploading ? <><Loader2 size={12} className="animate-spin" />올리는 중…</> : '파일·사진 올리기'}
+      </button>
+      <form onSubmit={submit} className="flex min-w-[160px] flex-1 items-center gap-1.5">
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="링크 붙이기 (Notion·Figma·Drive)" className="min-w-0 flex-1 border-b border-surface-200 bg-transparent py-0.5 text-[12px] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:border-primary-300" />
+        {t(link) && <button type="submit" className="font-semibold text-primary-600">추가</button>}
+      </form>
     </div>
   );
 }
 
-/** 기획 산출물 — 분석이 찾은 산출물 이름과 실제로 올린 파일·사진·링크를 한 카드로. 이름이 같은 낱말로 시작하면 짝짓는다 */
+/** 산출물 한 줄 카드 — 왼쪽 작은 표지(사진 썸네일·파일 종류·링크·문서 모양) + 이름·분량.
+ *  파일이 없거나 예전 저장소라 열리지 않는 카드는 누르면 그 자리에서 올리기 칸이 열린다 */
+function ArtifactCard({ title, value, item, actions, onPickFile }) {
+  const [attaching, setAttaching] = useState(false);
+  const name = title || item?.name || '산출물';
+  const opens = item && !item.expired;
+  const canAttach = !!actions && !opens;
+  const sub = item?.expired
+    ? '예전 저장소라 열 수 없어요 · 눌러서 다시 올리기'
+    : [t(value), item && title && item.name !== title ? item.name : ''].filter(Boolean).join(' · ') || (canAttach ? '눌러서 파일·링크 붙이기' : '');
+  const badge = item?.image && opens
+    ? <img src={item.url} alt={name} loading="lazy" className="h-full w-full object-cover object-top" />
+    : item
+      ? <span className="text-[10.5px] font-black tracking-wide text-bluewood-500">{item.link ? '링크' : (item.ext || '파일').slice(0, 4)}</span>
+      : <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-bluewood-300" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>;
+  const inner = (
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border bg-surface-50 ${item?.expired ? 'border-dashed border-amber-300' : canAttach ? 'border-dashed border-surface-300' : 'border-surface-200'}`}>{badge}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-bold leading-snug text-bluewood-900" style={WRAP}>{name}</span>
+        {sub && <span className={`mt-0.5 block truncate text-[11.5px] ${item?.expired ? 'text-amber-700' : 'text-bluewood-400'}`}>{sub}</span>}
+      </span>
+    </div>
+  );
+  const target = { deliverable: title || item?.deliverable || '', replace: item?.expired ? item.url : '' };
+  return (
+    <div className="group relative min-w-0 rounded-lg border border-surface-200 bg-white transition-colors hover:border-primary-200">
+      {opens
+        ? <a href={item.url} target="_blank" rel="noreferrer" className="block">{inner}</a>
+        : canAttach
+          ? <button type="button" onClick={() => setAttaching(a => !a)} aria-expanded={attaching} className="block w-full text-left">{inner}</button>
+          : inner}
+      {attaching && canAttach && <AttachPanel actions={actions} target={target} onPickFile={onPickFile} onDone={() => setAttaching(false)} />}
+      {item?.removable && actions?.remove && <RemoveButton onClick={() => actions.remove(item.url)} />}
+    </div>
+  );
+}
+
+const RemoveButton = ({ onClick }) => (
+  <button type="button" onClick={onClick} aria-label="산출물 빼기" className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[13px] text-bluewood-400 shadow-sm hover:text-red-500 group-hover:flex print:hidden">×</button>
+);
+
+/** 기획 산출물 — 산출물 이름(분석)과 올린 파일·링크를 한 줄 카드로.
+ *  짝짓기: 그 산출물 카드에서 직접 붙인 것(deliverable) → 이름의 첫 낱말이 파일명에 들어간 것.
+ *  어느 산출물과도 짝이 없는 사진은 아래에 같은 비율의 사진 줄로 모은다 */
 function DeliverableBoard({ deliverables, artifacts, actions }) {
   const [link, setLink] = useState('');
   const fileRef = useRef(null);
-  const items = [...(artifacts?.images || []), ...(artifacts?.files || [])];
+  const pending = useRef({}); // 파일 선택창을 연 카드 — 고른 파일을 그 산출물에 붙인다
+  const items = [...(artifacts?.files || []), ...(artifacts?.images || [])];
   const used = new Set();
+  const take = (pred) => { const x = items.find(i => !used.has(i.url) && pred(i)); if (x) used.add(x.url); return x || null; };
   const cards = deliverables.map(d => {
     const k = keyword(d.name);
-    const item = k ? items.find(x => !used.has(x.url) && t(x.name).toLowerCase().includes(k)) : null;
-    if (item) used.add(item.url);
+    const item = take(x => x.deliverable && x.deliverable === t(d.name)) || (k ? take(x => !x.deliverable && t(x.name).toLowerCase().includes(k)) : null);
     return { title: d.name, value: d.value, item };
   });
-  items.filter(x => !used.has(x.url)).forEach(item => cards.push({ title: '', value: '', item }));
+  const rest = items.filter(x => !used.has(x.url));
+  rest.filter(x => !x.image || x.expired).forEach(item => cards.push({ title: '', value: '', item }));
+  const photos = rest.filter(x => x.image && !x.expired);
+  const pickFile = (target = {}) => { pending.current = target; fileRef.current?.click(); };
   const submitLink = (e) => {
     e.preventDefault();
     if (actions?.addLink(link)) setLink('');
@@ -659,15 +709,28 @@ function DeliverableBoard({ deliverables, artifacts, actions }) {
   return (
     <div>
       {cards.length > 0 && (
-        <div className="role-one-artifact-grid">
-          {cards.map((c, i) => <ArtifactCard key={c.item?.url || `d${i}`} {...c} onRemove={actions?.remove} />)}
+        <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((c, i) => <ArtifactCard key={c.item?.url || `d${i}`} {...c} actions={actions} onPickFile={pickFile} />)}
+        </div>
+      )}
+      {photos.length > 0 && (
+        <div className={`grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-5 ${cards.length ? 'mt-3' : ''}`}>
+          {photos.map(p => (
+            <figure key={p.url} className="group relative min-w-0">
+              <a href={p.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-surface-200 bg-surface-50" style={{ aspectRatio: '4 / 3' }}>
+                <img src={p.url} alt={p.name || '산출물 사진'} loading="lazy" className="h-full w-full object-cover object-top transition-opacity hover:opacity-90" />
+              </a>
+              {t(p.name) && <figcaption className="mt-1 truncate text-[11.5px] text-bluewood-400">{p.name}</figcaption>}
+              {p.removable && actions?.remove && <RemoveButton onClick={() => actions.remove(p.url)} />}
+            </figure>
+          ))}
         </div>
       )}
       {actions && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] print:hidden">
           <input ref={fileRef} type="file" multiple className="hidden" accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.csv,.key,.fig,.zip,.png,.jpg,.jpeg,.webp,.gif"
-            onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; if (picked.length) actions.addFiles(picked); }} />
-          <button type="button" onClick={() => fileRef.current?.click()} disabled={actions.uploading} className="inline-flex items-center gap-1 font-semibold text-bluewood-400 hover:text-primary-600 disabled:opacity-50">
+            onChange={(e) => { const picked = Array.from(e.target.files || []); e.target.value = ''; if (picked.length) actions.addFiles(picked, pending.current); pending.current = {}; }} />
+          <button type="button" onClick={() => pickFile()} disabled={actions.uploading} className="inline-flex items-center gap-1 font-semibold text-bluewood-400 hover:text-primary-600 disabled:opacity-50">
             {actions.uploading ? <><Loader2 size={12} className="animate-spin" />올리는 중…</> : '+ 파일·사진 올리기'}
           </button>
           <form onSubmit={submitLink} className="flex min-w-0 flex-1 items-center gap-1.5 sm:max-w-[320px]">
@@ -676,7 +739,7 @@ function DeliverableBoard({ deliverables, artifacts, actions }) {
           </form>
         </div>
       )}
-      {!cards.length && <p className="mt-1.5 text-[12px] text-bluewood-300 print:hidden">PRD·와이어프레임·정책서 같은 기획 문서를 올리면 여기에 함께 보여요.</p>}
+      {!cards.length && !photos.length && <p className="mt-1.5 text-[12px] text-bluewood-300 print:hidden">PRD·와이어프레임·정책서 같은 기획 문서를 올리면 여기에 함께 보여요.</p>}
     </div>
   );
 }
@@ -706,18 +769,19 @@ function HeadlineEditor({ page, onPatch }) {
   );
 }
 
-function ThinNote({ show, onAnalyze, what }) {
+function ThinNote({ show, onAnalyze, analyzing, what }) {
   if (!show || !onAnalyze) return null;
   return (
     <div className="mb-7 rounded-xl border border-dashed border-surface-300 px-4 py-3.5 text-[13px] leading-[1.65] text-bluewood-500 print:hidden">
-      아직 {what}이 충분히 정리되지 않았어요. 위의 ‘자료로 분석’으로 올린 자료를 다시 읽거나, ‘편집’으로 직접 채워 주세요.
+      아직 {what}이 충분히 정리되지 않았어요. 올린 자료를 다시 읽어 채울 수 있어요(자료에 없는 숫자는 만들지 않아요).
+      <button type="button" onClick={onAnalyze} disabled={analyzing} className="ml-1.5 font-bold text-primary-600 hover:underline disabled:opacity-50">{analyzing ? '자료 읽는 중…' : '자료로 분석하기'}</button>
     </div>
   );
 }
 
 /* ════════════ 기획/PM ════════════ */
 
-const EMPTY_DECISION = { title: '', step: '', tags: [], problem: '', evidence: '', options: [], result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
+const EMPTY_DECISION = { title: '', step: '', tags: [], problem: '', evidence: '', options: [], action: '', validation: '', outcome: '', result: { label: '', before: '', after: '' }, spec: { story: '', criteria: [], policies: [] }, issue: { signal: '', cause: '', fix: '' }, learning: '' };
 
 /** 결정이 바꾼 플로우 단계 번호 — 분석이 준 step이 있으면 그것, 없으면 결정 글에 단계명이 나오는지로 읽는다 (못 찾으면 -1) */
 function stepIndexOf(d = {}, flow = []) {
@@ -733,7 +797,7 @@ const resultText = (r = {}) => (t(r.after) ? `${t(r.label) ? `${r.label} ` : ''}
 const DECISION_COLS = 'sm:grid-cols-[52px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.8fr)_28px]';
 
 /** 판단 과정 한 단계 — 왼쪽 단계 이름, 오른쪽 내용, 단계 사이 세로선 (위에서 아래로 읽는 사슬) */
-function ChainStep({ label, color = '#444440', last, children }) {
+function ChainStep({ label, color = '#314157', last, children }) {
   return (
     <li className="relative grid grid-cols-1 gap-x-4 gap-y-1 pb-4 pl-5 sm:grid-cols-[112px_minmax(0,1fr)]">
       {!last && <span className="absolute bottom-0 left-[4px] top-[14px] w-px bg-surface-200" />}
@@ -744,7 +808,7 @@ function ChainStep({ label, color = '#444440', last, children }) {
   );
 }
 
-/** 의사결정 펼침 — 이 결정을 어떻게 내렸나: 왜 필요했나 → 뺀 대안 → 고른 안과 이유 → 기획서에 옮긴 것 → 결과와 대응 → 배운 점 */
+/** 의사결정 펼침 — 이 결정을 어떻게 내렸나: 고객 문제 → 뺀 대안 → 판단과 실행 → 기획서에 옮긴 것 → 검증 결과 → 배운 점 */
 function DecisionDetail({ d, set, onDelete }) {
   const editing = useEditing();
   const options = d.options || [];
@@ -752,13 +816,14 @@ function DecisionDetail({ d, set, onDelete }) {
   const rejected = options.filter(o => !o.chosen);
   const body = 'text-[12.5px] leading-[1.7] text-bluewood-700';
   const steps = editing ? [
-    { label: '왜 필요했나', node: <div className="space-y-2"><Para value={d.problem} onChange={set('problem')} placeholder="왜 이 결정이 필요했나" className={body} /><Para value={d.evidence} onChange={set('evidence')} placeholder="판단 근거 — 인터뷰 발화·데이터" className={body} /></div> },
+    { label: '고객 문제', node: <div className="space-y-2"><Para value={d.problem} onChange={set('problem')} placeholder="누가 어떤 상황에서 무엇이 불편했나" className={body} /><Para value={d.evidence} onChange={set('evidence')} placeholder="판단 근거 — 인터뷰 발화·데이터" className={body} /></div> },
     { label: '검토한 안', color: ACCENT, node: <LinesEditor label="" hint="'검토안 | 채택 또는 제외 | 이유'" rows={options.map(o => ({ ...o, chosen: o.chosen ? '채택' : '제외' }))} keys={['label', 'chosen', 'reason']} onChange={(rows) => set('options')(rows.map(r => ({ label: r.label, chosen: r.chosen === '채택', reason: r.reason })))} /> },
+    { label: '판단과 실행', color: ACCENT, node: <Para value={d.action} onChange={set('action')} placeholder="그 판단에 따라 내가 실제로 한 일" className={body} /> },
     { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
-    { label: '결과와 대응', color: ACCENT, node: <div className="space-y-2"><ResultLine result={d.result} onChange={set('result')} /><IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} /></div> },
-    { label: '배운 점', color: '#6d6d67', node: <Txt block value={d.learning} onChange={set('learning')} placeholder="이 결정으로 배운 점" className={body} /> },
+    { label: '검증 결과', color: ACCENT, node: <div className="space-y-2"><Para value={d.validation} onChange={set('validation')} placeholder="무엇으로·누구를 대상으로 검증했나" className={body} /><ResultLine result={d.result} onChange={set('result')} /><Para value={d.outcome} onChange={set('outcome')} placeholder="검증으로 확인한 결과" className={body} /><IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} /></div> },
+    { label: '배운 점', color: '#94a3b8', node: <Txt block value={d.learning} onChange={set('learning')} placeholder="이 결정으로 배운 점" className={body} /> },
   ] : [
-    (t(d.problem) || t(d.evidence)) && { label: '왜 필요했나', node: (
+    (t(d.problem) || t(d.evidence)) && { label: '고객 문제', node: (
       <div className="space-y-1.5">
         <Para value={d.problem} lines={3} className={body} />
         {t(d.evidence) && <p className="border-l-2 border-surface-300 pl-3 text-[12.5px] leading-[1.65] text-bluewood-500" style={WRAP}><span className="mr-1.5 font-bold not-italic text-bluewood-400">근거</span>{d.evidence}</p>}
@@ -769,19 +834,25 @@ function DecisionDetail({ d, set, onDelete }) {
         <li key={oi} className="text-[12.5px] leading-[1.6] text-bluewood-500" style={WRAP}><span className="mr-1.5 text-bluewood-300">✕</span><span className="text-bluewood-600 line-through decoration-bluewood-300">{o.label}</span>{t(o.reason) && <span> — {o.reason}</span>}</li>
       ))}</ul>
     ) },
-    chosen.length > 0 && { label: '고른 안과 이유', color: ACCENT, node: (
-      <ul className="space-y-1">{chosen.map((o, oi) => (
-        <li key={oi} className="text-[13px] leading-[1.6] text-bluewood-800" style={WRAP}><span className="mr-1.5 font-black" style={{ color: ACCENT }}>✓</span><b>{o.label}</b>{t(o.reason) && <span className="font-normal text-bluewood-600"> — {o.reason}</span>}</li>
-      ))}</ul>
+    (chosen.length > 0 || t(d.action)) && { label: '판단과 실행', color: ACCENT, node: (
+      <div className="space-y-1.5">
+        {chosen.length > 0 && <ul className="space-y-1">{chosen.map((o, oi) => (
+          <li key={oi} className="text-[13px] leading-[1.6] text-bluewood-800" style={WRAP}><span className="mr-1.5 font-black" style={{ color: ACCENT }}>✓</span><b>{o.label}</b>{t(o.reason) && <span className="font-normal text-bluewood-600"> — {o.reason}</span>}</li>
+        ))}</ul>}
+        {/* 고른 안을 실제로 어떻게 옮겼나 — 채택안 문장과 같으면 한 번만 */}
+        {t(d.action) && !chosen.some(o => t(o.label) === t(d.action)) && <Para value={d.action} lines={3} className={body} />}
+      </div>
     ) },
     hasSpec(d.spec) && { label: '기획서에 옮긴 것', node: <PrdWindow title={d.title} spec={d.spec} onChange={set('spec')} /> },
-    (t(d.result?.after) || hasIssue(d.issue)) && { label: '결과와 대응', color: ACCENT, node: (
+    (t(d.validation) || t(d.result?.after) || t(d.outcome) || hasIssue(d.issue)) && { label: '검증 결과', color: ACCENT, node: (
       <div className="space-y-2">
+        {t(d.validation) && <p className="text-[12.5px] leading-[1.65] text-bluewood-500" style={WRAP}><span className="mr-1.5 font-bold text-bluewood-400">검증</span>{d.validation}</p>}
         <ResultLine result={d.result} onChange={set('result')} />
+        {t(d.outcome) && t(d.outcome) !== t(d.result?.after) && <Para value={d.outcome} lines={3} className={body} />}
         <IssueTrack label="출시 후 드러난 문제" issue={d.issue} onChange={set('issue')} keys={[['signal', '발견'], ['cause', '원인'], ['fix', '대응']]} />
       </div>
     ) },
-    t(d.learning) && { label: '배운 점', color: '#6d6d67', node: <p className={body} style={WRAP}>{d.learning}</p> },
+    t(d.learning) && { label: '배운 점', color: '#94a3b8', node: <p className={body} style={WRAP}>{d.learning}</p> },
   ].filter(Boolean);
   return (
     <div className="pb-5 sm:pl-[68px]">
@@ -848,6 +919,122 @@ function DecisionRows({ page, onPatch }) {
   );
 }
 
+/** 문제 정의의 목록 칸 — 제목(누구의 고민·누구의 시선) + 점 목록. 편집 때는 한 줄에 하나 */
+function ProblemList({ title, items, onChange, placeholder, accent }) {
+  const editing = useEditing();
+  if (!editing && !items.length) return null;
+  return (
+    <div className="min-w-0 rounded-lg border border-surface-200 px-4 py-3.5">
+      <p className="mb-2 text-[12px] font-bold" style={{ color: accent ? ACCENT : '#314157' }}>{title}</p>
+      {editing
+        ? <AutoText dense value={items.join('\n')} onChange={(v) => onChange(v.split('\n').map(s => s.trim()).filter(Boolean))} placeholder={placeholder} className="text-[12.5px] text-bluewood-700" />
+        : <ul className="space-y-1.5">{items.map((p, i) => (
+            <li key={i} className="flex gap-2 text-[12.5px] leading-[1.6] text-bluewood-700"><span className="mt-[8px] h-1 w-1 flex-shrink-0 rounded-full" style={{ background: accent ? ACCENT : '#94a3b8' }} /><span className="min-w-0" style={WRAP}>{p}</span></li>
+          ))}</ul>}
+    </div>
+  );
+}
+
+/** 프로젝트 소개 — 무엇을(서비스 이름·한 줄 소개) → 누구의 어떤 문제(누가·상황 / 사용자의 고민 | 상대의 시선 / 핵심 충돌 / 현황 수치) → 어떻게 풀었나(해결·핵심 기능) → 목표.
+ *  문제 정의는 자료의 고민·시선·수치를 줄이지 않고 칸으로 나눠 전부 보여 준다 */
+function ProjectIntro({ page, set, onAnalyze }) {
+  const editing = useEditing();
+  const features = page.features || [];
+  const pains = page.painPoints || [];
+  const facts = page.problemFacts || [];
+  const sh = page.stakeholder || { who: '', needs: [] };
+  const needs = sh.needs || [];
+  const label = 'mb-3 text-[11.5px] font-black uppercase tracking-wide';
+  const structured = !!(t(page.situation) || pains.length || needs.length || t(page.conflict)); // 칸으로 나뉜 문제 정의
+  const showProblem = editing || structured || t(page.target) || t(page.problem) || t(page.background) || facts.length > 0;
+  const showSolution = editing || t(page.solution) || features.length > 0;
+  const who = t(page.target).split(/\s+/).pop() || '사용자'; // "포트폴리오가 어려운 취업준비생" → "취업준비생"
+  return (
+    <div className="space-y-7">
+      {(t(page.service) || t(page.tagline) || editing) && (
+        editing
+          ? <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)]"><AutoText value={page.service || ''} onChange={set('service')} placeholder="서비스·프로젝트 이름" className="text-[13px] font-bold text-bluewood-900" /><AutoText value={page.tagline || ''} onChange={set('tagline')} placeholder="무엇을 하는 서비스인지 한 문장" className="text-[13px] text-bluewood-700" /></div>
+          : <p className="text-[17px] font-extrabold leading-[1.45] text-bluewood-900" style={WRAP}>{t(page.service) && <span style={{ color: ACCENT }}>{page.service}</span>}{t(page.service) && t(page.tagline) && <span className="mx-2 font-normal text-bluewood-300">—</span>}{page.tagline}</p>
+      )}
+
+      {showProblem && (
+        <div>
+          <p className={label} style={{ color: '#314157' }}>누구의 어떤 문제</p>
+          {(t(page.target) || t(page.situation) || editing) && (
+            <dl className="mb-4 grid gap-x-8 gap-y-2 border-y border-surface-200 py-3 text-[13px] leading-[1.6] sm:grid-cols-2">
+              {(t(page.target) || editing) && <div className="flex gap-3"><dt className="w-[72px] flex-shrink-0 text-[12px] font-bold text-bluewood-400">누가</dt><dd className="min-w-0 flex-1 font-bold text-bluewood-900" style={WRAP}><Txt block value={page.target} onChange={set('target')} placeholder="대상 사용자 (명사구)" /></dd></div>}
+              {(t(page.situation) || editing) && <div className="flex gap-3"><dt className="w-[72px] flex-shrink-0 text-[12px] font-bold text-bluewood-400">어떤 상황</dt><dd className="min-w-0 flex-1 text-bluewood-800" style={WRAP}><Txt block value={page.situation} onChange={set('situation')} placeholder="사용자가 문제를 겪는 순간 한 문장" /></dd></div>}
+            </dl>
+          )}
+          {(pains.length > 0 || needs.length > 0 || editing) && (
+            <div className={`grid gap-3 ${(pains.length > 0 || editing) && (needs.length > 0 || editing) ? 'md:grid-cols-2' : ''}`}>
+              <ProblemList title={`${who}의 고민`} items={pains} onChange={set('painPoints')} placeholder="사용자의 고민 — 한 줄에 하나" />
+              {(needs.length > 0 || editing) && (
+                <div className="min-w-0">
+                  <EditOnly><AutoText value={sh.who || ''} onChange={(v) => set('stakeholder')({ ...sh, who: v })} placeholder="기대가 부딪히는 상대 (예: 인사담당자)" className="mb-1.5 text-[12px] text-bluewood-700" /></EditOnly>
+                  <ProblemList title={`${t(sh.who) || '상대'}의 시선`} items={needs} onChange={(v) => set('stakeholder')({ ...sh, needs: v })} placeholder="그 상대가 원하는 것 — 한 줄에 하나" accent />
+                </div>
+              )}
+            </div>
+          )}
+          {(t(page.conflict) || editing) && (
+            <div className="mt-4 border-l-[3px] py-0.5 pl-4" style={{ borderColor: ACCENT }}>
+              <p className="text-[11.5px] font-bold text-bluewood-400">핵심 충돌</p>
+              <Txt block value={page.conflict} onChange={set('conflict')} placeholder="기존 방법으로 풀리지 않는 원인·충돌 한 문장" className="mt-0.5 text-[15px] font-extrabold leading-[1.5] text-bluewood-900" />
+            </div>
+          )}
+          {/* 칸으로 나뉘지 않은 예전 분석은 문제 문단으로 */}
+          {(!structured || editing) && (
+            <div className="mt-4"><Para value={page.problem} onChange={set('problem')} lines={8} placeholder="문제 서술 (칸으로 나뉘지 않았을 때 보이는 문단)" /></div>
+          )}
+          {!structured && !editing && onAnalyze && (
+            <p className="mt-2 text-[11.5px] text-bluewood-400 print:hidden">‘다시 분석’을 누르면 고민 · 상대의 시선 · 핵심 충돌 · 현황 수치로 나눠 정리돼요.</p>
+          )}
+          {editing
+            ? <div className="mt-4"><LinesEditor label="문제를 보여 주는 수치" hint="'수치 | 무엇의 수치인지'" rows={facts} keys={['value', 'label']} onChange={set('problemFacts')} /></div>
+            : facts.length > 0 && (
+              <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-surface-200 pt-4 sm:grid-cols-4">
+                {facts.map((f, i) => (
+                  <div key={i} className="min-w-0">
+                    <p className="text-[20px] font-extrabold leading-tight tracking-tight text-bluewood-900" style={WRAP}>{f.value}</p>
+                    <p className="mt-1 text-[11.5px] leading-snug text-bluewood-500" style={WRAP}>{f.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          {(editing || (t(page.background) && !facts.length)) && (
+            <div className="mt-4 border-l-2 border-surface-300 pl-3"><Para value={page.background} onChange={set('background')} lines={4} placeholder="문제를 보여 주는 배경·현황 (조사 수치)" className="text-[12.5px] leading-[1.7] text-bluewood-500" /></div>
+          )}
+        </div>
+      )}
+
+      {showSolution && (
+        <div>
+          <p className={label} style={{ color: ACCENT }}>어떻게 풀었나</p>
+          <Para value={page.solution} onChange={set('solution')} lines={7} placeholder="어떤 제품 방식으로 풀었나 (2~4문장)" />
+          {editing
+            ? <div className="mt-3"><LinesEditor label="핵심 기능" hint="'기능 | 무엇을 해결하나'" rows={features} keys={['name', 'desc']} onChange={set('features')} /></div>
+            : features.length > 0 && (
+              <ul className="mt-3 grid gap-x-8 border-t border-surface-200 md:grid-cols-2">
+                {features.map((f, i) => (
+                  <li key={i} className="flex gap-3 border-b border-surface-100 py-2.5 text-[12.5px] leading-[1.6]">
+                    <span className="w-5 flex-shrink-0 font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className="min-w-0" style={WRAP}><b className="text-bluewood-900">{f.name}</b>{t(f.desc) && <span className="text-bluewood-600"> — {f.desc}</span>}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </div>
+      )}
+
+      {(t(page.goal) || editing) && (
+        <div className="flex gap-3 rounded-lg bg-surface-50 px-4 py-3 text-[13px] leading-[1.6]"><span className="flex-shrink-0 font-bold text-bluewood-500">목표</span><div className="min-w-0 flex-1"><Para value={page.goal} onChange={set('goal')} lines={2} placeholder="시작할 때 정한 목표·성공 기준" className="text-[13px] leading-[1.6] text-bluewood-800" /></div></div>
+      )}
+    </div>
+  );
+}
+
+
 export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze, analyzing, artifacts, artifactActions }) {
   const [editing, setEditing] = useState(false);
   const set = (k) => (v) => onPatch({ ...page, [k]: v });
@@ -857,7 +1044,7 @@ export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze
   const flowMarks = page.flow.map((_, si) => page.decisions.map((d, di) => (stepIndexOf(d, page.flow) === si ? di + 1 : 0)).filter(Boolean));
   return (
     <EditCtx.Provider value={editing}>
-      <div className="role-one-page">
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
         <Sidebar title={title} onTitle={onTitle} summary={page.summary} onSummary={set('summary')}>
           {editing
             ? <div className="grid grid-cols-2 gap-2"><AutoText value={page.role} onChange={set('role')} placeholder="역할" className="text-[12px] text-bluewood-700" /><AutoText value={page.team} onChange={set('team')} placeholder="팀" className="text-[12px] text-bluewood-700" /></div>
@@ -866,15 +1053,11 @@ export function PmOnePager({ title, onTitle, meta = {}, page, onPatch, onAnalyze
           {(page.tools.length > 0 || editing) && <div><MiniLabel>기획 도구</MiniLabel>{editing ? <AutoText dense value={page.tools.join(', ')} onChange={(v) => set('tools')(v.split(',').map(s => s.trim()).filter(Boolean))} placeholder="쉼표로 구분" className="text-[12.5px] text-bluewood-700" /> : <Chips items={page.tools} />}</div>}
         </Sidebar>
 
-        <section className="role-one-document">
+        <section className="min-w-0">
           <ImpactHeader title="기획 임팩트" editing={editing} setEditing={setEditing} page={page} onAnalyze={onAnalyze} analyzing={analyzing} />
           <ThinNote show={thin} onAnalyze={onAnalyze} analyzing={analyzing} what="성과와 의사결정" />
-          <Block title="프로젝트 소개" show={has(page.problem) || has(page.solution) || has(page.goal)}>
-            <div className="space-y-4">
-              {(t(page.problem) || editing) && <div><DocHead>문제 정의</DocHead><Para value={page.problem} onChange={set('problem')} placeholder="누가 어떤 상황에서 어떤 불편을 겪었나" /></div>}
-              {(t(page.goal) || editing) && <div><DocHead>목표</DocHead><Para value={page.goal} onChange={set('goal')} placeholder="시작할 때 정한 목표·성공 기준" lines={2} /></div>}
-              {(t(page.solution) || editing) && <div><DocHead>해결 방법</DocHead><Para value={page.solution} onChange={set('solution')} placeholder="어떤 제품 방식으로 풀었나" /></div>}
-            </div>
+          <Block title="프로젝트 소개" show={['service', 'tagline', 'target', 'situation', 'problem', 'background', 'conflict', 'solution', 'goal'].some(k => has(page[k])) || has(page.features) || has(page.painPoints) || has(page.stakeholder?.needs)}>
+            <ProjectIntro page={page} set={set} onAnalyze={onAnalyze} />
           </Block>
           <Block title="주요 성과" note={results.length ? `${results.length}개 지표` : ''} show={results.length > 0}>
             <ResultsBoard page={page} onPatch={onPatch} />
@@ -912,7 +1095,7 @@ const EMPTY_EXECUTION = { title: '', stage: '', tags: [], insight: '', action: '
 const nextVariant = (creatives) => String.fromCharCode(65 + creatives.length);
 
 // 채널 비중 막대 — 검증된 범주형 팔레트를 정해진 순서대로 (색은 채널을 따라간다, 순위가 아니라)
-const CHANNEL_COLORS = ['#111111', '#50504b', '#85857e', '#b1b1a9', '#d2d2ca', '#e9e9e3'];
+const CHANNEL_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'];
 
 /** 퍼널 단계 — 결과 지표 이름·태그·제목으로 그 실행이 움직인 단계를 읽는다 (분석 결과에 stage가 있으면 그것) */
 const STAGES = [
@@ -936,7 +1119,7 @@ function FunnelSteps({ funnel, executions }) {
         const marks = r.group ? tagged.filter(x => x.stage === r.group) : [];
         return (
           <li key={i} className="relative pl-8">
-            {next && <span className="absolute bottom-0 left-[8px] top-[30px] w-[2px] bg-[#dcdcd6]" />}
+            {next && <span className="absolute bottom-0 left-[8px] top-[30px] w-[2px] bg-[#d5dde8]" />}
             <span className="absolute left-0 top-[14px] h-[18px] w-[18px] rounded-full border-[3px] bg-white" style={{ borderColor: ACCENT }} />
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 py-2">
               <span className="w-[72px] text-[13px] font-bold text-bluewood-600" style={WRAP}>{r.label}</span>
@@ -1011,7 +1194,7 @@ function OptimizationRows({ page, onPatch }) {
               </Labeled>
             )}
             <IssueTrack label="성과 대응" issue={x.issue} onChange={set('issue')} keys={[['signal', '신호'], ['diagnosis', '진단'], ['fix', '조치']]} />
-            {(t(x.learning) || editing) && <Labeled label="배운 점" color="#6d6d67"><Txt block value={x.learning} onChange={set('learning')} placeholder="다음 캠페인에 가져갈 점" className="text-[12.5px] leading-[1.65] text-bluewood-600" /></Labeled>}
+            {(t(x.learning) || editing) && <Labeled label="배운 점" color="#94a3b8"><Txt block value={x.learning} onChange={set('learning')} placeholder="다음 캠페인에 가져갈 점" className="text-[12.5px] leading-[1.65] text-bluewood-600" /></Labeled>}
             <EditOnly><button type="button" onClick={() => onPatch({ ...page, executions: xs.filter((_, xi) => xi !== i) })} className="text-[11.5px] text-bluewood-300 hover:text-red-500">이 최적화 삭제</button></EditOnly>
           </ProcessRow>
         );
@@ -1040,7 +1223,7 @@ export function CampaignOnePager({ title, onTitle, meta = {}, page, onPatch, onA
   const thin = !t(page.headline.value) && !page.executions.length;
   return (
     <EditCtx.Provider value={editing}>
-      <div className="role-one-page">
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
         <Sidebar title={title} onTitle={onTitle} summary={page.summary} onSummary={set('summary')}>
           {editing
             ? <AutoText value={page.role} onChange={set('role')} placeholder="역할" className="text-[12px] text-bluewood-700" />
@@ -1049,7 +1232,7 @@ export function CampaignOnePager({ title, onTitle, meta = {}, page, onPatch, onA
           {(page.tools.length > 0 || editing) && <div><MiniLabel>마케팅 도구</MiniLabel>{editing ? <AutoText dense value={page.tools.join(', ')} onChange={(v) => set('tools')(v.split(',').map(s => s.trim()).filter(Boolean))} placeholder="쉼표로 구분" className="text-[12.5px] text-bluewood-700" /> : <Chips items={page.tools} />}</div>}
         </Sidebar>
 
-        <section className="role-one-document">
+        <section className="min-w-0">
           <ImpactHeader title="캠페인 임팩트" editing={editing} setEditing={setEditing} page={page} onAnalyze={onAnalyze} analyzing={analyzing} />
           <ThinNote show={thin} onAnalyze={onAnalyze} analyzing={analyzing} what="캠페인 성과와 최적화" />
           <Block title="캠페인 소개" show={overview.length > 0 || has(page.problem) || has(page.goal) || has(st.message) || has(page.strategy)}>
