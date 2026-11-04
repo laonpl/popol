@@ -3,6 +3,8 @@ Write-Host "POPOL 서버를 시작합니다..." -ForegroundColor Cyan
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# 로컬 경험 탐색은 개발 화면의 '내 컴퓨터 자동 찾기'를 누를 때 자동 시작한다.
+
 # 기존에 켜져 있는 프로세스(5000: 백엔드, 3000/5173: 프론트엔드) 포트 강제 정리
 $portsToKill = @(5000, 3000, 5173)
 foreach ($port in $portsToKill) {

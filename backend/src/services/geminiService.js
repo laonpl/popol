@@ -11,6 +11,7 @@
 import { generateWithRetry } from '../config/geminiClient.js';
 import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
 import { clampMaterial } from '../utils/materialText.js';
+import { experienceAnalysisIssue, experienceAnalysisError, hasExtractedExperience } from '../utils/experienceAnalysisStatus.js';
 import { groundPmEvidence } from './pmEvidence.js';
 import { groundMarketerEvidence } from './marketerEvidence.js';
 import { roleFollowUpQuestions } from '../prompts/roleExperienceGuidance.js';
@@ -301,7 +302,7 @@ async function callProFirst(prompt, label, optionOverrides = {}) {
     const status = err?.status ?? null;
     const msg = err?.message || '';
     // 영구 오류(403 차단/유출, 월 한도 초과): Lite 재시도해도 소용없음 → 즉시 전파
-    const isPermanent = status === 403
+    const isPermanent = [401, 402, 403].includes(status) || err?.code === 'SEARCH_UNSUPPORTED'
       || msg.includes('spending cap') || msg.includes('leaked') || msg.includes('Forbidden');
     if (isPermanent) {
       console.warn(`[${label}] 영구 오류 감지 (status=${status}) → Lite 폴백 건너뜀`);
@@ -320,6 +321,7 @@ async function callProFirstWithSearch(prompt, label) {
       callTimeoutMs: 180000,
     });
   } catch (err) {
+    if ([401, 402, 403].includes(err?.status)) throw err;
     console.warn(`[${label}] 검색 grounding 실패 → 일반 분석으로 전환:`, err.message);
     const noSearchPrompt = `${prompt}\n\n[중요] 이번 응답에서는 웹 검색을 사용할 수 없습니다. 직접 확인하지 못한 URL·출처·통계 수치는 지어내지 말고 빈 값으로 두세요.`;
     return await callProFirst(noSearchPrompt, `${label}-NoSearch`, { callTimeoutMs: 180000 });
@@ -1379,7 +1381,7 @@ ${jobText || '(없음)'}
  * 각 단계는 Pro 우선 모드로 호출하며, Pro가 끝까지 실패하는 경우에만 Lite로 폴백.
  * 분할 호출 덕분에 각 요청은 Pro의 TPM/output 한도 내에 충분히 들어감.
  */
-export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common', careerStage = 'first') {
+export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common', careerStage = 'first', { framework = 'CARL' } = {}) {
   const entries = Object.entries(content).filter(([, val]) => val && String(val).trim().length > 0);
   if (entries.length === 0) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
@@ -1404,6 +1406,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   const t0 = Date.now();
 
   const momentHints = hasReviewed ? reviewedMoments : new Array(targetCount).fill(null);
+  const analysisIssues = [];
 
   // ============================================================
   // 3 단계 (Overview / KeyExp×N / Meta) 를 모두 병렬 실행
@@ -1418,6 +1421,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
       return parseJSON(text);
     } catch (err) {
       console.warn('[Step1-Overview] Failed. Using fallback overview:', err.message);
+      analysisIssues.push(experienceAnalysisIssue(err, 'overview'));
       const fallback = buildFallbackExperienceAnalysis(
         content,
         targetCount,
@@ -1441,12 +1445,15 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   })();
 
   const keyExpPromises = momentHints.map((hint, i) => (async () => {
-    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount, jobCategory, careerStage);
+    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount, jobCategory, careerStage, framework);
     try {
       const expText = hasReviewed
         ? await callFastLite(expPrompt, `Step2-KeyExp-Fast[${i + 1}/${targetCount}]`)
         : await callProFirst(expPrompt, `Step2-KeyExp[${i + 1}/${targetCount}]`);
       const expJson = parseJSON(expText);
+      if (!hasExtractedExperience(expJson)) {
+        throw Object.assign(new Error('AI returned no experience fields'), { code: 'AI_EMPTY_EXPERIENCES' });
+      }
 
       if (hasReviewed && hint) {
         const pick = (a, b) => {
@@ -1455,6 +1462,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           return b ?? a ?? '';
         };
         return {
+          ...(framework === 'STAR' ? { framework: 'STAR', situation: expJson.situation || expJson.context || hint.context || '', task: expJson.task || hint.task || '' } : {}),
           title: pick(expJson.title, hint.title),
           id: hint.id || `reviewed-${i + 1}`,
           metric: pick(expJson.metric, hint.metric),
@@ -1481,6 +1489,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
         };
       }
       return {
+        ...(framework === 'STAR' ? { framework: 'STAR', situation: expJson.situation || expJson.context || '', task: expJson.task || '' } : {}),
         title: expJson.title || '',
         metric: expJson.metric || '',
         metricLabel: expJson.metricLabel || '',
@@ -1502,6 +1511,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
       };
     } catch (err) {
       console.warn(`[Step2-KeyExp[${i + 1}]] 추출 실패:`, err.message);
+      analysisIssues.push(experienceAnalysisIssue(err, 'keyExperiences', i + 1));
       if (hasReviewed && hint) {
         return {
           id: hint.id || `reviewed-${i + 1}`,
@@ -1542,6 +1552,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
       return parseJSON(metaText);
     } catch (err) {
       console.warn('[Step3-Meta] 메타 추출 실패 (Lite 직접 호출, 빈 값으로 진행):', err.message);
+      analysisIssues.push(experienceAnalysisIssue(err, 'metadata'));
       return { keywords: [], highlights: [], followUpQuestions: [] };
     }
   })();
@@ -1552,6 +1563,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     metaPromise,
   ]);
   const keyExperiences = keyExpResults.filter(Boolean);
+  const extractedCount = keyExperiences.filter(hasExtractedExperience).length;
+  if (extractedCount === 0) {
+    throw experienceAnalysisError(analysisIssues.filter(issue => issue.stage === 'keyExperiences'));
+  }
   console.log(`[경험분석] 병렬 완료: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   // ============================================================
@@ -1587,7 +1602,11 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     : rawMarketerKit;
   const result = {
     projectOverview: resultProjectOverview,
-    ...(['pm', 'marketer'].includes(jobCategory) && (keyExperiences.length < targetCount || keyExperiences.some(item => item._extractionFailed)) ? { _fallback: true, _fallbackReason: 'key_experience_extraction_failed' } : {}),
+    ...(framework === 'STAR' ? { framework: 'STAR' } : {}),
+    // Successful scenes remain usable even if another independent call failed.
+    ...(analysisIssues.length ? { _partial: true, _analysisIssues: analysisIssues,
+      _analysisSummary: { requested: targetCount, extracted: extractedCount } } : {}),
+    ...(keyExperiences.some(item => item._extractionFailed) ? { _fallback: true, _fallbackReason: 'key_experience_extraction_failed' } : {}),
     marketResearch: overviewJson.marketResearch || {
       marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
     },

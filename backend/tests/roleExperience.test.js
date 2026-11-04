@@ -112,7 +112,7 @@ test('AI outage still offers PM and marketing questions within the interview mod
 const routeSource = fs.readFileSync(new URL('../src/routes/experience.js', import.meta.url), 'utf8').replace(/^import\s[\s\S]*?;\r?\n/gm, '').replace('export default router;', '');
 async function enrich(data, analyze, userId = 'owner') {
   const routes = new Map(), writes = [], calls = [];
-  const router = Object.fromEntries(['post', 'get', 'patch', 'delete'].map(method => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
+  const router = Object.fromEntries(['post', 'get', 'put', 'patch', 'delete'].map(method => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
   const context = { Router: () => router, authMiddleware() {}, requireCredits() {}, aiRateLimiter() {},
     roleAnalysisContent, preserveRolePresentation,
     adminDb: { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => data }), update: async value => writes.push(value) }) }) },
@@ -167,7 +167,7 @@ test('moment extraction carries the selected role from store through route and s
     buildFallbackMoments: () => { throw new Error('unexpected fallback'); },
   };
   vm.runInNewContext(extractSource, serviceContext);
-  const router = Object.fromEntries(['post', 'get', 'patch', 'delete'].map(method => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
+  const router = Object.fromEntries(['post', 'get', 'put', 'patch', 'delete'].map(method => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
   const routeContext = { Router: () => router, authMiddleware() {}, requireCredits() {}, aiRateLimiter() {}, extractMoments: (...args) => { calls.push(args); return serviceContext.extractMoments(...args); } };
   vm.runInNewContext(routeSource, routeContext);
   const api = { post: async (path, body) => {

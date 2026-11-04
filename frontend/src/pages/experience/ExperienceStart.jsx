@@ -1,14 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowUpRight, MessageCircle, FolderOpen, FileText, Check } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, MessageCircle, FolderOpen, FileText, Check, HardDrive } from 'lucide-react';
 import FileCat from '../../components/FileCat';
 import ResumeImportModal from '../../components/ResumeImportModal';
 import useAuthGate from '../../hooks/useAuthGate';
+
+const LocalExperienceImport = lazy(() => import('../../components/LocalExperienceImport'));
 
 const METHODS = [
   { id: 'chat', number: '01', icon: MessageCircle, title: '대화로 정리', hint: '기억나는 이야기부터', description: '자료가 없어도 괜찮아요. 질문에 답하며 내가 한 일과 성과를 찾아가요.', tags: ['자료 없이 시작', '질문으로 차근차근'], action: '이야기 시작하기', variant: 'welcome', file: 'document' },
   { id: 'materials', number: '02', icon: FolderOpen, title: '자료로 만들기', hint: '흩어진 파일을 한곳에', description: '메모, 프로젝트 파일, 링크를 모아주세요. 경험에 필요한 내용을 함께 정리해요.', tags: ['파일 · 메모 · 링크', '프로젝트별 정리'], action: '자료 모으기', variant: 'collecting', file: 'image' },
   { id: 'resume', number: '03', icon: FileText, title: '이력서 가져오기', hint: '이미 적어둔 경험이 있다면', description: '이력서나 포트폴리오에서 경험을 찾아요. 가져올 항목을 직접 고를 수 있어요.', tags: ['이력서 · 포트폴리오', '여러 경험 한 번에'], action: '문서 가져오기', variant: 'reading', file: 'pdf' },
+  { id: 'local', number: '04', icon: HardDrive, title: '내 컴퓨터에서 찾기', hint: '폴더 선택 없이 자동으로', description: '내 컴퓨터의 흩어진 경험 자료를 자동으로 찾아요. 직군에 맞는 핵심경험으로 정리해요.', tags: ['PC 자동 탐색', '직군별 핵심경험'], action: '자동으로 찾아보기', variant: 'collecting', file: 'document' },
 ];
 
 export default function ExperienceStart() {
@@ -17,13 +20,15 @@ export default function ExperienceStart() {
   const { isGuest, requireAuth } = useAuthGate();
   const tutorial = params.get('tutorial') === '1';
   const importing = params.get('method') === 'resume' && !isGuest;
+  const localImporting = params.get('method') === 'local' && !isGuest;
+  const [localBusy, setLocalBusy] = useState(false);
 
   useEffect(() => {
     document.getElementById('experience-start-heading')?.focus();
-  }, [importing]);
+  }, [importing, localImporting]);
 
   const choose = (method) => requireAuth(() => {
-    if (method === 'resume') setParams({ method: 'resume' });
+    if (method === 'resume' || method === 'local') setParams({ method });
     else navigate(method === 'chat' ? '/app/experience/chat' : `/app/experience/new${tutorial ? '?tutorial=1' : ''}`);
   });
 
@@ -33,15 +38,20 @@ export default function ExperienceStart() {
       <section className="fp-start-intro" aria-labelledby="experience-start-heading">
         <div>
           <span className="fp-start-kicker">새 경험 추가</span>
-          <h1 id="experience-start-heading" tabIndex={-1}>{importing ? '적어둔 경험을 데려올까요?' : <>어디서부터<br />모아볼까요?</>}</h1>
-          <p>{importing ? '문서 속 경험을 찾아 나의 경험 목록에 차곡차곡 담아요.' : <>기억 속 이야기부터 흩어진 자료까지.<br />지금 가장 편한 방법을 고르면, 나머지는 함께 정리해요.</>}</p>
+          <h1 id="experience-start-heading" tabIndex={-1}>{localImporting ? <>내 컴퓨터에서<br />경험 찾기</> : importing ? '적어둔 경험을 데려올까요?' : <>어디서부터<br />모아볼까요?</>}</h1>
+          <p>{localImporting ? '자료가 어디 있는지 몰라도 괜찮아요. 내 컴퓨터에서 자동으로 찾아볼게요.' : importing ? '문서 속 경험을 찾아 나의 경험 목록에 차곡차곡 담아요.' : <>기억 속 이야기부터 흩어진 자료까지.<br />지금 가장 편한 방법을 고르면, 나머지는 함께 정리해요.</>}</p>
         </div>
         <div className="fp-start-companion" aria-hidden="true">
           <span className="fp-cat-bubble">흩어진 경험, 제가 모아올게요!</span>
-          <FileCat variant={importing ? 'reading' : 'welcome'} file="document" withDocuments />
+          <FileCat variant={localImporting ? 'collecting' : importing ? 'reading' : 'welcome'} file="document" withDocuments />
         </div>
       </section>
-      {importing ? <>
+      {localImporting ? <>
+        <button className="fp-flow-back disabled:opacity-40" disabled={localBusy} onClick={() => setParams({})}><ArrowLeft size={16} /> 다른 방법 고르기</button>
+        <Suspense fallback={<p role="status">폴더 탐색을 준비하고 있어요…</p>}>
+          <LocalExperienceImport onBusyChange={setLocalBusy} onImported={() => navigate('/app/experience')} onOpenResult={id => navigate(`/app/experience/result/${id}`)} />
+        </Suspense>
+      </> : importing ? <>
         <button className="fp-flow-back" onClick={() => setParams({})}><ArrowLeft size={16} /> 다른 방법 고르기</button>
         <ResumeImportModal embedded onClose={() => setParams({})} onImported={() => navigate('/app/experience')} />
       </> : <>

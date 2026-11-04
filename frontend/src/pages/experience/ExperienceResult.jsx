@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import BrandLoader from '../../components/BrandLoader';
+import LocalStarSummary from '../../components/LocalStarSummary';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Github, Loader2, Search, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
 import {
@@ -2911,7 +2912,7 @@ export default function ExperienceResult() {
         const snap = await getDoc(doc(db, 'experiences', id));
         if (snap.exists()) {
           const data = snap.data();
-          const full = normalizeExperienceForCurrentJob({ title: data.title, jobCategory: data.jobCategory, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null });
+          const full = normalizeExperienceForCurrentJob({ title: data.title, jobCategory: data.jobCategory, framework: data.framework, analysisMode: data.analysisMode, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null });
           setExp(full);
           initCaseStudy(full);
           setKit(normalizeKit(full.structuredResult?.marketerKit));
@@ -3377,6 +3378,7 @@ export default function ExperienceResult() {
       {/* 고양이 편집 챗봇이 열려 있으면 넓은 화면에서 오른쪽에 붙으므로 본문을 그만큼 비켜 둔다 */}
       <div className={`fp-result-body ${isRoleOnePage && roleChatOpen ? 'is-chat-open' : ''}`}>
       <article className="fp-result-wrap pb-10 print:p-0">
+        {exp?.analysisMode === 'local_folder' && <LocalStarSummary result={exp?.structuredResult} />}
         {identityLine && (
           <section className="fp-result-identity">
             <p className="text-[12px] font-black tracking-[0.12em] text-[#6d6d67]">이 경험이 보여주는 나의 방식</p>

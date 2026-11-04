@@ -42,7 +42,10 @@ export async function callGitHubModelsFallback(prompt, billingStore = getBilling
     temperature: 0.7,
   });
 
-  const text = response.choices[0].message.content;
+  const text = response?.choices?.[0]?.message?.content;
+  if (typeof text !== 'string' || !text.trim()) {
+    throw Object.assign(new Error('GitHub Models 응답에 분석 텍스트가 없습니다.'), { status: 502, code: 'AI_INVALID_RESPONSE' });
+  }
   await recordAiUsage({ provider: 'github-models', model: 'gpt-4o-mini', usage: response.usage, prompt: safePrompt, output: text, billingStore });
   return text;
 }

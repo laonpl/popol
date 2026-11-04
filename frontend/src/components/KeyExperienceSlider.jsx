@@ -148,6 +148,7 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
   const keywords    = (exp.keywords || []).filter(Boolean);
   const contextItems = [
     { label: '상황', value: clean(exp.situation || exp.context) },
+    ...(exp.framework === 'STAR' ? [{ label: '과제·목표', value: clean(exp.task) }] : []),
     { label: '행동', value: clean(exp.action) },
   ].filter(item => item.value);
 

@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/package-application-connector.mjs",
+    "prebuild": "node scripts/package-application-connector.mjs && node scripts/package-local-connector.mjs",
     "build": "vite build && node scripts/prerender.mjs",
     "test:activation": "node --test src/utils/experienceReadiness.test.js src/utils/jdMatch.test.js",
+    "test:local-experience": "node --test src/services/localExperienceFiles.test.js src/services/localExperienceAnalysis.test.js src/services/localExperienceSelection.test.js src/services/localExperienceConnector.test.js src/services/localExperienceStar.test.js ../local-connector/dev-server.test.mjs",
     "check:jobs": "node ../scripts/check-job-sync.mjs",
     "preview": "vite preview"
   },

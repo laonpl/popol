@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { localExperienceDevPlugin } from '../local-connector/dev-server.mjs'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), localExperienceDevPlugin()],
   build: {
     chunkSizeWarningLimit: 600,
     modulePreload: {

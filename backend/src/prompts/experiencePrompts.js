@@ -1130,7 +1130,7 @@ ${isMarketer ? '\n[marketerKit 작성 지침] 마케터 채용 문서(포트폴�
 // ============================================================
 // 분할 Step 2: keyExperience 개별 추출 (1개씩, 매우 작은 output)
 // ============================================================
-export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total, jobCategory = 'common', careerStage = 'first') {
+export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total, jobCategory = 'common', careerStage = 'first', framework = 'CARL') {
   const jobAddon = buildKeyExpJobAddon(jobCategory);
   const jobInfo = getJobInfo(jobCategory);
   const hintBlock = momentHint ? `
@@ -1140,7 +1140,7 @@ ${JSON.stringify(momentHint, null, 2)}
 위 moment의 title/context/action/result/learning/metric/keywords를 그대로 보존하며 누락 필드만 원본에서 보강하세요.
 ` : `
 [${index + 1}/${total}번째 핵심 경험을 추출하세요]
-원본 자료 중 아직 다루지 않은 관점/에피소드를 하나 골라 CARL 구조로 정리하세요.
+원본 자료 중 아직 다루지 않은 관점/에피소드를 하나 골라 ${framework === 'STAR' ? 'STAR' : 'CARL'} 구조로 정리하세요.
 `;
 
   return `당신은 FitPoly의 경험 아카이브 설계자입니다.
@@ -1165,7 +1165,7 @@ ${hintBlock}
 - action: 문제 판단의 근거 → 실제 검토한 대안 → 결정을 가른 기준 → 내가 직접 실행한 범위가 순서대로 읽히게.
 - result: 무엇이 달라졌고 어떤 로그·데이터·피드백·산출물로 확인했는지. 수치가 없으면 정성 근거를 정확히.
 - learning: 처음 믿음이 틀렸거나 불완전했던 지점과 그 뒤 바뀐 판단 원칙. 단순 소감 금지.
-- CARL 네 문장은 decisionTrace의 읽기 좋은 요약입니다. 세부 판단 정보는 decisionTrace에서 빠짐없이 구조화하세요.
+${framework === 'STAR' ? '- STAR로 작성: situation/context는 상황, task는 본인이 해결해야 했던 과제·목표, action은 직접 한 행동, result는 확인된 결과입니다. 상황과 과제를 합치지 마세요. task와 situation을 별도 필드로 출력하고 context에는 situation과 같은 내용을 넣으세요. 원문에 없는 필드는 빈 문자열로 남기세요. 목표·예상치를 실제 결과로 바꾸지 마세요.' : '- CARL 네 문장은 decisionTrace의 읽기 좋은 요약입니다.'} 세부 판단 정보는 decisionTrace에서 빠짐없이 구조화하세요.
 
 원본 자료:
 ${contentText}
@@ -1173,6 +1173,7 @@ ${contentText}
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON, 1개 객체만):
 {
   "title": "문제 판단 또는 핵심 선택이 드러나는 24자 이내 제목",
+  ${framework === 'STAR' ? '"situation": "당시 상황·배경. 원문에 없으면 빈 문자열",\n  "task": "본인이 해결해야 했던 과제·목표. 원문에 없으면 빈 문자열",' : ''}
   "metric": "원본의 핵심 수치 (예: 72%, 340ms, 3일→1일). 없으면 빈 문자열",
   "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간 단축)",
   "beforeMetric": "개선 전 수치 (있으면)",

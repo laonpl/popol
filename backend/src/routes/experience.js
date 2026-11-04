@@ -6,6 +6,7 @@ import { assertHasCredits, requireCredits } from '../services/billingService.js'
 import { buildSummaryDeck } from '../services/summaryDeckService.js';
 import { collectDeckMaterial, deckSourceHash } from '../../../shared/summaryDeck.mjs';
 import { roleAnalysisContent, preserveRolePresentation } from '../utils/roleMaterials.js';
+import { experienceAnalysisIssue, experienceAnalysisError, hasExtractedExperience } from '../utils/experienceAnalysisStatus.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
@@ -136,8 +137,25 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     const analysisContent = roleAnalysisContent(data);
     let analysis;
     try {
-      analysis = await analyzeExperience(analysisContent, count, moments, data.jobCategory || 'common', data.careerStage || 'first');
+      analysis = await analyzeExperience(analysisContent, count, moments, data.jobCategory || 'common', data.careerStage || 'first', { framework: data.framework === 'STAR' ? 'STAR' : 'CARL' });
+      if (!analysis?.keyExperiences?.some(hasExtractedExperience) || (data.analysisMode === 'local_folder' && (analysis._fallback || analysis._draft))) {
+        throw experienceAnalysisError(analysis?._analysisIssues);
+      }
+      if (data.analysisMode === 'local_folder' && analysis._partial && ['pm', 'marketer'].includes(data.jobCategory)
+        && !data.structuredResult?._draft && data.structuredResult?.keyExperiences?.length) {
+        throw experienceAnalysisError(analysis._analysisIssues);
+      }
     } catch (aiError) {
+      if (data.analysisMode === 'local_folder') {
+        const issues = aiError.analysisIssues?.length ? aiError.analysisIssues : [experienceAnalysisIssue(aiError)];
+        const failure = experienceAnalysisError(issues);
+        // Keep both the saved originals and the previous draft/result intact. A non-2xx
+        // response also discards pending AI charges for this unsuccessful request.
+        await docRef.update({ analysisFailure: { code: failure.code, message: failure.message,
+          issues, failedAt: new Date() } });
+        return res.status(failure.status).json({ error: failure.message, code: failure.code,
+          analysisIssues: issues, stopBatch: failure.status !== 422, experienceId });
+      }
       const errMsg = aiError.message || '';
       if (['pm', 'marketer'].includes(data.jobCategory) && data.structuredResult?.keyExperiences?.length) {
         // A failed extraction must not replace reviewed work products with a lossy fallback.
@@ -205,7 +223,7 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     }
 
     // 재분석 시 유실 방지: GitHub 기여도·분석원본은 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
-    if (analysis?._fallback && ['pm', 'marketer'].includes(data.jobCategory) && data.structuredResult?.keyExperiences?.length) {
+    if ((analysis?._fallback || analysis?._partial) && ['pm', 'marketer'].includes(data.jobCategory) && !data.structuredResult?._draft && data.structuredResult?.keyExperiences?.length) {
       return res.json({ ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' });
     }
     analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
@@ -227,6 +245,7 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     // 분석 결과를 Firestore에 저장
     await docRef.update({
       structuredResult: analysis,
+      analysisFailure: null,
       keywords: analysis.keywords || [],
       highlights: analysis.highlights || [],
       lifecycleStatus: 'needs_confirmation',
@@ -581,7 +600,7 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
       }
     }
 
-    if (analysis?._fallback && hasRoleExperience) {
+    if ((analysis?._fallback || analysis?._partial) && hasRoleExperience) {
       analysis = { ...data.structuredResult, _fallback: true, _fallbackReason: 'reanalysis_failed_preserved' };
     }
     analysis = preserveRolePresentation(analysis, data.structuredResult);
