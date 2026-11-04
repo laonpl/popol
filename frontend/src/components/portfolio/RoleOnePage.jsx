@@ -919,18 +919,23 @@ function DecisionRows({ page, onPatch }) {
   );
 }
 
-/** 문제 정의의 목록 칸 — 제목(누구의 고민·누구의 시선) + 점 목록. 편집 때는 한 줄에 하나 */
+/** 문제 정의의 목록 칸 — 제목(누구의 고민·누구의 시선) + 점 목록. 앞 3개만 보이고 나머지는 더 보기. 편집 때는 한 줄에 하나 */
 function ProblemList({ title, items, onChange, placeholder, accent }) {
   const editing = useEditing();
+  const [open, setOpen] = useState(false);
   if (!editing && !items.length) return null;
+  const shown = open ? items : items.slice(0, 3);
   return (
     <div className="min-w-0 rounded-lg border border-surface-200 px-4 py-3.5">
       <p className="mb-2 text-[12px] font-bold" style={{ color: accent ? ACCENT : '#314157' }}>{title}</p>
       {editing
         ? <AutoText dense value={items.join('\n')} onChange={(v) => onChange(v.split('\n').map(s => s.trim()).filter(Boolean))} placeholder={placeholder} className="text-[12.5px] text-bluewood-700" />
-        : <ul className="space-y-1.5">{items.map((p, i) => (
-            <li key={i} className="flex gap-2 text-[12.5px] leading-[1.6] text-bluewood-700"><span className="mt-[8px] h-1 w-1 flex-shrink-0 rounded-full" style={{ background: accent ? ACCENT : '#94a3b8' }} /><span className="min-w-0" style={WRAP}>{p}</span></li>
-          ))}</ul>}
+        : <>
+            <ul className="space-y-1.5">{shown.map((p, i) => (
+              <li key={i} className="flex gap-2 text-[12.5px] leading-[1.6] text-bluewood-700"><span className="mt-[8px] h-1 w-1 flex-shrink-0 rounded-full" style={{ background: accent ? ACCENT : '#94a3b8' }} /><span className="min-w-0" style={WRAP}>{p}</span></li>
+            ))}</ul>
+            {items.length > 3 && <button type="button" onClick={() => setOpen(o => !o)} className="mt-1.5 text-[11.5px] font-semibold text-bluewood-400 hover:text-primary-600 print:hidden">{open ? '접기' : `+${items.length - 3}개 더 보기`}</button>}
+          </>}
     </div>
   );
 }
@@ -949,6 +954,7 @@ function ProjectIntro({ page, set, onAnalyze }) {
   const showProblem = editing || structured || t(page.target) || t(page.problem) || t(page.background) || facts.length > 0;
   const showSolution = editing || t(page.solution) || features.length > 0;
   const who = t(page.target).split(/\s+/).pop() || '사용자'; // "포트폴리오가 어려운 취업준비생" → "취업준비생"
+  const [allFacts, setAllFacts] = useState(false);
   return (
     <div className="space-y-7">
       {(t(page.service) || t(page.tagline) || editing) && (
@@ -994,12 +1000,13 @@ function ProjectIntro({ page, set, onAnalyze }) {
             ? <div className="mt-4"><LinesEditor label="문제를 보여 주는 수치" hint="'수치 | 무엇의 수치인지'" rows={facts} keys={['value', 'label']} onChange={set('problemFacts')} /></div>
             : facts.length > 0 && (
               <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-surface-200 pt-4 sm:grid-cols-4">
-                {facts.map((f, i) => (
+                {(allFacts ? facts : facts.slice(0, 4)).map((f, i) => (
                   <div key={i} className="min-w-0">
                     <p className="text-[20px] font-extrabold leading-tight tracking-tight text-bluewood-900" style={WRAP}>{f.value}</p>
                     <p className="mt-1 text-[11.5px] leading-snug text-bluewood-500" style={WRAP}>{f.label}</p>
                   </div>
                 ))}
+                {facts.length > 4 && <button type="button" onClick={() => setAllFacts(o => !o)} className="col-span-full justify-self-start text-[11.5px] font-semibold text-bluewood-400 hover:text-primary-600 print:hidden">{allFacts ? '접기' : `수치 ${facts.length - 4}개 더 보기`}</button>}
               </div>
             )}
           {(editing || (t(page.background) && !facts.length)) && (
@@ -1011,7 +1018,7 @@ function ProjectIntro({ page, set, onAnalyze }) {
       {showSolution && (
         <div>
           <p className={label} style={{ color: ACCENT }}>어떻게 풀었나</p>
-          <Para value={page.solution} onChange={set('solution')} lines={7} placeholder="어떤 제품 방식으로 풀었나 (2~4문장)" />
+          <Para value={page.solution} onChange={set('solution')} lines={3} placeholder="어떤 제품 방식으로 풀었나 (2문장)" />
           {editing
             ? <div className="mt-3"><LinesEditor label="핵심 기능" hint="'기능 | 무엇을 해결하나'" rows={features} keys={['name', 'desc']} onChange={set('features')} /></div>
             : features.length > 0 && (
