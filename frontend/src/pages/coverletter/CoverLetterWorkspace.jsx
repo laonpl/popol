@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import useAuthStore from "../../stores/authStore";
+import BrandLoader from "../../components/BrandLoader";
 import useExperienceStore from "../../stores/experienceStore";
 import useCoverLetterStore from "../../stores/coverLetterStore";
 import { coverLetterAPI, questionCatalogAPI } from "../../services/api";
@@ -956,13 +957,7 @@ export default function CoverLetterWorkspace() {
               </section>
   );
 
-  if (loading)
-    return (
-      <div className="cl-page cl-empty" role="status">
-        <Loader2 className="animate-spin" size={26} />
-        <p>자기소개서를 불러오고 있어요</p>
-      </div>
-    );
+  if (loading) return <BrandLoader label="자기소개서를 불러오는 중" />;
   if (loadError)
     return (
       <div className="cl-page cl-empty">

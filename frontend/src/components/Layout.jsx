@@ -1,6 +1,8 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import BrandLoader from './BrandLoader';
+import { preloadAppRoute, preloadLinkedRoute } from '../services/routePreload';
 import { Settings, X, Gift, Menu, LogOut, User, WalletCards } from 'lucide-react';
 import useCreditStore from '../stores/creditStore';
 import useExperienceStore from '../stores/experienceStore';
@@ -171,6 +173,8 @@ export default function Layout() {
               <NavLink
                 key={to}
                 to={to}
+                onMouseEnter={() => preloadAppRoute(to)}
+                onFocus={() => preloadAppRoute(to)}
                 className={({ isActive }) =>
                   `border px-4 lg:px-6 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
                     isActive
@@ -461,10 +465,12 @@ export default function Layout() {
       )}
 
       {/* 메인 콘텐츠 */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto" onPointerOverCapture={preloadLinkedRoute} onFocusCapture={preloadLinkedRoute} onPointerDownCapture={preloadLinkedRoute}>
         <div className={`w-full ${isWebPortfolioSurface ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
           {!isWebPortfolioSurface && <JourneyResumeBanner />}
-          <Outlet />
+          <Suspense fallback={<BrandLoader label="화면을 준비하는 중" />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import BrandLoader from '../../components/BrandLoader';
-import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
+import ExperienceViewNavigation from '../../components/ExperienceViewNavigation';
+import './experience-result.css';
+import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
@@ -3061,27 +3063,19 @@ export default function StructuredResult() {
       experienceId={id}
       title={editedTitle || experience?.title || ''}
     />
-    <div className="experience-edit-surface animate-fadeIn w-full max-w-[1100px] mx-auto px-4 sm:px-6 pb-16">
+    <div className="experience-edit-surface experience-view-frame pb-16">
       {/* 상단 네비 + 저장/수정 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-        {navState?.isTutorialDemo ? (
-          <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
-            <ArrowLeft size={15} /> 튜토리얼로 돌아가기
-          </Link>
-        ) : (
-          <Link to="/app/experience" onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
-            <ArrowLeft size={15} /> 경험 목록으로
-          </Link>
-        )}
-        {!navState?.isTutorialDemo && (
-          <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
-            <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 sm:px-3.5 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
-              {jobCategory === 'common' ? '케이스 스터디' : '핵심 경험'}
-            </Link>
-            <span className="rounded-lg bg-white px-3 sm:px-3.5 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
-          </div>
-        )}
+      <div className="fp-result-sticky print:hidden">
+      <div className="fp-result-wrap fp-result-toolbar">
+        <div className="experience-view-leading">
+        <ExperienceViewNavigation
+          id={id}
+          active="detail"
+          jobCategory={jobCategory}
+          onLinkClick={handleGuardedLinkClick}
+          tutorial={!!navState?.isTutorialDemo}
+          backTo={navState?.isTutorialDemo ? navState.backUrl || '/app/experience?tutorial=1&step=2' : '/app/experience'}
+        />
         {!viewOnly && !navState?.isTutorialDemo && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">
             <PenLine size={12} /> 편집 중
@@ -3093,7 +3087,7 @@ export default function StructuredResult() {
             가상 경험 예시 화면 (저장되지 않음)
           </span>
         ) : viewOnly ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="fp-result-actions">
             <button
               onClick={() => navigate(`/app/experience/complete/${id}`)}
               className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px] font-bold text-emerald-700 hover:bg-emerald-100"
@@ -3112,7 +3106,7 @@ export default function StructuredResult() {
             </button>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div className="fp-result-actions">
             {/* 되돌리기/다시실행 그룹 */}
             <div className="inline-flex items-center rounded-lg border border-surface-200 bg-white p-0.5">
               <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)" aria-label="되돌리기"
@@ -3156,6 +3150,7 @@ export default function StructuredResult() {
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {/* 제목 + 탭 — 한 덩어리의 헤더 (밑줄은 탭 아래 하나만) */}
@@ -4890,7 +4885,7 @@ function ProjectTimeline({ experiences, currentId, onBeforeNavigate = () => true
   if (!experiences || experiences.length === 0) return null;
 
   return (
-    <div className={`transition-all duration-300 ease-in-out ${expanded ? 'w-[220px]' : 'w-[52px]'}`}>
+    <div data-expanded={expanded} className={`experience-timeline transition-all duration-300 ease-in-out ${expanded ? 'w-[220px]' : 'w-[52px]'}`}>
       <div className={`bg-white/90 backdrop-blur-sm border-l border-surface-200 shadow-sm h-[calc(100vh-80px)] overflow-y-auto py-4 ${expanded ? 'px-3' : 'px-1.5'}`}>
         {/* 토글 버튼 */}
         <button
@@ -4906,7 +4901,7 @@ function ProjectTimeline({ experiences, currentId, onBeforeNavigate = () => true
 
         <div className="relative">
           {/* 세로 연결선 */}
-          <div className={`absolute ${expanded ? 'left-[18px]' : 'left-[17px]'} top-4 bottom-4 w-[2px] bg-surface-100`} />
+          <div className={`experience-timeline-line absolute ${expanded ? 'left-[18px]' : 'left-[17px]'} top-4 bottom-4 w-[2px] bg-surface-100`} />
           <div className="space-y-1">
             {experiences.map((exp, idx) => {
               const isCurrent = exp.id === currentId;
@@ -4931,7 +4926,7 @@ function ProjectTimeline({ experiences, currentId, onBeforeNavigate = () => true
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary-600 rounded-r-full" />
                   )}
                   {/* 번호 원 */}
-                  <span className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold transition-all duration-200 ${
+                  <span className={`experience-timeline-number relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold transition-all duration-200 ${
                     isCurrent
                       ? 'bg-primary-600 text-white shadow-md shadow-bluewood-200/50'
                       : 'bg-surface-100 border-2 border-surface-200 text-bluewood-400'

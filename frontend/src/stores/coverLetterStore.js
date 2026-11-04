@@ -25,10 +25,11 @@ const useCoverLetterStore = create((set, get) => ({
   _scopeVersion: 0,
   _fetchVersion: 0,
   _getVersion: 0,
+  _hasLoaded: false,
 
   clearCoverLetters: () => set(state => ({
     coverLetters: [], currentLetter: null, loading: false, loadError: null,
-    _userId: null, _scopeVersion: state._scopeVersion + 1, _fetchVersion: state._fetchVersion + 1, _getVersion: state._getVersion + 1,
+    _userId: null, _hasLoaded: false, _scopeVersion: state._scopeVersion + 1, _fetchVersion: state._fetchVersion + 1, _getVersion: state._getVersion + 1,
   })),
 
   setCurrentLetter: letter => set(state => ({ currentLetter: letter ? normalizeCoverLetter(letter) : null, _getVersion: state._getVersion + 1 })),
@@ -39,7 +40,7 @@ const useCoverLetterStore = create((set, get) => ({
       return [];
     }
     if (get()._userId !== userId) get().clearCoverLetters();
-    set(state => ({ _userId: userId, loading: true, loadError: null, _fetchVersion: state._fetchVersion + 1 }));
+    set(state => ({ _userId: userId, loading: !state._hasLoaded, loadError: null, _fetchVersion: state._fetchVersion + 1 }));
     const { _scopeVersion: scopeVersion, _fetchVersion: fetchVersion } = get();
     try {
       const snapshot = await getDocs(query(collection(null, 'coverLetters'), where('userId', '==', userId)));
@@ -47,7 +48,7 @@ const useCoverLetterStore = create((set, get) => ({
         .map(item => normalizeCoverLetter({ ...item.data(), id: item.id }))
         .filter(item => item.userId === userId));
       if (get()._scopeVersion === scopeVersion && get()._fetchVersion === fetchVersion) {
-        set({ coverLetters, loading: false });
+        set({ coverLetters, loading: false, _hasLoaded: true });
       }
       return coverLetters;
     } catch (error) {

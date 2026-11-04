@@ -9,7 +9,7 @@ import {
   ScrollText, PenLine, Paperclip, ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../services/api';
+import api, { peekApiData } from '../../services/api';
 import { db } from '../../config/firebase';
 import CompanyFolderPanel from '../../components/portfolio/CompanyFolderPanel';
 import FolderCatTransition from '../../components/portfolio/FolderCatTransition';
@@ -166,7 +166,7 @@ export default function PortfolioHub() {
   const [exportConfig, setExportConfig] = useState(location.state?.exportConfig || null);
   // 열린 폴더 id — null이면 첫 기업 폴더 (이력서 저장함에서 오면 그 기업 폴더)
   const [selected, setSelected] = useState(requestedCompany ? `c:${requestedCompany}` : location.state?.openCompany ? `c:${location.state.openCompany}` : null);
-  const [folders, setFolders] = useState([]);                   // 기업 폴더(이력서·자소서)
+  const [folders, setFolders] = useState(() => peekApiData('/company-folders') || []); // 기업 폴더(이력서·자소서)
   const [baseResume, setBaseResume] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingLetterDelete, setPendingLetterDelete] = useState(null);
@@ -177,8 +177,8 @@ export default function PortfolioHub() {
   const [managing, setManaging] = useState(false);
   const folderEditorRef = useRef(null);
   const cabinetRef = useRef(null);
+  const folderTabsRef = useRef(null);
   const folderSwitchRef = useRef(0);
-  const [cabinetWidth, setCabinetWidth] = useState(1180);
   const [switchingTo, setSwitchingTo] = useState(null);
   const [folderMotion, setFolderMotion] = useState(null);
   const [cabinetHeight, setCabinetHeight] = useState(480);
@@ -233,8 +233,6 @@ export default function PortfolioHub() {
     || (docType === 'cover' ? cabinet.find(folder => folder.docs.some(document => document.docType === 'cover')) : null)
     || cabinet[0] || null;
   const activeIndex = cabinet.indexOf(current);
-  const compactCabinet = window.matchMedia('(max-width: 760px)').matches;
-  const panelWidth = compactCabinet ? Math.max(200, cabinetWidth - 50) : Math.max(640, cabinetWidth - cabinet.length * 56);
   const visibleDocs = (current?.docs || [])
     .filter(d => (docType === 'all' || d.docType === docType) && (matches(current.name) || matches(d.title)))
     .sort(sort === 'name' ? (a, b) => a.title.localeCompare(b.title, 'ko') : byFavoriteThenRecent);
@@ -247,14 +245,6 @@ export default function PortfolioHub() {
   }, [current?.id]);
 
   useEffect(() => () => { folderSwitchRef.current += 1; }, []);
-
-  useEffect(() => {
-    const container = cabinetRef.current;
-    if (!container) return undefined;
-    const observer = new ResizeObserver(([entry]) => setCabinetWidth(entry.contentRect.width));
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [loading, lettersLoading, !!current]);
 
   useEffect(() => {
     const container = cabinetRef.current;
@@ -281,33 +271,36 @@ export default function PortfolioHub() {
       const fixedHeight = list ? container.getBoundingClientRect().height - list.getBoundingClientRect().height : 0;
       const minimumHeight = Math.ceil(fixedHeight + previewHeight);
       const available = main.clientHeight - cabinetTop - bottomSpace;
-      setCabinetHeight(Math.max(compactCabinet ? 520 : 420, minimumHeight, Math.min(680, available)));
+      const compact = window.matchMedia('(max-width: 760px)').matches;
+      setCabinetHeight(Math.max(compact ? 520 : 490, minimumHeight, Math.min(680, available)));
     };
     const observer = new ResizeObserver(measure);
     observer.observe(main);
     container.closest('.ws')?.querySelectorAll('.ws-header, .ws-toolbar, .ws-section-label').forEach(element => observer.observe(element));
-    container.querySelectorAll('.ws-folder-heading, .ws-folder-meta, .ws-list-toolbar, .ws-list-columns, .ws-folder-panel, .ws-document-row:nth-child(-n+3)').forEach(element => observer.observe(element));
+    container.querySelectorAll('.ws-folder-tabs, .ws-folder-heading, .ws-folder-meta, .ws-list-toolbar, .ws-list-columns, .ws-folder-panel, .ws-document-row:nth-child(-n+3)').forEach(element => observer.observe(element));
     window.addEventListener('resize', measure);
     measure();
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, [loading, lettersLoading, current?.id, previewDocumentKeys, compactCabinet, exportConfig, isGuest]);
+  }, [loading, lettersLoading, current?.id, previewDocumentKeys, exportConfig, isGuest]);
 
   useEffect(() => {
-    const container = cabinetRef.current;
+    const container = folderTabsRef.current;
     if (!container) return undefined;
-    // Wait for the accordion width to settle; only scroll its own horizontal viewport.
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const timer = setTimeout(() => {
-      const spine = container.querySelector('.ws-folder-slot.is-open');
-      if (!spine) return;
-      const left = spine.offsetLeft;
-      const right = left + spine.offsetWidth;
-      if (left < container.scrollLeft || right > container.scrollLeft + container.clientWidth + 1) {
-        container.scrollTo({ left: Math.max(0, left - (compactCabinet ? 0 : 12)), behavior: reduced ? 'instant' : 'smooth' });
+    // Reveal only the horizontal index; changing folders must not move the page.
+    const reveal = () => {
+      const tab = container.querySelector('.ws-folder-item.is-open');
+      if (!tab) return;
+      const bounds = container.getBoundingClientRect();
+      const tabBounds = tab.getBoundingClientRect();
+      if (tabBounds.left < bounds.left || tabBounds.right > bounds.right) {
+        container.scrollLeft += tabBounds.left - bounds.left - (container.clientWidth - tabBounds.width) / 2;
       }
-    }, reduced ? 0 : 280);
-    return () => clearTimeout(timer);
-  }, [current?.id, cabinetWidth, cabinet.length, compactCabinet]);
+    };
+    const observer = new ResizeObserver(reveal);
+    observer.observe(container);
+    reveal();
+    return () => observer.disconnect();
+  }, [current?.id, cabinet.length, loading, lettersLoading]);
 
   const selectFolder = async (id) => {
     const request = ++folderSwitchRef.current;
@@ -329,7 +322,7 @@ export default function PortfolioHub() {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? cabinet.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + cabinet.length) % cabinet.length;
-    cabinetRef.current?.querySelectorAll('.ws-folder-item')[next]?.focus({ preventScroll: true });
+    folderTabsRef.current?.querySelectorAll('.ws-folder-item')[next]?.focus({ preventScroll: true });
     selectFolder(cabinet[next].id);
   };
 
@@ -489,9 +482,9 @@ export default function PortfolioHub() {
     const active = folder.id === current?.id;
     const Icon = active ? FolderOpen : Folder;
     return (
-      <button type="button" className={`ws-folder-item ${active ? 'is-open' : ''}`} aria-expanded={active} aria-label={`${folder.name}, 서류 ${folder.docs.length}개`} aria-controls={active ? 'cabinet-documents' : undefined} onClick={() => selectFolder(folder.id)} onKeyDown={event => onFolderKeyDown(event, index)} title={folder.name}>
-        <span className="ws-spine-number">{String(index + 1).padStart(2, '0')}</span>
-        {switchingTo === folder.id ? <Loader2 size={19} className="animate-spin" /> : <Icon size={19} strokeWidth={1.5} />}
+      <button key={folder.id} type="button" className={`ws-folder-item ${active ? 'is-open' : ''}`} aria-pressed={active} aria-label={`${folder.name}, 서류 ${folder.docs.length}개`} aria-controls="cabinet-documents" onClick={() => selectFolder(folder.id)} onKeyDown={event => onFolderKeyDown(event, index)} title={folder.name}>
+        <span className="ws-spine-number">{String(allFolders.indexOf(folder) + 1).padStart(2, '0')}</span>
+        {switchingTo === folder.id ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}
         <span className="ws-folder-name">{folder.name}</span>
         <span className="ws-folder-count">{folder.docs.length}</span>
       </button>
@@ -502,6 +495,8 @@ export default function PortfolioHub() {
   const missing = current?.company
     ? [['portfolio', '포트폴리오'], ['resume', '이력서'], ['cover', '자소서']].filter(([type]) => !count(type)).map(([, label]) => label)
     : [];
+  const currentUpdatedAt = current ? Math.max(0, current.at || 0, ...current.docs.map(document => document.updatedAt || 0)) : 0;
+  const currentNumber = String(allFolders.findIndex(folder => folder.id === current?.id) + 1).padStart(2, '0');
 
   return (
     <div className="ws fp-portfolio-hub">
@@ -586,7 +581,7 @@ export default function PortfolioHub() {
 
       <div className="ws-section-label">
         <span>내 폴더 <b>{allFolders.length}</b></span>
-        {folderMotion?.folderId === current?.id && (
+        {folderMotion && folderMotion.folderId === current?.id && (
           <span className="ws-folder-mascot" aria-hidden="true" data-folder-id={folderMotion.folderId}>
             <FolderCatTransition
               key={folderMotion.request}
@@ -607,67 +602,77 @@ export default function PortfolioHub() {
       {loading || lettersLoading ? (
         <BrandLoader label="서류를 불러오는 중" />
       ) : current ? (
-        <div ref={cabinetRef} className="ws-cabinet" style={{ '--panel-width': `${panelWidth}px`, '--cabinet-height': `${cabinetHeight}px` }} role="group" aria-label="가로 폴더 보관함">
-          <div className="ws-cabinet-track">
-          {cabinet.map((folder, index) => (
-            <div key={folder.id} className={`ws-folder-slot ${folder.id === current.id ? 'is-open' : ''}`}>
-              {folderButton(folder, index)}
-              <div className="ws-folder-body">
-              {folder.id === current.id && (
-                <section className="ws-open-folder" id="cabinet-documents" aria-label={`${current.name} 폴더`}>
-                  {current.company ? (
-                    <>
-                      <FolderHeading
-                        key={current.company}
-                        title={current.company}
-                        description="이 기업에 제출할 서류를 한곳에서 관리해요."
-                        onRename={(to) => renameCompanyFolder(current.company, to)}
-                        onDelete={() => setPendingFolderDelete(current)}
-                      />
-                      <div className="ws-folder-meta">
-                        <span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span>
-                        <span>{missing.length ? `${missing.join(' · ')} 추가해 보세요` : '모든 종류의 서류를 모았어요'}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                    <FolderHeading
-                      title={current.name}
-                      description={current.id === 'base' ? '모든 지원에 기본으로 쓰는 서류예요. 경험 정리의 이력서 탭에서 고칠 수 있어요.' : '지원 기업을 정하기 전의 서류예요.'}
-                    />
-                    <div className="ws-folder-meta"><span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span><span>{current.id === 'base' ? '지원할 때 공통으로 쓰는 서류' : '기업을 정하면 폴더로 모을 수 있어요'}</span></div>
-                    </>
-                  )}
-                  <DocumentList
-                    documents={visibleDocs}
-                    sort={sort}
-                    onSortChange={setSort}
-                    onOpen={openDoc}
-                    actionsOf={actionsOf}
-                    onAdd={docType === 'cover' ? () => createCoverLetter(current.company || '') : current.id === 'base' || !['all', 'portfolio'].includes(docType) ? null : () => createPortfolio(current.company)}
-                    addLabel={docType === 'cover' ? '자기소개서 쓰기' : '포트폴리오 만들기'}
-                    filtered={!!q || docType !== 'all'}
-                    onReset={() => { setSearchQuery(''); changeDocType('all'); }}
-                  />
-                  {current.company && (
-                    <div className="ws-folder-panel" key={current.company}>
-                      <button type="button" className="ws-manage-toggle" aria-expanded={managing} aria-controls="folder-management" onClick={() => setManaging(!managing)}>
-                        <span className="ws-manage-icon"><SlidersHorizontal size={18} /></span>
-                        <span><strong>서류 추가 · 자기소개서 작성</strong><small>공고로 자소서를 쓰거나, 기존 문항과 파일을 관리하세요.</small></span>
-                        <ChevronDown size={18} className={managing ? 'is-open' : ''} />
-                      </button>
-                    </div>
-                  )}
-                </section>
-              )}
+        <div ref={cabinetRef} className="ws-cabinet" style={{ '--cabinet-height': `${cabinetHeight}px` }}>
+          <nav ref={folderTabsRef} className="ws-folder-tabs" aria-label="기업별 서류 폴더">
+            {cabinet.map(folderButton)}
+          </nav>
+          <div className="ws-archive-file">
+            <aside className="ws-archive-summary" aria-label="선택한 폴더 정보">
+              <div className="ws-archive-index"><span>폴더 정보</span><b>{currentNumber}</b></div>
+              <div className="ws-archive-identity">
+                <span className="ws-archive-icon"><FolderOpen size={22} /></span>
+                <span className="ws-archive-kind">{current.company ? '지원 기업' : current.id === 'base' ? '공통 서류' : '정리 대기'}</span>
+                <h2 title={current.name}>{current.name}</h2>
+                <p>{current.company ? '이 기업을 위한 나의 이야기' : current.id === 'base' ? '모든 지원의 시작이 되는 서류' : '다음 기회를 기다리는 이야기'}</p>
               </div>
-            </div>
-          ))}
+              <dl className="ws-archive-counts">
+                {DOC_TYPES.filter(type => type.key !== 'all').map(type => (
+                  <div key={type.key}><dt>{type.label}</dt><dd>{count(type.key)}<span>개</span></dd></div>
+                ))}
+              </dl>
+              <div className="ws-archive-updated"><span>최근 수정</span><time dateTime={currentUpdatedAt ? new Date(currentUpdatedAt).toISOString() : undefined}>{formatDate(currentUpdatedAt) || '—'}</time></div>
+            </aside>
+            <section className="ws-open-folder" id="cabinet-documents" aria-label={`${current.name} 폴더`}>
+              {current.company ? (
+                <>
+                  <FolderHeading
+                    key={current.company}
+                    title={current.company}
+                    description="이 기업에 제출할 서류를 한곳에서 관리해요."
+                    onRename={(to) => renameCompanyFolder(current.company, to)}
+                    onDelete={() => setPendingFolderDelete(current)}
+                  />
+                  <div className="ws-folder-meta">
+                    <span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span>
+                    <span>{missing.length ? `${missing.join(' · ')} 추가해 보세요` : '모든 종류의 서류를 모았어요'}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                <FolderHeading
+                  title={current.name}
+                  description={current.id === 'base' ? '모든 지원에 기본으로 쓰는 서류예요. 경험 정리의 이력서 탭에서 고칠 수 있어요.' : '지원 기업을 정하기 전의 서류예요.'}
+                />
+                <div className="ws-folder-meta"><span>포트폴리오 {count('portfolio')} · 이력서 {count('resume')} · 자소서 {count('cover')}</span><span>{current.id === 'base' ? '지원할 때 공통으로 쓰는 서류' : '기업을 정하면 폴더로 모을 수 있어요'}</span></div>
+                </>
+              )}
+              <DocumentList
+                key={current.id}
+                documents={visibleDocs}
+                sort={sort}
+                onSortChange={setSort}
+                onOpen={openDoc}
+                actionsOf={actionsOf}
+                onAdd={docType === 'cover' ? () => createCoverLetter(current.company || '') : current.id === 'base' || !['all', 'portfolio'].includes(docType) ? null : () => createPortfolio(current.company)}
+                addLabel={docType === 'cover' ? '자기소개서 쓰기' : '포트폴리오 만들기'}
+                filtered={!!q || docType !== 'all'}
+                onReset={() => { setSearchQuery(''); changeDocType('all'); }}
+              />
+              {current.company && (
+                <div className="ws-folder-panel" key={current.company}>
+                  <button type="button" className="ws-manage-toggle" aria-expanded={managing} aria-controls="folder-management" onClick={() => setManaging(!managing)}>
+                    <span className="ws-manage-icon"><SlidersHorizontal size={18} /></span>
+                    <span><strong>서류 추가 · 자기소개서 작성</strong><small>공고로 자소서를 쓰거나, 기존 문항과 파일을 관리하세요.</small></span>
+                    <ChevronDown size={18} className={managing ? 'is-open' : ''} />
+                  </button>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       ) : (
         <div className="ws-empty">
-          <Search size={28} strokeWidth={1.4} />
+          <Search size={28} />
           <p>검색에 맞는 폴더가 없어요.</p>
           <span>기업명이나 서류 제목으로 다시 찾아보세요.</span>
           <button type="button" className="ws-btn" onClick={() => setSearchQuery('')}>검색 지우기</button>
@@ -846,7 +851,7 @@ function DocumentList({ documents, sort, onSortChange, onOpen, actionsOf, onAdd,
         const date = formatDate(document.updatedAt);
         return <li key={document.boardKey} className="ws-document-row" data-document-key={document.boardKey} data-document-type={document.docType}>
           <button type="button" className="ws-document-open" onClick={() => onOpen(document)} aria-label={`${category} ${document.title} ${format.label} 열기`}>
-            <span className="ws-row-name"><DocumentFileIcon presentation={format} /><span><span className={`ws-row-category ws-row-category--${document.docType}`}>{category}</span><strong title={document.title}>{document.title}{document.favorite && <Star size={12} className="ws-row-star" aria-label="즐겨찾기" />}</strong>{detail && <small>{detail}</small>}</span></span>
+            <span className="ws-row-name"><DocumentFileIcon presentation={format} appearance="outline" /><span><span className="ws-row-category">{category}</span><strong title={document.title}>{document.title}{document.favorite && <Star size={12} className="ws-row-star" aria-label="즐겨찾기" />}</strong>{detail && <small>{detail}</small>}</span></span>
             <span className="ws-row-type">{document.portfolio && kindOf(document.portfolio) === 'ppt' ? document.label : format.label}{document.portfolio?.isPublic && <Globe size={12} aria-label="링크 공개 중" />}</span>
             <time className="ws-row-date" dateTime={document.updatedAt ? new Date(document.updatedAt).toISOString() : undefined}>{date || '—'}</time>
             <ArrowUpRight size={15} className="ws-row-arrow" aria-hidden="true" />
@@ -855,7 +860,7 @@ function DocumentList({ documents, sort, onSortChange, onOpen, actionsOf, onAdd,
         </li>;
       })}</ul></div>
     </> : <div className="ws-empty ws-empty--documents">
-      <FileText size={30} strokeWidth={1.3} /><p>{filtered ? '조건에 맞는 서류가 없어요' : '아직 보관한 서류가 없어요'}</p>
+      <FileText size={30} /><p>{filtered ? '조건에 맞는 서류가 없어요' : '아직 보관한 서류가 없어요'}</p>
       <span>{filtered ? '다른 서류 종류나 검색어로 찾아보세요.' : '새 서류를 만들거나 기존 파일을 추가해 보세요.'}</span>
       {filtered && <button type="button" className="ws-btn ws-btn--sm" onClick={onReset}>모든 서류 보기</button>}
     </div>}

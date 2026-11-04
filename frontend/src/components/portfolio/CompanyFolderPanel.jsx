@@ -165,7 +165,7 @@ export default forwardRef(function CompanyFolderPanel({ company, folder, portfol
           </div>
         )}
       >
-        {coverLetters.length > 0 && <ul className="mb-4 divide-y divide-surface-100 rounded-xl border border-surface-100">{coverLetters.map(letter => <li key={letter.id}><button type="button" onClick={() => onOpenCoverLetter?.(letter)} className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-surface-50"><DocumentFileIcon kind="cover" className="document-file-icon--small" /><span className="min-w-0 flex-1"><b className="block truncate text-[13px] text-bluewood-700">{letter.title || '새 자기소개서'}</b><small className="text-bluewood-400">{[letter.targetPosition, letter.status === 'final' ? '작성 완료' : '작성 중'].filter(Boolean).join(' · ')}</small></span><ExternalLink size={14} className="text-bluewood-400" /></button></li>)}</ul>}
+        {coverLetters.length > 0 && <ul className="mb-4 divide-y divide-surface-100 rounded-xl border border-surface-100">{coverLetters.map(letter => <li key={letter.id}><button type="button" onClick={() => onOpenCoverLetter?.(letter)} className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-surface-50"><DocumentFileIcon kind="cover" appearance="outline" className="document-file-icon--small" /><span className="min-w-0 flex-1"><b className="block truncate text-[13px] text-bluewood-700">{letter.title || '새 자기소개서'}</b><small className="text-bluewood-400">{[letter.targetPosition, letter.status === 'final' ? '작성 완료' : '작성 중'].filter(Boolean).join(' · ')}</small></span><ExternalLink size={14} className="text-bluewood-400" /></button></li>)}</ul>}
         {essays.length === 0 && filesOf('coverLetter').length === 0 ? (
           !coverLetters.length && <Empty text="공고로 자소서를 시작하거나, 문항을 직접 쓰고 기존 파일을 올려 두세요." />
         ) : (
@@ -246,7 +246,7 @@ function FileList({ files, onRemove, emptyText }) {
     <ul className="divide-y divide-surface-100 rounded-xl border border-surface-100">
       {files.map(f => (
         <li key={f.id} className="flex items-center gap-3 px-3.5 py-2.5">
-          <DocumentFileIcon file={f} className="document-file-icon--small" />
+          <DocumentFileIcon file={f} appearance="outline" className="document-file-icon--small" />
           <a href={f.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-bluewood-700 hover:text-primary-600">
             {f.name}
           </a>

@@ -25,21 +25,28 @@ const usePortfolioStore = create((set, get) => ({
   exportReady: false,
   loading: false,
   loadError: null,
+  _hasLoaded: false,
+  _userId: null,
+  _scopeVersion: 0,
+  _fetchVersion: 0,
 
   // 로그아웃 시 호출 — 스토어는 메모리에만 있어서 비우지 않으면 다음 방문자에게 이전 사용자 데이터가 보인다.
-  clearPortfolios: () => set({ portfolios: [], currentPortfolio: null, exportReady: false, loading: false, loadError: null }),
+  clearPortfolios: () => set(state => ({ portfolios: [], currentPortfolio: null, exportReady: false, loading: false, loadError: null, _hasLoaded: false, _userId: null, _scopeVersion: state._scopeVersion + 1, _fetchVersion: state._fetchVersion + 1 })),
 
   fetchPortfolios: async (userId) => {
-    set({ loading: true, loadError: null });
+    if (userId && get()._userId !== userId) get().clearPortfolios();
+    set(state => ({ _userId: userId || state._userId, loading: !state._hasLoaded, loadError: null, _fetchVersion: state._fetchVersion + 1 }));
+    const { _scopeVersion: scope, _fetchVersion: request } = get();
+    const current = () => get()._scopeVersion === scope && get()._fetchVersion === request;
     try {
       const { data } = await api.get('/portfolio/list');
       const portfolios = (Array.isArray(data) ? data : [])
         .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
-      set({ portfolios, loading: false });
+      if (current()) set({ portfolios, loading: false, _hasLoaded: true });
     } catch (error) {
       console.error('포트폴리오 로딩 실패:', error);
       // 실패를 '데이터 없음'으로 오인하면 사용자가 데이터가 사라진 줄 안다. 구분해서 알린다.
-      set({ loading: false, loadError: error?.message || '포트폴리오를 불러오지 못했습니다' });
+      if (current()) set({ loading: false, loadError: error?.message || '포트폴리오를 불러오지 못했습니다' });
     }
   },
 
@@ -94,12 +101,12 @@ const usePortfolioStore = create((set, get) => ({
     const portfolios = get().portfolios.map(p =>
       p.id === id ? { ...p, ...updatedFields } : p
     );
-    set({ portfolios });
+    set(state => ({ portfolios, _fetchVersion: state._fetchVersion + 1, loading: false }));
   },
 
   deletePortfolio: async (id) => {
     await api.delete(`/portfolio/${id}`);
-    set({ portfolios: get().portfolios.filter(p => p.id !== id) });
+    set(state => ({ portfolios: state.portfolios.filter(p => p.id !== id), _fetchVersion: state._fetchVersion + 1, loading: false }));
   },
 
   setCurrentPortfolio: (p) => set({ currentPortfolio: p }),
