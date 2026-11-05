@@ -7,7 +7,8 @@
  */
 
 import { materialPlainText } from './materialPlainText.mjs';
-import { isExperienceTitle, resolveExperienceIdentity, seriesTitle } from '../local-connector/experienceEvidence.mjs';
+import { isExperienceTitle, resolveExperienceIdentity, seriesTitle, hasPersonalEvidence } from '../local-connector/experienceEvidence.mjs';
+import { experienceTextLines, isSourceArtifact } from '../local-connector/experienceText.mjs';
 
 // The optional day (2026.05.16, 5월 16일) is consumed so it never remains as a title fragment.
 const DATE = String.raw`((?:19|20)\d{2})\s*(?:[.\-/년]\s*(\d{1,2})\s*월?(?:\s*[.\-/]\s*\d{1,2}(?!\d)\s*일?|\s+\d{1,2}\s*일)?\.?)?`;
@@ -22,9 +23,9 @@ const NUMBERED_HEADING_RE = /^(?:0?\d{1,2}[.)]|\[\d{1,2}\]|#\d{1,2}|(?:project|�
 const INCLUDE_SECTIONS = new Set(['경력', '경험', '프로젝트', '활동', '대외활동', '인턴', '인턴십', '동아리', '연구', '공모전', '주요경험', '주요프로젝트', '업무경험', '직무경험', '경력사항', '프로젝트경험', 'experience', 'experiences', 'projects', 'project', 'work', 'career', 'employment', 'activities', 'research', 'internship']);
 const EXCLUDE_SECTIONS = new Set(['학력', '교육', '학력사항', '교육사항', '보유기술', '기술', '기술스택', '스킬', '자격', '자격증', '수상', '수상내역', '수상경력', '어학', '외국어', '연락처', '자기소개', '소개', '인적사항', '목차', '병역', '취미', '관심사', '기타', 'education', 'skills', 'skill', 'certificates', 'certificate', 'certifications', 'awards', 'award', 'languages', 'language', 'contact', 'about', 'profile', 'contents', 'interests', 'summary', 'tools']);
 
-const LABEL_RE = /^(역할|담당|포지션|role|배경|문제|목표|상황|과제|과정|수행|한\s*일|주요\s*업무|업무|내용|결과|성과|실적|배운\s*점|느낀\s*점|회고|교훈|사용\s*기술|기술\s*스택|기술|tools?|stack|소속|기관)\s*[:：]\s*(.+)$/i;
+const LABEL_RE = /^(내\s*역할|역할|담당|포지션|role|배경|문제|목표|상황|과제|과정|수행|한\s*일|주요\s*업무|업무|내용|결과|성과|실적|배운\s*점|느낀\s*점|회고|교훈|사용\s*기술|기술\s*스택|기술|tools?|stack|소속|기관)\s*[:：]\s*(.+)$/i;
 const LABEL_FIELD = [
-  [/^(역할|담당|포지션|role)/i, 'role'],
+  [/^(내\s*역할|역할|담당|포지션|role)/i, 'role'],
   [/^(배경|문제|목표|상황|과제)/, 'context'],
   [/^(과정|수행|한\s*일|주요\s*업무|업무|내용)/, 'action'],
   [/^(결과|성과|실적)/, 'result'],
@@ -52,7 +53,7 @@ const CATEGORY_RULES = [
 
 const METHOD_TERMS = ['사용자 인터뷰', 'A/B 테스트', '프로토타입', '사용성 테스트', '설문', '데이터 분석', '퍼널', '온보딩', '와이어프레임', '대시보드', '리서치', '크롤링', '정책 설계'];
 const LATIN_STOP = new Set(['the', 'and', 'of', 'to', 'in', 'for', 'with', 'on', 'at', 'by', 'team', 'intern', 'manager', 'planner', 'analyst']);
-const SUBHEADINGS = /^(역할|담당|배경|문제|목표|상황|과제|과정|수행|한 일|주요 업무|업무|내용|결과|성과|실적|배운 점|느낀 점|회고|교훈|기술 스택|사용 기술|소속|기관)$/;
+const SUBHEADINGS = /^(내\s*역할|역할|담당|배경|문제|목표|상황|과제|과정|수행|한 일|주요 업무|업무|내용|결과|성과|실적|배운 점|느낀 점|회고|교훈|기술 스택|사용 기술|소속|기관)$/;
 
 INCLUDE_SECTIONS.add('주요경력');
 const norm = s => s.replace(/\s+/g, '');
@@ -63,6 +64,20 @@ const sectionLike = title => SECTION_LIKE.test(title) && !/(?:프로젝트|서�
 const NAMED_RE = /^(?:프로젝트|서비스|활동|캠페인|제품)(?:명|\s*이름)?\s*[:：]\s*(.+)$/;
 const COLLECTION_NAME = /이력서|자소서|자기\s*소개서|경력\s*기술서|경험\s*정리|포트폴리오|지원서|resume|(?:^|[^a-z])cv(?:[^a-z]|$)|portfolio|cover.?letter/i;
 const COVER_LETTER = /지원\s*동기|입사\s*후\s*포부|성장\s*과정|자기\s*소개서/;
+const METADATA_LABEL = /^(?:기간|활동\s*기간|프로젝트\s*기간|내\s*역할|역할|담당|포지션|소속|기관|사용\s*기술|기술\s*스택|period|duration|role|position|organization)\s*(?:[:：]|$)/i;
+
+// A project heading names the object of the work. A sentence merely mentioning a project is not a heading.
+function projectHeadingTitle(line) {
+  const title = cleanTitle(line);
+  if (!isExperienceTitle(title) || isSourceArtifact(title) || METADATA_LABEL.test(title) || LABEL_RE.test(title)
+    || SENTENCE_END.test(title) || sectionLike(title)) return '';
+  return /(?:프로젝트|서비스|플랫폼|시스템|캠페인|해커톤|공모전|앱)(?:\s*(?:개발|구축|개선|운영|런칭|론칭|출시|기획))?$/.test(title) ? title : '';
+}
+
+function metadataLine(line) {
+  return METADATA_LABEL.test(line) || isSourceArtifact(line) || Boolean(parseDates(line))
+    || (ROLE_LINE.test(line) && !SENTENCE_END.test(line)) || Boolean(sectionKind(line));
+}
 
 function sectionKind(line) {
   const compact = norm(line);
@@ -102,7 +117,7 @@ function dateHeading(lines, i) {
   const title = cleanTitle(line.replace(dates.match, ' '));
   if (title.length >= 2 && title.length <= 60 && isExperienceTitle(title)) return { start: i, dateLine: i, title, dates };
   const prev = lines[i - 1];
-  if (title.length < 2 && prev && prev.length <= 60 && !SENTENCE_END.test(prev) && !parseDates(prev) && !sectionKind(prev)) {
+  if (title.length < 2 && prev && prev.length <= 60 && isExperienceTitle(cleanTitle(prev)) && !isSourceArtifact(prev) && !SENTENCE_END.test(prev) && !parseDates(prev) && !sectionKind(prev)) {
     return { start: i - 1, dateLine: i, title: cleanTitle(prev), dates };
   }
   return null;
@@ -112,8 +127,16 @@ function toSentences(lines) {
   const units = [];
   let sectionLabel = '';
   let newSection = false;
-  for (const line of lines) {
+  // Some PDFs place a whole experience card on one line. Separate explicit field labels only
+  // for extraction, leaving the stored source and heading boundaries unchanged.
+  const fieldText = lines.join('\n').replace(/([^\s])[ \t]+(?=(?:내\s*역할|역할|담당|포지션|배경|문제|목표|상황|과제|과정|수행|한\s*일|주요\s*업무|결과|성과|실적|배운\s*점|role|action|result)\s*[:：])/gi, '$1\n');
+  for (const line of experienceTextLines(fieldText)) {
     const heading = line.replace(/^#{1,6}\s*/, '').replace(/[:：]$/, '').trim();
+    const dates = parseDates(line);
+    if (projectHeadingTitle(line) || /^(?:기간|활동\s*기간|프로젝트\s*기간|period|duration)\s*(?:[:：].*)?$/i.test(line)
+      || (dates && cleanTitle(line.replace(dates.match, ' ')).length === 0)) {
+      sectionLabel = ''; newSection = true; continue;
+    }
     if (SUBHEADINGS.test(heading)) {
       sectionLabel = heading;
       newSection = true;
@@ -175,7 +198,8 @@ export function analyzeBlock(title, bodyLines, { dates = null, startsWith = '', 
   const labeledKeywords = [];
   let body = bodyLines;
   // 제목 바로 아래 문장이 아닌 짧은 줄은 "Product Manager · 6인 팀" 같은 역할 줄
-  if (body[0] && body[0].length <= 50 && ROLE_LINE.test(body[0]) && !SENTENCE_END.test(body[0]) && !LABEL_RE.test(body[0]) && body.length > 1) {
+  if (body[0] && body[0].length <= 50 && !isSourceArtifact(body[0]) && ROLE_LINE.test(body[0]) && !SENTENCE_END.test(body[0])
+    && !/(?:참여|담당|수행|개발|설계|구현)(?:하여|하며|하고|해서|해)$/.test(body[0]) && !LABEL_RE.test(body[0]) && body.length > 1) {
     fields.role.push(body[0]);
     body = body.slice(1);
   }
@@ -226,18 +250,22 @@ function numberedHeading(line) {
   // 단순 작업 순서(1. 퍼널 분석)를 별도 프로젝트로 나누지 않는다.
   if (!/^(?:0\d[.)]|\[|#|project|프로젝트)/i.test(line) && !/(프로젝트|서비스|앱|project|app)/i.test(match[1])) return null;
   const title = cleanTitle(match[1]);
-  return sectionLike(title) ? null : title;
+  return sectionLike(title) || !isExperienceTitle(title) || isSourceArtifact(title) ? null : title;
 }
 
 // One experience from the whole text: a short first line is its title, the first date its period.
 function wholeDocument(lines, fallbackTitle, profiles) {
   if (bodyLength(lines) < 20) return null;
   const firstLine = lines[0];
-  const useFirst = firstLine.length <= 40 && !SENTENCE_END.test(firstLine) && !LABEL_RE.test(firstLine);
   const firstDate = parseDates(firstLine);
-  const title = useFirst ? cleanTitle(firstDate ? firstLine.replace(firstDate.match, ' ').trim() : firstLine) : (fallbackTitle || cleanTitle(firstLine.slice(0, 40)));
+  const firstTitle = cleanTitle(firstDate ? firstLine.replace(firstDate.match, ' ').trim() : firstLine);
+  const useFirst = firstTitle.length <= 60 && isExperienceTitle(firstTitle) && !SENTENCE_END.test(firstTitle)
+    && !LABEL_RE.test(firstTitle) && !isSourceArtifact(firstTitle) && !METADATA_LABEL.test(firstTitle)
+    && (!ROLE_LINE.test(firstTitle) || Boolean(projectHeadingTitle(firstTitle)));
+  const projectHeading = !useFirst && lines.map(projectHeadingTitle).find(Boolean);
+  const title = projectHeading || (useFirst ? firstTitle : fallbackTitle);
   const item = analyzeBlock(title, useFirst ? lines.slice(1) : lines, { dates: parseDates(lines.join('\n')), startsWith: firstLine, profiles });
-  return { useFirst, experience: resolveExperienceIdentity({ ...item, sourceText: lines.join('\n') }, fallbackTitle) };
+  return { useFirst, experience: resolveExperienceIdentity({ ...item, titleOrigin: projectHeading || title === firstTitle ? 'source_heading' : 'source_file', sourceText: lines.join('\n') }, fallbackTitle) };
 }
 
 /**
@@ -282,7 +310,8 @@ export function parseExperiencesLocally(text, fallbackTitle = '', { profiles = {
       else headings.push(heading);
     } else {
       const title = numberedHeading(line);
-      const named = personalDocument && line.match(NAMED_RE)?.[1];
+      const namedValue = personalDocument && line.match(NAMED_RE)?.[1];
+      const named = namedValue && isExperienceTitle(namedValue) ? namedValue : '';
       const plain = personalDocument && line.length <= 60 && isExperienceTitle(line) && !SENTENCE_END.test(line) && !LABEL_RE.test(line)
         && /프로젝트|서비스|해커톤|공모전|캠페인|봉사\s*활동/.test(line) && !ROLE_LINE.test(line) && !sectionLike(line) ? line : '';
       if (title || named || plain) headings.push({ start: i, dateLine: i, title: title || named || plain, dates: null, weak: !title && !named });
@@ -290,6 +319,12 @@ export function parseExperiencesLocally(text, fallbackTitle = '', { profiles = {
   });
   // A keyword-only line splits a document only when it has no dated, numbered or named entries.
   if (headings.some(h => !h.weak)) headings.splice(0, headings.length, ...headings.filter(h => !h.weak));
+  // Period/role blocks often precede the single project heading in an exported portfolio card.
+  // Keep that card whole so its title, role, dates and exact source stay together.
+  if (headings.length === 1 && headings[0].weak && lines.slice(0, headings[0].start).every(metadataLine)) {
+    const whole = wholeDocument(lines, fallbackTitle, profiles);
+    if (whole) return { confident: true, experiences: [whole.experience] };
+  }
 
   const uncertainHeading = lines.some((line, i) => i > 0 && !excluded.has(i)
     && !headings.some(h => h.start === i || h.dateLine === i)
@@ -315,7 +350,7 @@ export function parseExperiencesLocally(text, fallbackTitle = '', { profiles = {
     // A narrative before the first dated project may be a separate, meaningful experience.
     if (personalDocument && headings[0].start > 0) {
       const preamble = lines.slice(0, headings[0].start).filter((_, i) => !excluded.has(i));
-      if (bodyLength(preamble) >= 40) experiences.unshift(analyzeBlock(fallbackTitle, preamble, { profiles }));
+      if (bodyLength(preamble) >= 40 && hasPersonalEvidence(experienceTextLines(preamble.join('\n')).join('\n'))) experiences.unshift(analyzeBlock(fallbackTitle, preamble, { profiles }));
     }
     return { confident: !uncertainHeading && blocks.length === headings.length,
       experiences: experiences.map(item => resolveExperienceIdentity(item, fallbackTitle)) };

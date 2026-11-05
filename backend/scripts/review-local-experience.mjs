@@ -137,6 +137,8 @@ try {
   await click('button', '개 파일 정리');
   await page.waitForSelector('.fp-local-candidate');
   assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 6, 'PDF, DOCX, PPTX, HWPX and text parsed in browser; exact copies deduplicated');
+  assert.ok(await page.$$eval('.fp-local-recommendation-badge', nodes => nodes.some(node => node.textContent === '추천 경험')), 'manual intake shows recommended experiences');
+  assert.ok(await page.$$eval('.fp-local-recommendation', nodes => nodes.every(node => node.textContent.trim().length > 4)), 'recommendation labels include evidence rather than an empty badge');
   assert.ok(await page.$$eval('.fp-local-title input, .fp-local-fields textarea', nodes => nodes.every(node => !/<\/?(?:li|h[1-6]|strong|ul|p)>|\*\*/.test(node.value))), 'HTML and Markdown do not leak into editable fields');
   const pdfCandidate = await page.$$eval('.fp-local-candidate', nodes => nodes.filter(node => node.textContent.includes('연구발표.pdf')).map(node => ({ title: node.querySelector('.fp-local-title input').value, source: node.querySelector('pre').textContent })));
   assert.ok(pdfCandidate.some(item => item.title.includes('연구 발표 프로젝트')), `Korean PDF text is retained: ${JSON.stringify(pdfCandidate)}`);
@@ -246,9 +248,13 @@ try {
   assert.match(rootSummary, /C: 드라이브/); assert.match(rootSummary, /D: 드라이브/); assert.match(rootSummary, /탐색 완료/);
   const firstSources = await page.$$eval('.fp-local-source', nodes => nodes.map(node => node.textContent).join('\n'));
   assert.match(firstSources, /C: 드라이브/); assert.match(firstSources, /D: 드라이브/);
+  assert.ok(await page.$$eval('.fp-local-recommendation-badge', nodes => nodes.length > 0), 'automatic intake shows recommended experiences');
+  const cardOrderBeforeEditing = await page.$$eval('.fp-local-candidate', nodes => nodes.map(node => node.id));
   const roleField = (await page.$$('.fp-local-fields textarea'))[1];
   await roleField.click(); await page.keyboard.down('Control'); await page.keyboard.press('A'); await page.keyboard.up('Control'); await roleField.type('직접 맡은 역할');
   assert.equal(await roleField.evaluate(node => node.value), '직접 맡은 역할', 'plain-text editing keeps spaces');
+  assert.equal(await roleField.evaluate(node => document.activeElement === node), true, 'editing a recommendation keeps focus');
+  assert.deepEqual(await page.$$eval('.fp-local-candidate', nodes => nodes.map(node => node.id)), cardOrderBeforeEditing, 'typing does not reorder recommendation cards');
   await page.$eval('.fp-local-auto-summary', node => node.scrollIntoView());
   await page.screenshot({ path: path.join(output, 'automatic-candidates-mobile.png') });
   assert.equal(await page.$('.fp-local-auto-summary button'), null, 'all documents are checked instead of stopping after five candidates');
@@ -286,20 +292,30 @@ try {
     window.showDirectoryPicker = async () => ({ name: '내 경험', kind: 'directory', async *values() {
       const text = '프로젝트명: 학교 공지 검색\n역할: 개발 담당\n상황: 회원이 공지를 놓치고 있었다.\n과제: 필요한 공지를 찾도록 해야 했다.\n한 일: 검색 필터를 구현했다.';
       yield { kind: 'file', name: '공지 검색.md', getFile: async () => new File([text], '공지 검색.md') };
+      yield { kind: 'file', name: '자기소개서.md', getFile: async () => new File(['역량 자기소개\n저는 학교 공지 검색 프로젝트에서 백엔드 개발자로서 회원 권한별 검색 조건을 검토하고 공지 필터를 수정했습니다.\n상황: 공개 공지와 회원 전용 공지가 함께 노출되고 있었습니다.'], '자기소개서.md') };
       yield { kind: 'file', name: '활동 후기.md', getFile: async () => new File(['결과 회고\n결과: 학교 공지 검색 시제품을 배포하고 팀원들이 찾기 편하다고 답했다.'], '활동 후기.md') };
+      yield { kind: 'file', name: '축제 운영.md', getFile: async () => new File(['프로젝트명: 축제 동선 운영\n역할: 운영 담당\n한 일: 관객 안내 표지를 제작하고 입장 대기 줄을 분리했습니다.\n성과: 관객 1200명이 방문했고 입장 대기 시간이 절반으로 줄었습니다.'], '축제 운영.md') };
     } });
   });
   await click('button', '설치 없이 폴더 접근 허용');
   await page.waitForSelector('.fp-local-candidate');
   assert.equal(await page.$('.fp-local-files'), null, 'folder permission goes directly to automatic STAR candidates');
   assert.match(await page.$eval('.fp-local-auto-summary', node => node.textContent), /허용한 폴더/);
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 1, 'different document names with the same project in their body become one experience');
-  assert.match(await page.$eval('.fp-local-candidate', node => node.textContent), /관련 자료 2개/);
-  assert.match(await page.$eval('.fp-local-source', node => node.textContent), /공지 검색.md/);
-  assert.match(await page.$eval('.fp-local-source', node => node.textContent), /활동 후기.md/);
+  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 2, 'report, essay and retrospective of one project fuse while a different project stays separate');
+  const projectFusion = await page.$$eval('.fp-local-candidate', nodes => {
+    const node = nodes.find(node => node.querySelector('.fp-local-source').textContent.includes('공지 검색.md'));
+    return { title: node.querySelector('.fp-local-title input').value, text: node.textContent, originals: node.querySelector('pre').textContent,
+      action: node.querySelectorAll('textarea')[4].value, result: node.querySelectorAll('textarea')[5].value };
+  });
+  assert.match(projectFusion.text, /관련 자료 3개/);
+  assert.match(projectFusion.originals, /공지 검색.md/); assert.match(projectFusion.originals, /자기소개서.md/); assert.match(projectFusion.originals, /활동 후기.md/);
+  assert.match(projectFusion.action, /검색 필터|공지 필터/); assert.match(projectFusion.action, /회원 권한/); assert.match(projectFusion.result, /시제품/);
+  assert.doesNotMatch(projectFusion.originals, /관객 1200명/);
+  await page.$$eval('.fp-local-candidate', nodes => nodes.find(node => node.querySelector('.fp-local-source').textContent.includes('공지 검색.md')).scrollIntoView());
   await page.screenshot({ path: path.join(output, 'merged-star-experience.png'), fullPage: true });
   await click('button', '다른 경험이면 묶음 나누기');
-  await page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate').length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate').length === 4);
+  assert.match(await page.$eval('.fp-local-candidates', node => node.textContent), /직접 나눈 경험/);
   assert.equal(writes.length, 11);
   // Exercise the production connection branch. Never invoke an OS protocol during QA.
   websiteMode = true; connectorAvailable = false;
@@ -319,9 +335,47 @@ try {
   assert.equal(await page.$('.fp-local-setup'), null);
   assert.equal(writes.length, 11);
   assert.equal(await page.evaluate(() => window.pickerCalls), 0);
+  // Later discoveries can outrank existing cards while reviewed values and selections survive.
+  await page.goto(`${origin}/app/experience/start?method=local`);
+  await page.waitForSelector('.fp-local-choose');
+  await page.evaluate(() => {
+    window.showDirectoryPicker = async () => ({ name: '후속 탐색 검증', kind: 'directory', async *values() {
+      for (let index = 0; index < 244; index += 1) {
+        const name = `기획 프로젝트 기록 ${String(index).padStart(3, '0')}.md`;
+        const body = index === 0 ? '프로젝트명: CampusLink\n역할: 백엔드 개발자\n상황: 공개 공지와 회원 전용 공지가 함께 노출되고 있었습니다.\n한 일: 회원 권한 조건을 검증하고 공지 검색 필터를 구현했습니다.'
+          : index === 243 ? '운영 결과 회고\n프로젝트명: CampusLink\n한 일: 공지 탐색 로그를 분류하고 검색 오류를 수정했습니다.\n성과: 공지 탐색 시간이 5분에서 1분으로 줄었습니다.'
+          : `일정 운영 프로젝트 ${index}\n역할: 동아리 운영 담당\n한 일: 회의 일정을 조율하고 논의 내용을 정리했습니다.`;
+        yield { kind: 'file', name, getFile: async () => new File([body], name) };
+      }
+      const name = '후반 프로젝트 회고.md';
+      const body = '프로젝트명: 결제 단계 개선\n역할: 서비스 기획자\n상황: 결제 화면의 입력 단계가 많아 고객이 이탈했습니다.\n과제: 결제 단계를 줄이고 고객 이탈을 개선해야 했습니다.\n한 일: 고객 12명을 인터뷰하고 결제 화면의 필수 입력을 세 단계로 줄였습니다.\n성과: 결제 완료율이 42%에서 55%로 개선됐습니다.';
+      yield { kind: 'file', name, getFile: async () => new File([body], name) };
+    } });
+  });
+  await click('button', '설치 없이 폴더 접근 허용');
+  await page.waitForSelector('.fp-local-candidate');
+  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 5);
+  const reviewedCardId = await page.$$eval('.fp-local-candidate', nodes => nodes.find(node => node.querySelector('.fp-local-title input').value === 'CampusLink').id);
+  const reviewedTask = (await (await page.$(`[id="${reviewedCardId}"]`)).$$('textarea'))[3];
+  await reviewedTask.type('회의 운영 기준을 확인했습니다.');
+  await click('button', '다음 자료에서 경험 더 찾기');
+  await page.waitForFunction(() => document.querySelector('.fp-local-title input')?.value === '결제 단계 개선');
+  assert.equal(await page.$eval('.fp-local-candidate .fp-local-recommendation-badge', node => node.textContent), '추천 경험');
+  assert.equal(await page.evaluate(id => document.getElementById(id).querySelectorAll('textarea')[3].value, reviewedCardId), '회의 운영 기준을 확인했습니다.');
+  assert.equal(await page.evaluate(id => document.getElementById(id).querySelector('input[type="checkbox"]').checked, reviewedCardId), true);
+  const continuedFusion = await page.$$eval('.fp-local-candidate', nodes => nodes.filter(node => node.querySelector('.fp-local-title input').value === 'CampusLink').map(node => ({
+    action: node.querySelectorAll('textarea')[4].value, result: node.querySelectorAll('textarea')[5].value, source: node.querySelector('pre').textContent,
+  })));
+  assert.equal(continuedFusion.length, 1, 'a selected card is refreshed in place rather than duplicated after a later related document');
+  assert.match(continuedFusion[0].action, /회원 권한/); assert.match(continuedFusion[0].action, /공지 탐색 로그/); assert.match(continuedFusion[0].result, /1분/);
+  assert.match(continuedFusion[0].source, /기록 000.md/); assert.match(continuedFusion[0].source, /기록 243.md/);
+  assert.equal(await page.$$eval('.fp-local-candidate input[type="checkbox"]:checked', nodes => nodes.length), 5, 'existing selections stay visible and a newly recommended card is not silently selected');
+  assert.equal(writes.length, 11);
+  await page.$eval('.fp-local-candidate', node => node.scrollIntoView());
+  await page.screenshot({ path: path.join(output, 'recommendation-followup-mobile.png') });
   assert.deepEqual(prohibited, []);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, automaticDiscovery: { pickerCalls: 0, documents: 49, expandedCoreExperiences: 5, noiseFiltered: true, readsPastFirstFive: true }, contentMerging: { differentFileNames: true, canSeparate: true }, parsedFormats: ['TXT', 'MD', 'CSV', 'PDF', 'DOCX', 'PPTX', 'HWPX'], roles: ['pm', 'dev'], experiences: writes.length, analysisRequests: analysisCalls.length, prohibitedRequests: prohibited, screenshots: output }));
+  console.log(JSON.stringify({ passed: true, automaticDiscovery: { pickerCalls: 0, documents: 49, expandedCoreExperiences: 5, noiseFiltered: true, readsPastFirstFive: true }, recommendations: { evidenceShown: true, laterCandidatesRankFirst: true, reviewedValuesAndVisibleSelectionsKept: true }, contentMerging: { differentFileNames: true, reportEssayRetrospectiveOneCard: true, laterSourceRefreshesOneCard: true, newContributionsAndResultsKept: true, canSeparate: true }, parsedFormats: ['TXT', 'MD', 'CSV', 'PDF', 'DOCX', 'PPTX', 'HWPX'], roles: ['pm', 'dev'], experiences: writes.length, analysisRequests: analysisCalls.length, prohibitedRequests: prohibited, screenshots: output }));
 } finally {
   await browser.close();
   connector.closeAllConnections(); await new Promise(resolve => connector.close(resolve));

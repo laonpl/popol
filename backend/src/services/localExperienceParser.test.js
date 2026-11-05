@@ -126,3 +126,16 @@ test('single experience import fills STRUCTURED fields from the original sentenc
   assert.match(structured.content.task, /재설계했다/);
   assert.match(structured.content.output, /81%로 높였다/);
 });
+
+test('source artifacts are excluded before PDF fragments are joined into field sentences', () => {
+  const source = ['공지 검색 개선', '2025.01 ~ 2025.03', '역할: 백엔드 개발자',
+    'profile@example.com · 010-1234-5678',
+    "description: '다양한 문화를 경험하고 싶습니다.',", 'const result = rows.map(row => row.name);',
+    '한 일: 공지 검색 필터를 구현했습니다.', '성과: 검색 시간을 5분에서 1분으로 단축했습니다.'].join('\n');
+  const { experiences } = parseExperiencesLocally(source);
+  assert.equal(experiences.length, 1);
+  assert.equal(experiences[0].role, '백엔드 개발자');
+  assert.doesNotMatch(experiences[0].action, /example|description|const|싶습니다/);
+  assert.match(experiences[0].action, /검색 필터/);
+  assert.match(experiences[0].sourceText, /description:/);
+});

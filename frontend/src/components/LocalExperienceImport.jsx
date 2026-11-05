@@ -4,8 +4,8 @@ import toast from 'react-hot-toast';
 import useAuthStore from '../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../stores/experienceStore';
 import { scanLocalDirectory, scanLocalFileList, organizeLocalFiles, mergeLocalCandidates,
-  normalizeLocalTitle, LOCAL_SELECTION_LIMIT, findCoreLocalExperiences, splitLocalCandidate } from '../services/localExperienceFiles';
-import { CORE_EXPERIENCE_LIMIT, assessLocalExperience } from '../../../local-connector/experienceSelection.mjs';
+  normalizeLocalTitle, LOCAL_SELECTION_LIMIT, findCoreLocalExperiences, splitLocalCandidate, reconcileLocalCandidates } from '../services/localExperienceFiles';
+import { CORE_EXPERIENCE_LIMIT, sortLocalExperiences } from '../../../local-connector/experienceSelection.mjs';
 import { isExperienceTitle } from '../../../local-connector/experienceEvidence.mjs';
 import { analyzeLocalExperiences } from '../services/localExperienceAnalysis';
 import { discoverLocalExperiences } from '../services/localExperienceConnector';
@@ -87,15 +87,17 @@ export default function LocalExperienceImport({ onImported, onOpenResult, onBusy
         onProgress: ({ checked, totalDocuments, path }) => setProgress(`핵심경험 선별 ${checked}/${totalDocuments} · ${path}`),
       });
       controller.signal.throwIfAborted();
-      const pinned = more ? items.filter(item => selectedItems.has(item.id) || records[item.id]).map(previous => {
-        const fresh = parsed.items.find(item => item.id === previous.id);
-        return fresh ? { ...fresh, ...Object.fromEntries(['title', ...Object.keys(FIELD_LABELS)].map(field => [field, previous[field]])) } : previous;
-      }) : [];
-      const ordered = [...pinned, ...parsed.items.filter(item => !pinned.some(previous => previous.id === item.id))];
+      const reconciled = more ? reconcileLocalCandidates(items, parsed.items, { selectedItems, records, supporting: parsed.supporting }) : null;
+      const ordered = reconciled?.items || sortLocalExperiences(parsed.items);
       setItems(ordered);
+      if (more) {
+        setSelectedItems(reconciled.selectedItems); setRecords(reconciled.records);
+        const lastPinned = ordered.reduce((last, item, index) => reconciled.preservedIds.has(item.id) ? index + 1 : last, 0);
+        setVisibleCount(previous => Math.max(previous, lastPinned));
+      }
       if (!more) setSelectedItems(new Set(ordered.slice(0, CORE_EXPERIENCE_LIMIT).filter(item => !existingTitles.has(normalizeLocalTitle(item.title))).map(item => item.id)));
       setFailures(old => [...(more ? old : []), ...parsed.failures]);
-      const usedPaths = new Set(parsed.items.flatMap(item => item.sourcePaths));
+      const usedPaths = new Set(ordered.flatMap(item => item.sourcePaths));
       setRejected(old => [...(more ? old : []), ...parsed.rejected].filter(entry => !usedPaths.has(entry.path))
         .filter((entry, index, all) => all.findIndex(row => row.path === entry.path && row.title === entry.title && row.reason === entry.reason) === index));
       setSupporting(parsed.supporting);
@@ -170,18 +172,22 @@ export default function LocalExperienceImport({ onImported, onOpenResult, onBusy
     const chosen = items.filter(item => selectedItems.has(item.id) && !records[item.id]);
     if (chosen.length < 2) return;
     const combined = mergeLocalCandidates(chosen);
-    setItems(previous => [...previous.filter(item => !chosen.some(row => row.id === item.id)), combined]);
+    const nextItems = sortLocalExperiences([...items.filter(item => !chosen.some(row => row.id === item.id)), combined]);
+    setItems(nextItems);
+    if (automatic) setVisibleCount(previous => Math.max(previous, nextItems.findIndex(item => item.id === combined.id) + 1));
     setSelectedItems(new Set([combined.id]));
   };
 
   const separate = item => {
     const parts = splitLocalCandidate(item);
-    setItems(previous => previous.flatMap(row => row.id === item.id ? parts : [row]));
-    setSelectedItems(previous => {
-      const next = new Set(previous); next.delete(item.id);
-      if (previous.has(item.id)) parts.filter(part => part.coreSelection.eligible).forEach(part => next.add(part.id));
-      return next;
-    });
+    const nextItems = sortLocalExperiences(items.flatMap(row => row.id === item.id ? parts : [row]));
+    const nextSelected = new Set(selectedItems); nextSelected.delete(item.id);
+    if (selectedItems.has(item.id)) parts.filter(part => part.coreSelection.eligible).forEach(part => nextSelected.add(part.id));
+    setItems(nextItems); setSelectedItems(nextSelected);
+    if (automatic) {
+      const revealed = new Set([...nextSelected, ...parts.map(part => part.id)]);
+      setVisibleCount(previous => Math.max(previous, ...nextItems.map((row, index) => revealed.has(row.id) ? index + 1 : 0)));
+    }
   };
 
   const analyze = async () => {
@@ -215,8 +221,9 @@ export default function LocalExperienceImport({ onImported, onOpenResult, onBusy
 
   const updateItem = (id, field, value) => setItems(previous => previous.map(item => {
     if (item.id !== id) return item;
-    const next = { ...item, [field]: value, ...(field === 'title' ? { needsTitleReview: !isExperienceTitle(value) } : {}) };
-    return { ...next, ...(item.coreSelection ? { coreSelection: assessLocalExperience(next) } : {}) };
+    const next = { ...item, [field]: value, localEdits: { ...item.localEdits, [field]: value }, ...(field === 'title' ? { needsTitleReview: !isExperienceTitle(value) } : {}) };
+    // Refresh the reason on this card without moving a focused field while typing.
+    return sortLocalExperiences([next])[0];
   }));
 
   return (
@@ -274,7 +281,7 @@ export default function LocalExperienceImport({ onImported, onOpenResult, onBusy
         </div>}
 
         {step === 'review' && <div className="fp-local-body">
-          <div className="fp-local-toolbar"><div><h3>경험 후보 총 {items.length}개를 찾았어요</h3><p>같은 프로젝트를 다룬 자료는 본문 근거로 묶고 STAR로 추출했어요. 역할이나 결과가 부족한 경험도 보완하며 남길 수 있어요.</p></div>
+          <div className="fp-local-toolbar"><div><h3>경험 후보 총 {items.length}개를 찾았어요</h3><p>내 기여와 결과가 구체적으로 확인되는 경험부터 보여드려요. 같은 프로젝트의 자료는 묶고, 부족한 내용은 보완하며 남길 수 있어요.</p></div>
             <button className="fp-local-secondary" onClick={() => automatic ? automaticSearch() : setStep('files')}>{automatic ? '내 컴퓨터 다시 찾기' : '파일 다시 고르기'}</button></div>
           {automatic && <div className="fp-local-auto-summary"><p>{inventory.roots?.join(' · ')}에서 문서 {inventory.files.length.toLocaleString()}개 발견 · 드라이브별 관련 자료를 고르게 {automaticOffset}개 자동 확인</p>
             {inventory.rootStats?.length > 0 && <details className="fp-local-root-status" open={inventory.rootStats.some(root => root.state === 'inaccessible')}><summary>위치별 탐색 결과</summary><ul>{inventory.rootStats.map((root, index) => <li key={`${root.label}:${index}`}><strong>{root.label}</strong><span>{ROOT_STATES[root.state] || root.state} · 문서 {root.found.toLocaleString()}개{root.inaccessible > 0 ? ` · 접근 불가 폴더 ${root.inaccessible}개` : ''}</span></li>)}</ul></details>}
@@ -295,15 +302,18 @@ export default function LocalExperienceImport({ onImported, onOpenResult, onBusy
             <button className="fp-local-secondary" disabled={items.filter(item => selectedItems.has(item.id) && !records[item.id]).length < 2} onClick={merge}>선택한 후보 하나로 합치기</button></div>
           <div className="fp-local-candidates">
             {visibleItems.map(item => <article id={`fp-local-exp-${encodeURIComponent(item.id)}`} key={item.id} className={`fp-local-candidate ${savedIds.has(item.id) ? 'is-saved' : ''}`}>
-              <div className="fp-local-candidate-top"><label><input type="checkbox" checked={selectedItems.has(item.id)} disabled={savedIds.has(item.id)} onChange={() => setSelectedItems(previous => toggle(previous, item.id))} /><span>{savedIds.has(item.id) ? '직군별 분석 완료' : records[item.id] ? '자료 저장됨 · 분석 재시도' : '이 경험 분석하기'}</span></label>
-                {item.needsReview && <small>내용 확인 필요</small>}</div>
+              <div className="fp-local-candidate-top"><label><input type="checkbox" checked={selectedItems.has(item.id)} disabled={savedIds.has(item.id)} onChange={() => setSelectedItems(previous => toggle(previous, item.id))} /><span>{savedIds.has(item.id) ? item.hasNewLocalSources ? '추가 자료 포함 · 기존 분석 결과' : '직군별 분석 완료' : records[item.id] ? '자료 저장됨 · 분석 재시도' : '이 경험 분석하기'}</span></label>
+                <div className="fp-local-candidate-status">{item.recommendation?.recommended && <span className="fp-local-recommendation-badge">추천 경험</span>}{item.needsReview && <small>내용 확인 필요</small>}</div></div>
+              {item.recommendation?.recommended && item.recommendation.reasons?.length > 0 && <p className="fp-local-recommendation" aria-label="추천 이유">{item.recommendation.reasons.slice(0, 3).join(' · ')}</p>}
               {item.coreSelection && <p className="fp-local-evidence-note">{item.coreSelection.missing?.length ? `${item.coreSelection.missing.join(' · ')} 보완 필요 · 확인된 행동을 바탕으로 포함했어요` : 'STAR 근거를 확인했어요'}</p>}
+              {item.separateExperience && <p className="fp-local-help">직접 나눈 경험이에요. 다시 합치려면 후보를 선택해주세요.</p>}
+              {item.hasNewLocalSources && records[item.id] && <p className="fp-local-help">추가 자료를 원문에 함께 표시했어요. 저장된 경험과 기존 분석 결과에는 이전 자료가 보존되어 있어요.</p>}
               <label className="fp-local-title">경험 제목<input value={editableText(item.title)} maxLength={200} disabled={Boolean(records[item.id])} onChange={event => updateItem(item.id, 'title', event.target.value)} /></label>
               {item.mergeReasons?.length > 0 && <div className="fp-local-evidence-note"><strong>관련 자료 {item.sourcePaths.length}개를 하나의 경험으로 묶었어요.</strong><ul>{item.mergeReasons.map(reason => <li key={reason}>{reason}</li>)}</ul>
                 {item.localParts?.length > 1 && !records[item.id] && <button className="fp-local-text" onClick={() => separate(item)}>다른 경험이면 묶음 나누기</button>}</div>}
               {existingTitles.has(normalizeLocalTitle(item.title)) && !records[item.id] && <p className="fp-local-warning">같은 제목의 경험이 이미 있어요. 추가할 항목인지 확인해주세요.</p>}
               <div className="fp-local-fields">{Object.entries(FIELD_LABELS).map(([field, label]) => <label key={field}>{label}<textarea value={editableText(item[field])} rows={field === 'period' || field === 'role' ? 1 : 3} maxLength={8000} disabled={Boolean(records[item.id])} placeholder="자료에서 확인되지 않았어요. 알고 있는 내용을 채워주세요." onChange={event => updateItem(item.id, field, event.target.value)} /></label>)}</div>
-              <details className="fp-local-source"><summary>출처·원문 확인 ({item.sourcePaths.length}개 파일)</summary><ul>{item.sourcePaths.map(path => <li key={path}>{path}</li>)}</ul><pre>{materialPlainText(item.sourceText)}</pre></details>
+              <details className="fp-local-source"><summary>출처·원문 확인 ({item.sourcePaths.length}개 파일)</summary><ul>{item.sourcePaths.map(path => <li key={path}>{path}</li>)}</ul><pre>{materialPlainText(item.localDocuments?.length ? item.localDocuments.map(document => `--- ${document.path} ---\n${document.text}`).join('\n\n') : item.sourceText)}</pre></details>
               {records[item.id] && <button className="fp-local-secondary mt-3" onClick={() => onOpenResult?.(records[item.id].experienceId)}>{savedIds.has(item.id) ? '직군별 핵심경험 결과 보기' : '저장된 경험 보기'} <ArrowRight size={15} /></button>}
             </article>)}
           </div>

@@ -75,3 +75,51 @@ test('an unnamed personal experience is kept for review without treating its pla
   assert.equal(result.items[0].title, '경험 제목 확인 필요');
   assert.ok(result.items[0].coreSelection.missing.includes('경험 제목'));
 });
+
+test('portfolio page code, contact headers and career wishes never populate STAR fields', async () => {
+  const body = [
+    'HIGHLIGHTS', 'portfolio@example.com · github.com/example · 010-1234-5678',
+    '학교 공지 검색 프로젝트', '역할: 백엔드 개발자',
+    '상황: 회원들이 중요한 공지를 놓치고 있었습니다.',
+    '과제: 공지 탐색 시간을 줄여야 했습니다.',
+    "description: '사용자들이 쉽게 접근하고 효율적으로 사용할 수 있는 앱을 만드는 데 집중할 것입니다.',",
+    "id: 3, image: '/goal_3.jpg', description: '운동과 식습관을 관리하고 싶습니다.'",
+    '다양한 문화를 경험하고 싶습니다.',
+    '한 일: 공지 검색 필터를 구현하고 오류 로그를 분류했습니다.',
+    'portfolio@example.com · github.com/example · 010-1234-5678',
+    'const result = projects.map(project => project.description);',
+    '성과: 검색 시간을 5분에서 1분으로 단축했습니다.',
+  ].join('\n');
+  const result = await organizeLocalFiles([document('공지 검색 회고.md', body)], { experienceOnly: true });
+  assert.equal(result.items.length, 1);
+  const item = result.items[0];
+  assert.match(item.title, /학교 공지 검색/);
+  assert.equal(item.task, '공지 탐색 시간을 줄여야 했습니다.');
+  assert.match(item.action, /검색 필터/);
+  assert.match(item.result, /1분/);
+  for (const field of ['role', 'context', 'task', 'action', 'result']) {
+    assert.doesNotMatch(item[field], /example|description|goal_3|const |싶습니다|HIGHLIGHTS/);
+  }
+  assert.match(item.sourceText, /description:/, 'the original code remains in the source for review');
+  assert.match(item.sourceText, /portfolio@example.com/);
+});
+
+test('portfolio introduction and contact information are not emitted as an additional experience', async () => {
+  const body = ['HIGHLIGHTS', 'portfolio@example.com · github.com/example · 010-1234-5678',
+    '문제를 정의하고 끝까지 검증하는 프론트엔드 개발자',
+    '01. 학교 공지 검색 프로젝트', '역할: 개발 담당', '한 일: 회원별 공지 검색 필터를 설계하고 구현했습니다.',
+    '02. 동아리 회계 정리 프로젝트', '역할: 운영 담당', '한 일: 영수증 대장을 만들고 월별 결산을 자동화했습니다.'].join('\n');
+  const result = await organizeLocalFiles([document('개발자 포트폴리오.md', body)], { experienceOnly: true });
+  assert.equal(result.items.length, 2);
+  assert.ok(result.items.every(item => !/HIGHLIGHTS|example/.test(item.title)));
+  assert.ok(result.items.every(item => !/프론트엔드 개발자/.test(item.role)));
+});
+
+test('fenced code with natural-language strings is excluded from direct STAR extraction', () => {
+  const item = extractLocalStar({ sourceText: ['과제: 검색 지연을 해결해야 했습니다.', '```js',
+    "const labels = { description: '다양한 경험을 하고 싶습니다.' };", '```',
+    '한 일: 검색 색인을 수정했습니다.', '성과: 응답 시간을 2초에서 1초로 단축했습니다.'].join('\n') });
+  assert.equal(item.task, '검색 지연을 해결해야 했습니다.');
+  assert.equal(item.action, '검색 색인을 수정했습니다.');
+  assert.doesNotMatch(JSON.stringify(item.star), /const|description|다양한 경험/);
+});

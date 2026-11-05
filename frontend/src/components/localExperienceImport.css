@@ -40,6 +40,9 @@
 .fp-local-candidate-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
 .fp-local-candidate-top label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 750; }
 .fp-local-candidate-top small { font-size: 11px; color: #87671c; }
+.fp-local-candidate-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fp-local-recommendation-badge { border-radius: 6px; padding: 4px 8px; background: #e9f2e8; color: #345c3b; font-size: 11px; font-weight: 750; }
+.fp-local-import .fp-local-recommendation { margin: -4px 0 12px; color: #416348; font-size: 12px; line-height: 1.7; }
 .fp-local-title, .fp-local-fields label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; }
 .fp-local-title input, .fp-local-fields textarea { width: 100%; border: 1px solid #c9c9bf; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 400; background: #fff; line-height: 1.7; }
 .fp-local-title input { font-size: 16px; font-weight: 750; margin-bottom: 16px; }

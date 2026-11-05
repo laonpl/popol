@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scanLocalDirectory, scanLocalFileList, localFileSkipReason, decodeLocalText,
-  organizeLocalFiles, mergeLocalCandidates, pdfItemsToText, automaticFileBatch, looksLikeExperience, LOCAL_FILE_LIMIT } from './localExperienceFiles.js';
+  organizeLocalFiles, mergeLocalCandidates, splitLocalCandidate, reconcileLocalCandidates, pdfItemsToText, automaticFileBatch, looksLikeExperience, LOCAL_FILE_LIMIT } from './localExperienceFiles.js';
 import { buildLocalExperienceDraft } from '../utils/localExperienceDraft.js';
 import { materialPlainText } from '../../../shared/materialPlainText.mjs';
 
@@ -56,8 +56,119 @@ test('local organization preserves quoted facts, deduplicates copies, and isolat
   assert.match(result.items[0].result, /18% 개선/);
   assert.equal(result.items[0].role, '기획자');
   assert.deepEqual(result.items[0].sourcePaths, ['경험/프로젝트.txt', '경험/복사본.md']);
+  assert.deepEqual(result.items[0].localDocuments.map(document => document.path), ['경험/프로젝트.txt', '경험/복사본.md']);
+  const draft = buildLocalExperienceDraft(result.items[0]);
+  assert.match(draft.content['로컬 파일 원문'], /프로젝트.txt ---/);
+  assert.match(draft.content['로컬 파일 원문'], /복사본.md ---/);
   assert.equal(result.failures[0].message, '접근 거부');
   assert.match(result.items[0].sourceText, /사용자 인터뷰/);
+});
+
+test('manually selected files group complementary project records and retain incomplete unrelated material', async () => {
+  const result = await organizeLocalFiles([
+    record('인터뷰 정리.md', '프로젝트명: 학교 공지 검색\n역할: 서비스 기획자\n한 일: 동아리 회원 8명을 인터뷰하고 공지 검색 화면을 설계했습니다.'),
+    record('운영 결과.md', '프로젝트명: 학교 공지 검색\n성과: 동아리 회원의 공지 탐색 시간이 5분에서 1분으로 줄었습니다.'),
+    record('별도 메모.md', '봄 축제 메모\n아직 역할과 실행한 작업은 기록하지 않았습니다. 추후 행사 결과를 확인할 예정입니다.'),
+  ]);
+  assert.equal(result.items.length, 2);
+  assert.equal(result.rejected.length, 0, 'manual selection keeps its existing inclusion policy');
+  const project = result.items.find(item => item.title === '학교 공지 검색');
+  assert.deepEqual(project.sourcePaths, ['경험/인터뷰 정리.md', '경험/운영 결과.md']);
+  assert.match(project.action, /인터뷰/);
+  assert.match(project.result, /1분/);
+  assert.equal(project.localDocuments.length, 2);
+  assert.ok(result.items.some(item => item.sourcePaths.includes('경험/별도 메모.md')));
+});
+
+test('manual and automatic intake put contribution and outcome evidence before incomplete records', async () => {
+  const records = [
+    record('먼저 읽은 메모.md', '일정 정리 프로젝트\n역할: 동아리 운영 담당\n한 일: 회의 일정을 조율하고 회의 내용을 정리했습니다.'),
+    record('나중에 읽은 회고.md', `${sample}\n과제: 결제 단계를 줄이고 고객 이탈을 개선해야 했습니다.`),
+  ];
+  for (const experienceOnly of [false, true]) {
+    const result = await organizeLocalFiles(records, { experienceOnly });
+    assert.equal(result.items.length, 2, 'an incomplete experience remains available for review');
+    assert.equal(result.items[0].title, '결제 개선 프로젝트');
+    assert.equal(result.items[0].recommendation.recommended, true);
+    assert.ok(result.items[0].recommendation.reasons.length > 0);
+    assert.ok(result.items[0].recommendation.score > result.items[1].recommendation.score);
+    assert.equal(result.items[1].recommendation.recommended, false);
+  }
+});
+
+test('manual merge and separation refresh recommendation evidence without inheriting a stale badge', async () => {
+  const result = await organizeLocalFiles([
+    record('과정.md', '프로젝트명: 결제 개선\n역할: 서비스 기획자\n한 일: 고객 12명을 인터뷰하고 결제 화면을 세 단계로 다시 설계했습니다.'),
+    record('결과.md', '프로젝트명: 결제 개선\n성과: 결제 전환율이 18% 개선됐습니다.'),
+  ]);
+  const [combined] = result.items;
+  assert.equal(combined.recommendation.recommended, true);
+  const parts = splitLocalCandidate(combined);
+  assert.equal(parts.length, 2);
+  assert.ok(parts.every(part => !part.recommendation.recommended), 'separated incomplete records do not retain the combined recommendation');
+  const merged = mergeLocalCandidates(parts);
+  assert.equal(merged.recommendation.recommended, true);
+  assert.ok(merged.recommendation.score > parts[0].recommendation.score);
+});
+
+test('later fusion changes a representative ID without duplicating a selected reviewed card or losing new evidence', async () => {
+  const process = record('과정.md', '프로젝트명: 학교 공지 검색\n역할: 백엔드 개발자\n한 일: 회원 권한에 따라 공지 검색 결과를 분리했습니다.');
+  const outcome = record('결과.md', '프로젝트명: 학교 공지 검색\n한 일: 검색 오류 로그를 분류하고 색인 조건을 수정했습니다.\n성과: 공지 탐색 시간이 5분에서 1분으로 줄었습니다.');
+  const [old] = (await organizeLocalFiles([process])).items;
+  const reviewed = { ...old, action: '회원별 권한 조건을 직접 검토했습니다.', localEdits: { action: '회원별 권한 조건을 직접 검토했습니다.' } };
+  const fresh = (await organizeLocalFiles([process, outcome])).items.map(item => ({ ...item, id: 'new-representative' }));
+  const result = reconcileLocalCandidates([reviewed], fresh, { selectedItems: new Set([old.id]) });
+  assert.equal(result.items.length, 1);
+  const [item] = result.items;
+  assert.equal(item.id, old.id);
+  assert.deepEqual([...result.selectedItems], [old.id]);
+  assert.match(item.action, /직접 검토/);
+  assert.match(item.action, /검색 오류 로그/);
+  assert.match(item.result, /1분/);
+  assert.equal(item.localDocuments.length, 2);
+  assert.match(item.sourceText, /회원 권한/);
+  assert.equal(result.preservedIds.has(old.id), true);
+});
+
+test('fusion of two visible cards preserves the saved record and keeps one local card without changing account records', async () => {
+  const a = (await organizeLocalFiles([record('진행.md', '프로젝트명: 학교 공지 검색\n역할: 개발자\n한 일: 회원 권한에 따라 공지 검색 결과를 분리했습니다.')])).items[0];
+  const b = (await organizeLocalFiles([record('배포.md', '프로젝트명: 학교 공지 검색\n역할: 개발자\n한 일: 검색 오류 로그를 수집하고 화면의 필터를 수정했습니다.\n성과: 시제품을 동아리 회원 30명에게 배포했습니다.')])).items[0];
+  const records = { [a.id]: { experienceId: 'draft-1', status: 'draft' }, [b.id]: { experienceId: 'saved-2', status: 'complete' } };
+  const fresh = mergeLocalCandidates([a, b]);
+  const result = reconcileLocalCandidates([a, b], [{ ...fresh, id: 'fresh-fusion' }], { selectedItems: new Set([a.id]), records });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].id, b.id, 'the existing completed result keeps its local reference');
+  assert.equal(result.selectedItems.size, 0, 'a completed experience is not silently selected for another analysis');
+  assert.deepEqual(result.records, records);
+  assert.equal(result.items[0].sourcePaths.length, 2);
+  assert.equal(result.items[0].hasNewLocalSources, true, 'added sources are distinguished from the existing saved analysis');
+});
+
+test('two entries in one portfolio do not inherit each other’s edits just because their file path matches', async () => {
+  const body = '01. 결제 화면 개선 프로젝트\n2025.01 ~ 2025.03\n역할: 기획자\n한 일: 결제 화면의 필수 입력을 줄이고 안내 문구를 수정했습니다.\n02. 축제 동선 운영 프로젝트\n2025.08 ~ 2025.09\n역할: 운영 담당\n한 일: 관객 안내 표지를 제작하고 입장 동선을 조정했습니다.';
+  const previous = (await organizeLocalFiles([record('포트폴리오.md', body)])).items;
+  const target = previous.find(item => item.title.includes('결제'));
+  const reviewed = previous.map(item => item === target ? { ...item, role: '직접 검토한 기획 역할', localEdits: { role: '직접 검토한 기획 역할' } } : item);
+  const fresh = previous.map(item => ({ ...item, id: `fresh:${item.id}` }));
+  const result = reconcileLocalCandidates(reviewed, fresh, { selectedItems: new Set([target.id]) });
+  assert.equal(result.items.length, 2);
+  assert.equal(result.items.find(item => item.title.includes('결제')).role, '직접 검토한 기획 역할');
+  assert.equal(result.items.find(item => item.title.includes('축제')).role, '운영 담당');
+  assert.deepEqual([...result.selectedItems], [target.id]);
+});
+
+test('an explicit manual fusion retains every source through another pass and can still be separated', async () => {
+  const a = (await organizeLocalFiles([record('검색.md', '검색 화면 개선 프로젝트\n역할: 개발자\n한 일: 검색 결과의 필터를 구현하고 오류 로그를 수집했습니다.')])).items[0];
+  const b = (await organizeLocalFiles([record('운영.md', '축제 운영 프로젝트\n역할: 운영 담당\n한 일: 관객 안내 표지를 제작하고 입장 동선을 조정했습니다.')])).items[0];
+  const merged = mergeLocalCandidates([a, b]);
+  assert.equal(merged.localParts.length, 2);
+  const result = reconcileLocalCandidates([merged], [a, b], { selectedItems: new Set([merged.id]) });
+  assert.equal(result.items.length, 1, 'a later automatic pass respects the user’s explicit merge');
+  assert.equal(result.items[0].localDocuments.length, 2);
+  const separated = splitLocalCandidate(result.items[0]);
+  assert.equal(separated.length, 2);
+  assert.ok(separated.every(item => item.separateExperience && !item.manualFusion));
+  assert.deepEqual(separated.flatMap(item => item.sourcePaths).sort(), [a.sourcePaths[0], b.sourcePaths[0]].sort());
 });
 
 test('unknown fields remain empty and multiple projects retain separate source excerpts', async () => {

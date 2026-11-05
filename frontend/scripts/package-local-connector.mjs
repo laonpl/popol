@@ -8,7 +8,7 @@ const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const source = path.resolve(frontend, '../local-connector');
 const output = path.join(frontend, 'public/local-experience-connector');
 const archivePath = path.join(output, 'fitpoly-local-connector-win.zip');
-const files = ['server.mjs', 'scanner.mjs', 'experienceSelection.mjs', 'experienceEvidence.mjs', 'start.ps1', 'setup.ps1', 'remove-connection.ps1', 'FitPoly-자동연결-설정.cmd', 'FitPoly-탐색기-실행.cmd', 'README.md'];
+const files = ['server.mjs', 'scanner.mjs', 'experienceSelection.mjs', 'experienceEvidence.mjs', 'experienceText.mjs', 'start.ps1', 'setup.ps1', 'remove-connection.ps1', 'FitPoly-자동연결-설정.cmd', 'FitPoly-탐색기-실행.cmd', 'README.md'];
 if (process.platform !== 'win32') {
   await access(archivePath);
   const packaged = await JSZip.loadAsync(await readFile(archivePath));
@@ -34,6 +34,6 @@ if (process.platform !== 'win32') {
   await writeFile(path.join(output, 'config.json'), JSON.stringify({ version: 4, nodeVersion: process.version, downloadUrl: '/local-experience-connector/fitpoly-local-connector-win.zip', bytes: archive.length,
     sha256: createHash('sha256').update(archive).digest('hex') }, null, 2) + '\n');
   const verify = await JSZip.loadAsync(archive);
-  if (!verify.file('node.exe') || !verify.file('scanner.mjs') || !verify.file('NODE-LICENSE.txt')) throw new Error('Incomplete local connector archive');
+  if (files.some(name => !verify.file(name)) || !verify.file('node.exe') || !verify.file('NODE-LICENSE.txt')) throw new Error('Incomplete local connector archive');
   console.log(`Packaged portable Windows local connector: ${archive.length} bytes.`);
 }

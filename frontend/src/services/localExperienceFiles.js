@@ -1,8 +1,8 @@
 import { parseExperiencesLocally, isCollectionDocument } from '../../../shared/localExperienceParser.mjs';
 import { materialPlainText } from '../../../shared/materialPlainText.mjs';
 import { extractLocalStar } from '../../../shared/localExperienceStar.mjs';
-import { hasPersonalEvidence, experienceFolder } from '../../../local-connector/experienceEvidence.mjs';
-import { assessLocalExperience, localSourceKind, SOURCE_KIND_REASON, consolidateLocalEvidence, rankCoreExperiences } from '../../../local-connector/experienceSelection.mjs';
+import { hasPersonalEvidence, experienceFolder, isExperienceTitle } from '../../../local-connector/experienceEvidence.mjs';
+import { assessLocalExperience, localSourceKind, SOURCE_KIND_REASON, consolidateLocalEvidence, rankCoreExperiences, sortLocalExperiences, fuseLocalExperienceFields } from '../../../local-connector/experienceSelection.mjs';
 
 export const LOCAL_FILE_LIMIT = 25 * 1024 * 1024;
 export const LOCAL_TEXT_LIMIT = 120000;
@@ -253,13 +253,16 @@ export async function organizeLocalFiles(records, { signal, onProgress = () => {
         const key = sourceText.replace(/\s+/g, ' ').trim();
         if (seen.has(key)) {
           const duplicate = items.find(candidate => candidate.sourceText.replace(/\s+/g, ' ').trim() === key);
-          if (duplicate && !duplicate.sourcePaths.includes(record.path)) duplicate.sourcePaths.push(record.path);
+          if (duplicate && !duplicate.sourcePaths.includes(record.path)) {
+            duplicate.sourcePaths.push(record.path);
+            duplicate.localDocuments.push({ path: record.path, text: sourceText });
+          }
           continue;
         }
         seen.add(key);
         items.push({ ...item,
           ...(experienceOnly ? { coreSelection: quality } : {}),
-          id: `${record.id}:${part}`, sourceText, sourcePaths: [record.path],
+          id: `${record.id}:${part}`, sourceText, sourcePaths: [record.path], localEdits: {},
           localDocuments: [{ path: record.path, text: sourceText }],
           period: item.startDate ? `${item.startDate}${item.ongoing ? ' ~ 현재' : item.endDate ? ` ~ ${item.endDate}` : ''}` : '',
           needsReview: !parsed.confident || quality.needsReview });
@@ -270,8 +273,9 @@ export async function organizeLocalFiles(records, { signal, onProgress = () => {
     }
     await new Promise(resolve => setTimeout(resolve, 0));
   }
-  if (!experienceOnly) return { items, failures, rejected, supporting: [] };
   const grouped = consolidateLocalEvidence(items);
+  // Explicitly chosen files use the same grouping rules while retaining incomplete candidates.
+  if (!experienceOnly) return { items: sortLocalExperiences(grouped), failures, rejected, supporting: [] };
   const supporting = grouped.filter(item => !item.coreSelection.eligible);
   rejected.push(...supporting.map(item => ({ path: item.sourcePaths[0], title: item.title, reason: item.coreSelection.reasons.join(' ') })));
   return { items: rankCoreExperiences(grouped, { consolidated: true }), supporting, failures, rejected };
@@ -302,18 +306,113 @@ export async function findCoreLocalExperiences(scanned, { offset = 0, previous =
   return { items, supporting, failures, rejected: rejected.filter(item => !selectedPaths.has(item.path)), offset: current };
 }
 
+const sourceKey = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+const leafParts = item => item.localParts?.length ? item.localParts.flatMap(leafParts) : [item];
+const sourceDocuments = item => item.localDocuments?.length ? item.localDocuments
+  : (item.sourcePaths || []).map(path => ({ path, text: item.sourceText || '' }));
+const documentKey = document => `${String(document.path || '').replace(/\\/g, '/').toLowerCase()}\n${sourceKey(document.text)}`;
+function uniqueDocuments(items) {
+  const seen = new Set();
+  return items.flatMap(sourceDocuments).filter(document => {
+    const key = documentKey(document);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+function identityKeys(item) {
+  const keys = new Set();
+  for (const part of [item, ...leafParts(item)]) if (part.id) keys.add(`id:${part.id}`);
+  for (const document of sourceDocuments(item)) if (sourceKey(document.text)) keys.add(`doc:${documentKey(document)}`);
+  return keys;
+}
+
+// A group's representative ID can change when more files arrive. Match the source
+// excerpts, not the file path alone: two portfolio entries share a path.
+export function reconcileLocalCandidates(previous, fresh, { selectedItems = [], records = {}, supporting = [] } = {}) {
+  const selected = new Set(selectedItems);
+  const fields = ['title', 'period', 'role', 'context', 'task', 'action', 'result', 'learning'];
+  // Preserve a review already open before edit tracking was introduced. New scans
+  // start with an empty map, so untouched fields continue to receive new evidence.
+  const reviewedChanges = new Map(previous.map(item => [item, item.localEdits || Object.fromEntries(fields
+    .filter(field => Object.hasOwn(item, field) && (field !== 'title' || isExperienceTitle(item.title)))
+    .map(field => [field, item[field]]))]));
+  const previousKeys = new Map(previous.map(item => [item, identityKeys(item)]));
+  const keyCache = new WeakMap();
+  const score = (item, old) => {
+    if (!keyCache.has(item)) keyCache.set(item, identityKeys(item));
+    const keys = keyCache.get(item), oldKeys = previousKeys.get(old);
+    return (old.id && keys.has(`id:${old.id}`) ? 1000 : 0)
+      + [...keys].reduce((sum, key) => sum + (oldKeys.has(key) ? key.startsWith('id:') ? 100 : 1 : 0), 0);
+  };
+  let candidates = [...fresh, ...supporting.filter(item => previous.some(old => score(item, old) > 0))];
+  // An explicit manual merge remains one card when the automatic pass rechecks its leaves.
+  for (const old of previous.filter(item => item.manualFusion)) {
+    const matching = candidates.filter(item => score(item, old) > 0);
+    if (matching.length > 1) {
+      candidates = [...candidates.filter(item => !matching.includes(item)), mergeLocalCandidates(matching)];
+    }
+  }
+  const owners = new Map();
+  for (const old of previous) {
+    let best = -1, bestScore = 0;
+    candidates.forEach((item, index) => { const value = score(item, old); if (value > bestScore) { best = index; bestScore = value; } });
+    if (best >= 0) owners.set(old, best);
+  }
+  const nextSelected = new Set(), preservedIds = new Set(), usedIds = new Set();
+  const priority = item => records[item.id]?.status === 'complete' ? 0 : records[item.id] ? 1 : Object.keys(reviewedChanges.get(item)).length ? 2 : selected.has(item.id) ? 3 : 4;
+  const next = candidates.map((item, index) => {
+    const matched = previous.filter(old => owners.get(old) === index).sort((a, b) => priority(a) - priority(b));
+    const representative = matched.find(old => !usedIds.has(old.id));
+    const id = representative?.id || item.id;
+    usedIds.add(id);
+    const localEdits = {};
+    const addition = leafParts(item).filter(part => !matched.some(old => score(part, old) > 0));
+    const reviewed = {};
+    for (const field of fields) {
+      const edited = matched.filter(old => Object.hasOwn(reviewedChanges.get(old), field));
+      if (!edited.length) continue;
+      const value = field === 'title' || field === 'period' ? reviewedChanges.get(edited[0])[field]
+        : fuseLocalExperienceFields([...matched.map(old => ({ [field]: reviewedChanges.get(old)?.[field] ?? old[field] })), ...addition])[field];
+      reviewed[field] = value; localEdits[field] = value;
+    }
+    if (matched.some(old => selected.has(old.id)) && records[id]?.status !== 'complete') nextSelected.add(id);
+    if (matched.some(old => selected.has(old.id) || records[old.id] || Object.keys(reviewedChanges.get(old)).length)) preservedIds.add(id);
+    const savedPrevious = matched.find(old => old.id === id && records[old.id]);
+    const savedSources = savedPrevious && new Set(sourceDocuments(savedPrevious).map(documentKey));
+    const hasNewLocalSources = Boolean(savedPrevious && (savedPrevious.hasNewLocalSources
+      || sourceDocuments(item).some(document => !savedSources.has(documentKey(document)))));
+    const combined = { ...item, ...reviewed, id, localEdits, hasNewLocalSources, manualFusion: Boolean(item.manualFusion || matched.some(old => old.manualFusion)) };
+    return { ...combined, sourcePaths: [...new Set(combined.sourcePaths || [])], localDocuments: uniqueDocuments([combined]),
+      ...(Object.hasOwn(reviewed, 'title') ? { needsTitleReview: !isExperienceTitle(reviewed.title) } : {}),
+      situation: combined.context || '', star: { situation: combined.context || '', task: combined.task || '', action: combined.action || '', result: combined.result || '' } };
+  });
+  for (const old of previous) if (!owners.has(old) && (selected.has(old.id) || records[old.id] || old.separateExperience || Object.keys(reviewedChanges.get(old)).length)) {
+    next.push(old); preservedIds.add(old.id);
+    if (selected.has(old.id) && records[old.id]?.status !== 'complete') nextSelected.add(old.id);
+  }
+  return { items: sortLocalExperiences(next), selectedItems: nextSelected, records: { ...records }, preservedIds };
+}
+
 export function mergeLocalCandidates(items) {
   const first = items[0];
-  const combine = key => [...new Set(items.map(item => item[key]).filter(Boolean))].join('\n');
-  return { ...first, context: combine('context'), situation: combine('context'), task: combine('task'), role: combine('role'), action: combine('action'),
-    result: combine('result'), learning: combine('learning'), sourceText: combine('sourceText'),
-    sourcePaths: [...new Set(items.flatMap(item => item.sourcePaths))],
-    localDocuments: items.flatMap(item => item.localDocuments || [{ path: item.sourcePaths[0], text: item.sourceText }]),
+  const fields = fuseLocalExperienceFields(items);
+  const parts = [...new Map(items.flatMap(leafParts).map(part => [`${part.id || ''}\n${(part.sourcePaths || []).join('|')}\n${sourceKey(part.sourceText)}`, part])).values()];
+  const sourceTexts = [...new Map(parts.filter(part => part.sourceText).map(part => [sourceKey(part.sourceText), part.sourceText])).values()];
+  const merged = { ...first, ...fields, situation: fields.context, sourceText: sourceTexts.join('\n\n'),
+    sourcePaths: [...new Set(items.flatMap(item => item.sourcePaths || []))],
+    localDocuments: uniqueDocuments(items), localParts: parts, manualFusion: true, separateExperience: false,
+    mergeReasons: [...new Set([...items.flatMap(item => item.mergeReasons || []), '직접 선택한 후보를 하나의 경험으로 합쳤어요.'])],
+    localEdits: Object.fromEntries(['title', 'period', 'role', 'context', 'task', 'action', 'result', 'learning']
+      .filter(field => field === 'title' || items.some(item => Object.hasOwn(item.localEdits || {}, field)))
+      .map(field => [field, field === 'title' || field === 'period' ? first[field] : fields[field]])),
     keywords: [...new Set(items.flatMap(item => item.keywords || []))].slice(0, 6), needsReview: true };
+  merged.star = { situation: fields.context, task: fields.task, action: fields.action, result: fields.result };
+  return sortLocalExperiences([merged])[0];
 }
 
 export function splitLocalCandidate(item) {
-  return (item.localParts || [item]).map((part, index) => ({ ...part,
+  return sortLocalExperiences(leafParts(item).map((part, index) => ({ ...part,
     id: part.id || `${item.id}:split:${index}`, localParts: [], mergeReasons: [], separateExperience: true,
-    needsReview: true, coreSelection: assessLocalExperience(part) }));
+    manualFusion: false,
+    needsReview: true, coreSelection: assessLocalExperience(part) })));
 }

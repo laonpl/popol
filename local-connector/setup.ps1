@@ -8,7 +8,7 @@ if (-not $NoRegistration -and $targetDir -ne [IO.Path]::GetFullPath((Join-Path $
 }
 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 if ((Get-Item -LiteralPath $targetDir).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'The installation directory cannot be a link.' }
-foreach ($name in @('server.mjs', 'scanner.mjs', 'experienceSelection.mjs', 'experienceEvidence.mjs', 'start.ps1', 'setup.ps1', 'remove-connection.ps1', 'README.md', 'node.exe', 'NODE-LICENSE.txt')) {
+foreach ($name in @('server.mjs', 'scanner.mjs', 'experienceSelection.mjs', 'experienceEvidence.mjs', 'experienceText.mjs', 'start.ps1', 'setup.ps1', 'remove-connection.ps1', 'README.md', 'node.exe', 'NODE-LICENSE.txt')) {
     $from = Join-Path $sourceDir $name
     $to = Join-Path $targetDir $name
     if ((Test-Path -LiteralPath $from) -and [IO.Path]::GetFullPath($from) -ne [IO.Path]::GetFullPath($to)) {
