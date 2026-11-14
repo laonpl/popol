@@ -6,6 +6,7 @@ import { buildLocalExperienceDraft } from '../../frontend/src/utils/localExperie
 import { roleAnalysisContent, preserveRolePresentation } from '../src/utils/roleMaterials.js';
 import { collectPmSources } from '../src/services/pmEvidence.js';
 import { experienceAnalysisIssue, experienceAnalysisError, hasExtractedExperience } from '../src/utils/experienceAnalysisStatus.js';
+import { assignLocalImages } from '../src/services/localExperienceAI.js';
 
 const routeSource = fs.readFileSync(new URL('../src/routes/experience.js', import.meta.url), 'utf8')
   .replace(/^import\s[\s\S]*?;\r?\n/gm, '').replace('export default router;', '');
@@ -20,7 +21,7 @@ async function run(data, analyze, uid = 'owner') {
   const router = Object.fromEntries(['post', 'get', 'put', 'patch', 'delete'].map(method => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));
   const context = { Router: () => router, authMiddleware() {}, requireCredits() {}, aiRateLimiter() {},
     roleAnalysisContent, preserveRolePresentation,
-    experienceAnalysisIssue, experienceAnalysisError, hasExtractedExperience,
+    experienceAnalysisIssue, experienceAnalysisError, hasExtractedExperience, assignLocalImages,
     adminDb: { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => data }), update: async value => writes.push(value) }) }) },
     analyzeExperience: async (...args) => { calls.push(args); return analyze(...args); },
     buildFallbackExperienceAnalysis() { throw new Error('local PM draft must be preserved on failure'); },
@@ -100,4 +101,20 @@ test('local role analysis respects existing experience ownership checks', async 
   assert.equal(response.statusCode, 403);
   assert.equal(calls.length, 0);
   assert.equal(writes.length, 0);
+});
+
+test('photos found inside local documents are placed beside the matching key experience on first analysis only', async () => {
+  const data = { ...dataFor('dev'), images: [
+    { url: 'https://files/a', caption: '가입 화면', description: '필수 항목을 줄인 가입 화면', localImage: true },
+    { url: 'https://files/b', caption: '전환율 그래프', description: '전환율 18% 개선 그래프', localImage: true },
+    { url: 'https://files/manual', caption: '직접 올린 사진' },
+  ] };
+  const result = () => ({ jobCategory: 'dev', keyExperiences: [{ title: '가입 흐름 결정', action: '필수 항목을 줄였다' }, { title: '성과 검증', result: '전환율 18% 개선' }] });
+  const { writes } = await run(data, result);
+  assert.deepEqual(writes[0].keyExpImages, {
+    0: [{ url: 'https://files/a', width: '100%', caption: '가입 화면' }],
+    1: [{ url: 'https://files/b', width: '100%', caption: '전환율 그래프' }],
+  });
+  const again = await run({ ...data, keyExpImages: { 1: [{ url: 'https://files/a' }] } }, result);
+  assert.equal(again.writes[0].keyExpImages, undefined, 'a placement already saved by the user is kept');
 });

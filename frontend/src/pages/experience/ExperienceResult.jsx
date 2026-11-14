@@ -354,7 +354,7 @@ function deriveCaseStudy(exp) {
     .map(t => (typeof t === 'string' ? t : t?.name || '')).filter(Boolean);
 
   const keyExps = rawKeyExps
-    .map(k => ({
+    .map((k, index) => ({
       id: uid(),
       title: clean(k.title),
       metric: clean(k.afterMetric) || clean(k.metric),
@@ -363,7 +363,8 @@ function deriveCaseStudy(exp) {
       action: clean(k.action),
       result: clean(k.result),
       learning: clean(k.learning),
-      images: [],
+      // 내 컴퓨터 문서에서 가져온 사진처럼 분석 때 핵심 경험 옆에 배치된 사진
+      images: normalizeImages(exp?.keyExpImages?.[String(index)]),
     }))
     .filter(k => k.title || k.problem || k.action || k.result || k.learning || k.metric);
 
@@ -2913,7 +2914,7 @@ export default function ExperienceResult() {
         const snap = await getDoc(doc(db, 'experiences', id));
         if (snap.exists()) {
           const data = snap.data();
-          const full = normalizeExperienceForCurrentJob({ title: data.title, jobCategory: data.jobCategory, framework: data.framework, analysisMode: data.analysisMode, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null });
+          const full = normalizeExperienceForCurrentJob({ title: data.title, jobCategory: data.jobCategory, framework: data.framework, analysisMode: data.analysisMode, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null, keyExpImages: data.keyExpImages || {} });
           setExp(full);
           initCaseStudy(full);
           setKit(normalizeKit(full.structuredResult?.marketerKit));

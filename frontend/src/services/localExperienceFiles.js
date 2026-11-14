@@ -1,31 +1,53 @@
-import { parseExperiencesLocally, isCollectionDocument } from '../../../shared/localExperienceParser.mjs';
 import { materialPlainText } from '../../../shared/materialPlainText.mjs';
-import { extractLocalStar } from '../../../shared/localExperienceStar.mjs';
-import { hasPersonalEvidence, experienceFolder, isExperienceTitle } from '../../../local-connector/experienceEvidence.mjs';
-import { assessLocalExperience, localSourceKind, SOURCE_KIND_REASON, consolidateLocalEvidence, rankCoreExperiences, sortLocalExperiences, fuseLocalExperienceFields } from '../../../local-connector/experienceSelection.mjs';
+import { experienceFolder } from '../../../local-connector/experienceEvidence.mjs';
 
 export const LOCAL_FILE_LIMIT = 25 * 1024 * 1024;
 export const LOCAL_TEXT_LIMIT = 120000;
 export const LOCAL_SELECTION_LIMIT = 30;
+export const LOCAL_IMAGES_PER_DOCUMENT = 8;
 const MAX_FILES = 1000;
 const MAX_ENTRIES = 10000;
-const MAX_BATCH_BYTES = 150 * 1024 * 1024;
 const SUPPORTED = /\.(txt|md|csv|pdf|docx|pptx|hwpx)$/i;
 const IGNORED_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'coverage', '__pycache__', '$recycle.bin', 'system volume information']);
 const RELEVANT = /경험|이력서|포트폴리오|프로젝트|활동|공모전|인턴|보고서|회고|성과|기획|발표|회의록|resume|portfolio|project|report|retrospective/i;
 const FOLDER_DOCUMENT_LIMIT = 20;
 
 export const normalizeLocalTitle = title => String(title || '').replace(/\s+/g, '').toLowerCase();
-export function automaticFileBatch(files, start = 0) {
-  const batch = [];
-  let bytes = 0;
-  for (const file of files.slice(start, start + LOCAL_SELECTION_LIMIT)) {
-    if (bytes + file.size > MAX_BATCH_BYTES) break;
-    batch.push(file); bytes += file.size;
-  }
-  return batch;
+
+// Detailed project material comes before résumé summaries; extra copies of one file go last.
+const PROJECT_DOCUMENT = /기획|보고서|발표|회고|결과|제안|계획|프로젝트|포트폴리오|공모전|해커톤|인턴|활동|연구|캠페인|회의록|report|proposal|presentation|project|retrospective|portfolio|campaign/i;
+const SUMMARY_DOCUMENT = /이력서|자소서|자기\s*소개서|경력\s*기술서|resume|(?:^|[^a-z])cv(?:[^a-z]|$)|cover.?letter/i;
+const REFERENCE_DOCUMENT = /강의|교재|수업\s*자료|lecture|syllabus|양식|템플릿|template|sample|예시|readme|license|changelog|대본|script/i;
+const COPY_SUFFIX = /(?:\s*\(\d+\)|\s*-?\s*복사본(?:\s*\(\d+\))?|\s+copy(?:\s*\d+)?)(?=\.[^.]+$)/i;
+const fileFamily = file => `${file.path.replace(/[^/]*$/, '')}${file.name.replace(COPY_SUFFIX, '')}`.toLowerCase();
+
+export function localFilePriority(file, now = Date.now()) {
+  let score = 0;
+  if (PROJECT_DOCUMENT.test(file.path)) score += 10;
+  if (SUMMARY_DOCUMENT.test(file.name)) score += 4;
+  if (/\.(pptx|pdf|docx|hwpx)$/i.test(file.name)) score += 3;
+  if (now - (file.lastModified || 0) < 2 * 365 * 86400000) score += 2;
+  if (REFERENCE_DOCUMENT.test(file.name)) score -= 20;
+  return score;
 }
-// Documents of one project folder are read next to each other and later analyzed as one experience.
+
+export function prioritizeLocalFiles(files, now = Date.now()) {
+  const newest = new Map();
+  for (const file of files) {
+    const family = fileFamily(file);
+    if (!newest.has(family) || (file.lastModified || 0) > (newest.get(family).lastModified || 0)) newest.set(family, file);
+  }
+  const ranked = files.map((file, index) => ({ file, index, score: localFilePriority(file, now) - (newest.get(fileFamily(file)) === file ? 0 : 30) }))
+    .sort((a, b) => b.score - a.score || (b.file.lastModified || 0) - (a.file.lastModified || 0) || a.index - b.index);
+  // Alternate physical drives so one large drive cannot fill every reading round.
+  const drives = new Map();
+  for (const row of ranked) { const drive = row.file.drive || ''; if (!drives.has(drive)) drives.set(drive, []); drives.get(drive).push(row.file); }
+  const ordered = [];
+  for (let index = 0; ordered.length < files.length; index += 1) for (const group of drives.values()) if (group[index]) ordered.push(group[index]);
+  return ordered;
+}
+
+// Documents of one project folder are read next to each other so AI sees them in one batch.
 // Larger folders are treated as collections of different experiences.
 export function groupExperienceFolders(files) {
   const rows = files.map(file => ({ file, folder: experienceFolder(file.path) }));
@@ -40,6 +62,26 @@ export function groupExperienceFolders(files) {
     for (const sibling of group) { placed.add(sibling); ordered.push(group.length > 1 ? { ...sibling.file, experienceFolder: sibling.folder } : sibling.file); }
   }
   return ordered;
+}
+
+// Numbered reports of one project (1회차 … 7회차, week 1 … week 8) are one series. The newest
+// stands for the series when AI looks for experiences; the others join it as sources.
+const SERIES_NUMBER = /\d+\s*(?:회차|주차|차시|차|회|주)|(?:week|wk|vol|part|ep)[\s._-]*\d+/i;
+const SERIES_MEMBERS = 8;
+const seriesKey = file => SERIES_NUMBER.test(file.name) ? `${file.path.replace(/[^/]*$/, '')}${file.name.replace(/\d+/g, '#')}`.toLowerCase() : '';
+
+export function collapseSeries(files) {
+  const groups = new Map();
+  for (const file of files) { const key = seriesKey(file); if (key) groups.set(key, [...(groups.get(key) || []), file]); }
+  const placed = new Set();
+  return files.flatMap(file => {
+    const key = seriesKey(file);
+    if (!key || groups.get(key).length < 2) return [file];
+    if (placed.has(key)) return [];
+    placed.add(key);
+    const [lead, ...series] = [...groups.get(key)].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0)).slice(0, SERIES_MEMBERS);
+    return [{ ...lead, series }];
+  });
 }
 const aborted = signal => signal?.throwIfAborted();
 const ignorePart = name => name.startsWith('.') || IGNORED_DIRS.has(name.toLowerCase());
@@ -150,7 +192,90 @@ export function pdfItemsToText(items) {
   return text;
 }
 
-async function extractZipText(buffer, extension, signal) {
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' };
+const MEDIA_FOLDER = { docx: /^word\/media\//i, pptx: /^ppt\/media\//i, hwpx: /^BinData\//i };
+const extensionOf = name => name.split('.').pop().toLowerCase();
+const context = (label, text) => `${label}: ${String(text || '').replace(/\s+/g, ' ').trim().slice(0, 200)}`;
+
+// A 16×16 brightness thumbnail. The same picture saved in two files, or twice in one deck, gives
+// nearly the same thumbnail; different slides and different poses of one mascot do not.
+function imageLook(canvas) {
+  const small = document.createElement('canvas');
+  small.width = 16; small.height = 16;
+  const draw = small.getContext('2d', { willReadFrequently: true });
+  draw.drawImage(canvas, 0, 0, 16, 16);
+  const { data } = draw.getImageData(0, 0, 16, 16);
+  return Array.from({ length: 256 }, (_, index) => Math.round(data[index * 4] * 0.299 + data[index * 4 + 1] * 0.587 + data[index * 4 + 2] * 0.114));
+}
+
+export const sameLook = (a, b) => Boolean(a && b) && a.reduce((sum, value, index) => sum + Math.abs(value - b[index]), 0) / a.length <= 3;
+
+async function canvasJpeg(canvas) {
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+  return blob ? { blob, width: canvas.width, height: canvas.height, look: imageLook(canvas) } : null;
+}
+
+// Browser only: logos, icons and thin banners are dropped; the rest is re-encoded at a
+// bounded size so AI requests and saved photos stay small.
+async function prepareLocalImage(blob, maxSide = 1024) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(blob); } catch { return null; }
+  try {
+    const { width, height } = bitmap;
+    const ratio = width / height;
+    if (Math.min(width, height) < 160 || width * height < 160 * 240 || ratio > 5 || ratio < 0.2) return null;
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
+    const draw = canvas.getContext('2d');
+    draw.fillStyle = '#fff'; draw.fillRect(0, 0, canvas.width, canvas.height);
+    draw.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return await canvasJpeg(canvas);
+  } finally { bitmap.close?.(); }
+}
+
+// Map each slide picture to the slide whose text explains it.
+async function pptxImageSlides(zip, slideTexts) {
+  const slides = new Map();
+  const rels = Object.values(zip.files).filter(entry => /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(entry.name))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
+  for (const entry of rels) {
+    const number = Number(entry.name.match(/slide(\d+)\.xml\.rels$/)[1]);
+    for (const match of (await entry.async('string')).matchAll(/Target="\.\.\/media\/([^"]+)"/g)) {
+      const media = `ppt/media/${match[1]}`;
+      if (!slides.has(media)) slides.set(media, { number, text: slideTexts.get(number) || '' });
+    }
+  }
+  return slides;
+}
+
+async function zipImages(zip, extension, slideTexts, signal) {
+  const slides = extension === 'pptx' ? await pptxImageSlides(zip, slideTexts) : new Map();
+  const entries = Object.values(zip.files).filter(entry => !entry.dir && MEDIA_FOLDER[extension].test(entry.name) && IMAGE_TYPES[extensionOf(entry.name)])
+    .sort((a, b) => (slides.get(a.name)?.number ?? 1e6) - (slides.get(b.name)?.number ?? 1e6) || a.name.localeCompare(b.name, 'en', { numeric: true }));
+  // One picture from every slide before a second picture from any slide.
+  const perSlide = new Map();
+  const turn = new Map(entries.map(entry => { const slide = slides.get(entry.name)?.number ?? entry.name; const count = perSlide.get(slide) || 0; perSlide.set(slide, count + 1); return [entry, count]; }));
+  entries.sort((a, b) => turn.get(a) - turn.get(b));
+  const images = [], seen = new Set();
+  for (const entry of entries.slice(0, 40)) {
+    if (images.length >= LOCAL_IMAGES_PER_DOCUMENT) break;
+    aborted(signal);
+    const size = entry._data?.uncompressedSize;
+    // Flat charts compress to a few KB; icons are dropped by their pixel size instead.
+    if (size !== undefined && (size < 1024 || size > 15 * 1024 * 1024)) continue;
+    const bytes = await entry.async('uint8array');
+    const key = `${bytes.length}:${Array.from({ length: 16 }, (_, i) => bytes[Math.floor(i * bytes.length / 16)]).join('.')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const prepared = await prepareLocalImage(new Blob([bytes], { type: IMAGE_TYPES[extensionOf(entry.name)] }));
+    const slide = slides.get(entry.name);
+    if (prepared && !images.some(kept => sameLook(kept.look, prepared.look))) images.push({ ...prepared, context: slide ? context(`슬라이드 ${slide.number}`, slide.text) : '' });
+  }
+  return images;
+}
+
+async function extractZipDocument(buffer, extension, signal, pictures = true) {
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(buffer);
   const pattern = extension === 'docx' ? /^word\/document\.xml$/
@@ -160,6 +285,7 @@ async function extractZipText(buffer, extension, signal) {
   if (!entries.length) throw new Error('문서 본문을 찾지 못했어요.');
   let text = '';
   let xmlBytes = 0;
+  const slideTexts = new Map();
   for (const entry of entries) {
     aborted(signal);
     // Bound expanded XML as well as the compressed file size.
@@ -167,252 +293,74 @@ async function extractZipText(buffer, extension, signal) {
     const xml = await entry.async('string');
     xmlBytes += xml.length;
     if (xmlBytes > 20 * 1024 * 1024) throw new Error('문서 본문이 너무 커요.');
-    text += `${xmlDocumentText(xml, 'p', 't')}\n`;
+    const part = xmlDocumentText(xml, 'p', 't');
+    if (extension === 'pptx') slideTexts.set(Number(entry.name.match(/slide(\d+)\.xml$/)[1]), part);
+    text += `${part}\n`;
     if (text.length > LOCAL_TEXT_LIMIT) throw new Error('본문이 12만 자를 넘어요. 문서를 나누어주세요.');
   }
-  return text;
+  return { text, images: pictures ? await zipImages(zip, extension, slideTexts, signal) : [] };
 }
 
-async function extractPdfText(buffer, signal) {
+async function extractPdfDocument(buffer, signal, withPictures = true) {
   const pdfjs = await import('pdfjs-dist');
   const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const task = pdfjs.getDocument({ data: buffer, isEvalSupported: false });
   const cancel = () => { void task.destroy(); };
   signal?.addEventListener('abort', cancel, { once: true });
+  const pictures = new Set([pdfjs.OPS.paintImageXObject, pdfjs.OPS.paintInlineImageXObject, pdfjs.OPS.paintImageXObjectRepeat]);
   try {
     const doc = await task.promise;
     if (doc.numPages > 200) throw new Error('200쪽이 넘는 PDF는 나누어주세요.');
     let text = '';
+    const imagePages = [];
     for (let number = 1; number <= doc.numPages; number += 1) {
       aborted(signal);
       const page = await doc.getPage(number);
-      const content = await page.getTextContent();
-      text += `${pdfItemsToText(content.items)}\n`;
+      const pageText = pdfItemsToText((await page.getTextContent()).items);
+      text += `${pageText}\n`;
+      // Pages that carry pictures are rendered whole: designed portfolio pages lose meaning when cropped.
+      if (withPictures && imagePages.length < LOCAL_IMAGES_PER_DOCUMENT && number <= 60
+        && (await page.getOperatorList()).fnArray.some(fn => pictures.has(fn))) imagePages.push({ number, text: pageText });
       page.cleanup();
       if (text.length > LOCAL_TEXT_LIMIT) throw new Error('본문이 12만 자를 넘어요. 문서를 나누어주세요.');
     }
-    return text;
+    const images = [];
+    for (const { number, text: pageText } of imagePages) {
+      aborted(signal);
+      const page = await doc.getPage(number);
+      const base = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: Math.min(2, 1024 / Math.max(base.width, base.height)) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      const prepared = await canvasJpeg(canvas);
+      if (prepared) images.push({ ...prepared, context: context(`${number}쪽`, pageText) });
+      page.cleanup();
+    }
+    return { text, images };
   } finally {
     signal?.removeEventListener('abort', cancel);
     await task.destroy();
   }
 }
 
-export async function readLocalExperienceFile(record, { signal } = {}) {
+// Text and embedded pictures stay in this browser until the user starts AI analysis.
+export async function readLocalDocument(record, { signal } = {}) {
   aborted(signal);
   const file = await record.getFile({ signal });
   const reason = localFileSkipReason(record.path, file.size);
   if (reason) throw new Error(reason);
-  const extension = file.name.split('.').pop().toLowerCase();
+  const extension = extensionOf(file.name);
   const buffer = await file.arrayBuffer();
   aborted(signal);
-  const text = extension === 'pdf' ? await extractPdfText(buffer, signal)
-    : ['docx', 'pptx', 'hwpx'].includes(extension) ? await extractZipText(buffer, extension, signal)
-      : decodeLocalText(buffer);
-  if (text.length > LOCAL_TEXT_LIMIT) throw new Error('본문이 12만 자를 넘어요. 문서를 나누어주세요.');
-  if (text.replace(/\s/g, '').length < 20) throw new Error('읽을 수 있는 본문이 부족해요. 스캔 PDF·이미지는 기존 파일 가져오기를 이용해주세요.');
-  return materialPlainText(text);
-}
-
-export function looksLikeExperience(text) {
-  return parseExperiencesLocally(materialPlainText(text), '', { personalDocument: true }).experiences.some(item => assessLocalExperience(extractLocalStar(item)).eligible);
-}
-
-export async function organizeLocalFiles(records, { signal, onProgress = () => {}, read = readLocalExperienceFile, experienceOnly = false } = {}) {
-  if (!records.length || records.length > LOCAL_SELECTION_LIMIT) throw new Error('한 번에 1~30개 파일을 선택해주세요.');
-  if (records.reduce((total, file) => total + file.size, 0) > MAX_BATCH_BYTES) throw new Error('선택한 파일의 합계는 150MB 이하여야 해요.');
-  const items = [];
-  const failures = [];
-  const rejected = [];
-  const seen = new Set();
-  for (const [index, record] of records.entries()) {
-    aborted(signal);
-    onProgress({ current: index + 1, total: records.length, path: record.path });
-    try {
-      const text = materialPlainText(await read(record, { signal }));
-      aborted(signal);
-      const kind = localSourceKind(record.name, record.path, text);
-      if (experienceOnly && kind !== 'experience') { rejected.push({ path: record.path, reason: SOURCE_KIND_REASON[kind] }); continue; }
-      // Only resumes, portfolios and cover letters are split; a project document is one experience.
-      const single = !isCollectionDocument(record.name, text);
-      const parsed = parseExperiencesLocally(text, record.name.replace(/\.[^.]+$/, ''), { personalDocument: true, single });
-      const personalSource = /이력서|자소서|자기소개서|경력기술서|경험\s*정리|포트폴리오|resume|portfolio|cover.?letter/i.test(record.name) || hasPersonalEvidence(text);
-      if (!parsed.experiences.length) {
-        if (experienceOnly) { rejected.push({ path: record.path, reason: '프로젝트·활동 경험의 본문을 확인하지 못했어요.' }); continue; }
-        throw new Error('경험으로 정리할 본문을 찾지 못했어요.');
-      }
-      for (const [part, parsedItem] of parsed.experiences.entries()) {
-        // Multi-experience documents (resumes, cover letters) never join a folder or file-name series group.
-        const whole = parsed.experiences.length === 1;
-        const folder = whole ? { wholeDocument: true, ...(record.experienceFolder ? { experienceFolder: record.experienceFolder } : {}) } : {};
-        const item = extractLocalStar({ ...parsedItem, personalSource, ...folder });
-        const quality = assessLocalExperience(item, record);
-        const sourceText = item.sourceText || text;
-        // Identical copies are one candidate with all their relative source paths.
-        const key = sourceText.replace(/\s+/g, ' ').trim();
-        if (seen.has(key)) {
-          const duplicate = items.find(candidate => candidate.sourceText.replace(/\s+/g, ' ').trim() === key);
-          if (duplicate && !duplicate.sourcePaths.includes(record.path)) {
-            duplicate.sourcePaths.push(record.path);
-            duplicate.localDocuments.push({ path: record.path, text: sourceText });
-          }
-          continue;
-        }
-        seen.add(key);
-        items.push({ ...item,
-          ...(experienceOnly ? { coreSelection: quality } : {}),
-          id: `${record.id}:${part}`, sourceText, sourcePaths: [record.path], localEdits: {},
-          localDocuments: [{ path: record.path, text: sourceText }],
-          period: item.startDate ? `${item.startDate}${item.ongoing ? ' ~ 현재' : item.endDate ? ` ~ ${item.endDate}` : ''}` : '',
-          needsReview: !parsed.confident || quality.needsReview });
-      }
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      failures.push({ path: record.path, message: error.message || '파일을 읽지 못했어요.' });
-    }
-    await new Promise(resolve => setTimeout(resolve, 0));
-  }
-  const grouped = consolidateLocalEvidence(items);
-  // Explicitly chosen files use the same grouping rules while retaining incomplete candidates.
-  if (!experienceOnly) return { items: sortLocalExperiences(grouped), failures, rejected, supporting: [] };
-  const supporting = grouped.filter(item => !item.coreSelection.eligible);
-  rejected.push(...supporting.map(item => ({ path: item.sourcePaths[0], title: item.title, reason: item.coreSelection.reasons.join(' ') })));
-  return { items: rankCoreExperiences(grouped, { consolidated: true }), supporting, failures, rejected };
-}
-
-// Continue past irrelevant first-page documents, with bounded file reading and no paid calls.
-export async function findCoreLocalExperiences(scanned, { offset = 0, previous = [], supporting: previousSupporting = [], signal, onProgress = () => {}, read,
-  maxDocuments = 240 } = {}) {
-  const files = groupExperienceFolders(scanned);
-  let current = offset;
-  let items = rankCoreExperiences(previous);
-  let supporting = previousSupporting;
-  const failures = [], rejected = [];
-  while (current < files.length && current - offset < maxDocuments) {
-    aborted(signal);
-    const batch = automaticFileBatch(files, current).slice(0, maxDocuments - (current - offset));
-    if (!batch.length) break;
-    const parsed = await organizeLocalFiles(batch, { signal, experienceOnly: true, ...(read ? { read } : {}),
-      onProgress: progress => onProgress({ ...progress, checked: current + progress.current, totalDocuments: files.length }),
-    });
-    const combined = consolidateLocalEvidence([...items, ...supporting, ...parsed.items, ...parsed.supporting]);
-    items = rankCoreExperiences(combined, { consolidated: true });
-    supporting = combined.filter(item => !item.coreSelection.eligible);
-    failures.push(...parsed.failures); rejected.push(...parsed.rejected);
-    current += batch.length;
-  }
-  const selectedPaths = new Set(items.flatMap(item => item.sourcePaths));
-  return { items, supporting, failures, rejected: rejected.filter(item => !selectedPaths.has(item.path)), offset: current };
-}
-
-const sourceKey = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
-const leafParts = item => item.localParts?.length ? item.localParts.flatMap(leafParts) : [item];
-const sourceDocuments = item => item.localDocuments?.length ? item.localDocuments
-  : (item.sourcePaths || []).map(path => ({ path, text: item.sourceText || '' }));
-const documentKey = document => `${String(document.path || '').replace(/\\/g, '/').toLowerCase()}\n${sourceKey(document.text)}`;
-function uniqueDocuments(items) {
-  const seen = new Set();
-  return items.flatMap(sourceDocuments).filter(document => {
-    const key = documentKey(document);
-    if (seen.has(key)) return false;
-    seen.add(key); return true;
-  });
-}
-function identityKeys(item) {
-  const keys = new Set();
-  for (const part of [item, ...leafParts(item)]) if (part.id) keys.add(`id:${part.id}`);
-  for (const document of sourceDocuments(item)) if (sourceKey(document.text)) keys.add(`doc:${documentKey(document)}`);
-  return keys;
-}
-
-// A group's representative ID can change when more files arrive. Match the source
-// excerpts, not the file path alone: two portfolio entries share a path.
-export function reconcileLocalCandidates(previous, fresh, { selectedItems = [], records = {}, supporting = [] } = {}) {
-  const selected = new Set(selectedItems);
-  const fields = ['title', 'period', 'role', 'context', 'task', 'action', 'result', 'learning'];
-  // Preserve a review already open before edit tracking was introduced. New scans
-  // start with an empty map, so untouched fields continue to receive new evidence.
-  const reviewedChanges = new Map(previous.map(item => [item, item.localEdits || Object.fromEntries(fields
-    .filter(field => Object.hasOwn(item, field) && (field !== 'title' || isExperienceTitle(item.title)))
-    .map(field => [field, item[field]]))]));
-  const previousKeys = new Map(previous.map(item => [item, identityKeys(item)]));
-  const keyCache = new WeakMap();
-  const score = (item, old) => {
-    if (!keyCache.has(item)) keyCache.set(item, identityKeys(item));
-    const keys = keyCache.get(item), oldKeys = previousKeys.get(old);
-    return (old.id && keys.has(`id:${old.id}`) ? 1000 : 0)
-      + [...keys].reduce((sum, key) => sum + (oldKeys.has(key) ? key.startsWith('id:') ? 100 : 1 : 0), 0);
-  };
-  let candidates = [...fresh, ...supporting.filter(item => previous.some(old => score(item, old) > 0))];
-  // An explicit manual merge remains one card when the automatic pass rechecks its leaves.
-  for (const old of previous.filter(item => item.manualFusion)) {
-    const matching = candidates.filter(item => score(item, old) > 0);
-    if (matching.length > 1) {
-      candidates = [...candidates.filter(item => !matching.includes(item)), mergeLocalCandidates(matching)];
-    }
-  }
-  const owners = new Map();
-  for (const old of previous) {
-    let best = -1, bestScore = 0;
-    candidates.forEach((item, index) => { const value = score(item, old); if (value > bestScore) { best = index; bestScore = value; } });
-    if (best >= 0) owners.set(old, best);
-  }
-  const nextSelected = new Set(), preservedIds = new Set(), usedIds = new Set();
-  const priority = item => records[item.id]?.status === 'complete' ? 0 : records[item.id] ? 1 : Object.keys(reviewedChanges.get(item)).length ? 2 : selected.has(item.id) ? 3 : 4;
-  const next = candidates.map((item, index) => {
-    const matched = previous.filter(old => owners.get(old) === index).sort((a, b) => priority(a) - priority(b));
-    const representative = matched.find(old => !usedIds.has(old.id));
-    const id = representative?.id || item.id;
-    usedIds.add(id);
-    const localEdits = {};
-    const addition = leafParts(item).filter(part => !matched.some(old => score(part, old) > 0));
-    const reviewed = {};
-    for (const field of fields) {
-      const edited = matched.filter(old => Object.hasOwn(reviewedChanges.get(old), field));
-      if (!edited.length) continue;
-      const value = field === 'title' || field === 'period' ? reviewedChanges.get(edited[0])[field]
-        : fuseLocalExperienceFields([...matched.map(old => ({ [field]: reviewedChanges.get(old)?.[field] ?? old[field] })), ...addition])[field];
-      reviewed[field] = value; localEdits[field] = value;
-    }
-    if (matched.some(old => selected.has(old.id)) && records[id]?.status !== 'complete') nextSelected.add(id);
-    if (matched.some(old => selected.has(old.id) || records[old.id] || Object.keys(reviewedChanges.get(old)).length)) preservedIds.add(id);
-    const savedPrevious = matched.find(old => old.id === id && records[old.id]);
-    const savedSources = savedPrevious && new Set(sourceDocuments(savedPrevious).map(documentKey));
-    const hasNewLocalSources = Boolean(savedPrevious && (savedPrevious.hasNewLocalSources
-      || sourceDocuments(item).some(document => !savedSources.has(documentKey(document)))));
-    const combined = { ...item, ...reviewed, id, localEdits, hasNewLocalSources, manualFusion: Boolean(item.manualFusion || matched.some(old => old.manualFusion)) };
-    return { ...combined, sourcePaths: [...new Set(combined.sourcePaths || [])], localDocuments: uniqueDocuments([combined]),
-      ...(Object.hasOwn(reviewed, 'title') ? { needsTitleReview: !isExperienceTitle(reviewed.title) } : {}),
-      situation: combined.context || '', star: { situation: combined.context || '', task: combined.task || '', action: combined.action || '', result: combined.result || '' } };
-  });
-  for (const old of previous) if (!owners.has(old) && (selected.has(old.id) || records[old.id] || old.separateExperience || Object.keys(reviewedChanges.get(old)).length)) {
-    next.push(old); preservedIds.add(old.id);
-    if (selected.has(old.id) && records[old.id]?.status !== 'complete') nextSelected.add(old.id);
-  }
-  return { items: sortLocalExperiences(next), selectedItems: nextSelected, records: { ...records }, preservedIds };
-}
-
-export function mergeLocalCandidates(items) {
-  const first = items[0];
-  const fields = fuseLocalExperienceFields(items);
-  const parts = [...new Map(items.flatMap(leafParts).map(part => [`${part.id || ''}\n${(part.sourcePaths || []).join('|')}\n${sourceKey(part.sourceText)}`, part])).values()];
-  const sourceTexts = [...new Map(parts.filter(part => part.sourceText).map(part => [sourceKey(part.sourceText), part.sourceText])).values()];
-  const merged = { ...first, ...fields, situation: fields.context, sourceText: sourceTexts.join('\n\n'),
-    sourcePaths: [...new Set(items.flatMap(item => item.sourcePaths || []))],
-    localDocuments: uniqueDocuments(items), localParts: parts, manualFusion: true, separateExperience: false,
-    mergeReasons: [...new Set([...items.flatMap(item => item.mergeReasons || []), '직접 선택한 후보를 하나의 경험으로 합쳤어요.'])],
-    localEdits: Object.fromEntries(['title', 'period', 'role', 'context', 'task', 'action', 'result', 'learning']
-      .filter(field => field === 'title' || items.some(item => Object.hasOwn(item.localEdits || {}, field)))
-      .map(field => [field, field === 'title' || field === 'period' ? first[field] : fields[field]])),
-    keywords: [...new Set(items.flatMap(item => item.keywords || []))].slice(0, 6), needsReview: true };
-  merged.star = { situation: fields.context, task: fields.task, action: fields.action, result: fields.result };
-  return sortLocalExperiences([merged])[0];
-}
-
-export function splitLocalCandidate(item) {
-  return sortLocalExperiences(leafParts(item).map((part, index) => ({ ...part,
-    id: part.id || `${item.id}:split:${index}`, localParts: [], mergeReasons: [], separateExperience: true,
-    manualFusion: false,
-    needsReview: true, coreSelection: assessLocalExperience(part) })));
+  // A résumé or cover letter is read for its text; a picture of its page shows no work of the experience.
+  const pictures = !SUMMARY_DOCUMENT.test(file.name);
+  const document = extension === 'pdf' ? await extractPdfDocument(buffer, signal, pictures)
+    : ['docx', 'pptx', 'hwpx'].includes(extension) ? await extractZipDocument(buffer, extension, signal, pictures)
+      : { text: decodeLocalText(buffer), images: [] };
+  if (document.text.length > LOCAL_TEXT_LIMIT) throw new Error('본문이 12만 자를 넘어요. 문서를 나누어주세요.');
+  if (document.text.replace(/\s/g, '').length < 20) throw new Error('읽을 수 있는 본문이 부족해요. 스캔 PDF·이미지는 기존 파일 가져오기를 이용해주세요.');
+  return { text: materialPlainText(document.text),
+    images: document.images.map((image, index) => ({ ...image, id: `${record.id}#${index + 1}`, documentId: record.id, path: record.path })) };
 }

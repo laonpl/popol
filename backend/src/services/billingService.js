@@ -27,6 +27,9 @@ export const PAYMENT_METHODS = [
 const MODEL_PRICING_USD_PER_MILLION = {
   'gemini-2.5-pro': { input: 1.25, output: 10, longInput: 2.5, longOutput: 15 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  'gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
+  'gemini-3.1-pro-preview': { input: 2, output: 12 },
+  'gemini-3-flash-preview': { input: 0.5, output: 3 },
   'gemini-3.1-flash-lite': { input: 0.1, output: 0.4 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
   // Amazon Bedrock ap-southeast-2 온디맨드 표준 단가 (AWS Price List API, 2026-10-19 조회)

@@ -1,57 +1,54 @@
-// Exercise real React screens and browser parsers with synthetic files; account writes are mocked.
+// Exercise the real React screens and browser file readers with synthetic documents that contain
+// pictures. The AI endpoints and account writes are mocked; no paid AI request is made.
 import puppeteer from 'puppeteer';
 import JSZip from 'jszip';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { createLocalConnector } from '../../local-connector/server.mjs';
+import { assignLocalImages } from '../src/services/localExperienceAI.js';
 
-const origin = process.env.LOCAL_REVIEW_ORIGIN || 'http://127.0.0.1:3000';
+const origin = process.env.LOCAL_REVIEW_ORIGIN || 'http://localhost:3000';
 const output = await mkdtemp(path.join(tmpdir(), 'fitpoly-local-experience-'));
-const sample = name => `${name}\n역할: 서비스 기획자\n배경: 사용자가 자료를 찾기 어려운 문제가 있었습니다.\n과제: 검색 과정을 단순하게 만들어야 했습니다.\n한 일: 사용자 인터뷰를 진행하고 검색 화면을 개선했습니다.\n성과: 검색 완료율 18% 개선\n배운 점: 작은 가설부터 검증하는 습관을 배웠습니다.`;
-const xml = text => `<root xmlns:x="urn:fixture">${text.split('\n').map(line => `<x:p><x:r><x:t>${line}</x:t></x:r></x:p>`).join('')}</root>`;
-async function zipped(name, text) { return new JSZip().file(name, xml(text)).generateAsync({ type: 'base64' }); }
-const fixtures = [
-  { name: '프로젝트.txt', text: '<h2>검색 개선 프로젝트</h2>' + sample('검색 개선 프로젝트').split('\n').slice(1).map(line => `<li><strong>${line.split(':')[0]}:</strong>${line.slice(line.indexOf(':') + 1)}</li>`).join('') },
-  { name: '복사본.md', text: sample('검색 개선 프로젝트') },
-  { name: '성과.csv', text: sample('동아리 운영 프로젝트') },
-  { name: '기획서.docx', base64: await zipped('word/document.xml', sample('수업 기획 프로젝트')) },
-  { name: '발표.pptx', base64: await zipped('ppt/slides/slide1.xml', sample('해커톤 프로젝트')) },
-  { name: '보고서.hwpx', base64: await zipped('Contents/section0.xml', sample('연구 프로젝트')) },
-  { name: '깨진파일.pdf', text: 'This is deliberately not a valid PDF document.' },
-  { name: '구형문서.hwp', text: 'unsupported' },
-];
-const writes = [], errors = [], prohibited = [], analysisCalls = [];
-let failNextAnalysis = false;
-let failWithConfigurationError = false;
-let connectorAvailable = false;
-let autoStartRequests = 0;
-let websiteMode = false;
+const discoverBodies = [], organizeBodies = [], uploads = [], writes = [], errors = [];
+let connectorAvailable = false, websiteMode = false;
 const fixtureDirectory = path.join(output, 'synthetic-personal-files');
-const fixtureC = path.join(fixtureDirectory, 'drive-c'), fixtureD = path.join(fixtureDirectory, 'drive-d');
-await mkdir(fixtureC, { recursive: true }); await mkdir(fixtureD, { recursive: true });
-const connector = createLocalConnector({ roots: async () => [{ path: fixtureD, label: 'D: 드라이브', driveCode: 'D:' }, { path: fixtureC, label: 'C: 드라이브', driveCode: 'C:' }] });
+await mkdir(fixtureDirectory, { recursive: true });
+const connector = createLocalConnector({ roots: async () => [{ path: fixtureDirectory, label: 'D: 드라이브', driveCode: 'D:' }] });
 connector.listen(0, '127.0.0.1'); await once(connector, 'listening');
 const connectorEndpoint = `http://127.0.0.1:${connector.address().port}`;
 const browser = await puppeteer.launch({ headless: true });
 try {
-  const fixturePage = await browser.newPage();
-  await fixturePage.setContent('<meta charset="utf-8"><h1>연구 발표 프로젝트</h1><p>역할: 연구원</p><p>한 일: 사용자 25명을 인터뷰하고 검색 대시보드를 개발했습니다.</p><p>성과: 과제 완료율 18% 개선</p>');
-  const pdf = await fixturePage.pdf();
-  fixtures.push({ name: '연구발표.pdf', base64: Buffer.from(pdf).toString('base64') });
-  for (const fixture of fixtures) await writeFile(path.join(fixtureD, fixture.name), fixture.base64 ? Buffer.from(fixture.base64, 'base64') : fixture.text);
-  await writeFile(path.join(fixtureD, 'README.txt'), '이 설명서는 소프트웨어 라이선스와 일반적인 설치 방법을 안내합니다.');
-  for (let i = 0; i < 35; i += 1) await writeFile(path.join(i % 2 ? fixtureD : fixtureC, `추가 프로젝트 ${i}.txt`), sample(`자동 탐색 프로젝트 ${i}`));
-  await writeFile(path.join(fixtureD, '검색 개선 회고.md'), sample('검색 개선 프로젝트 회고'));
-  for (const [name, body] of [
-    ['FitPoly_릴스_07.txt', 'FitPoly 릴스 07\n프로젝트 파일과 경험을 분석해 성과를 정리하세요. 화면 전환과 후킹 카피를 보여준다.'],
-    ['NACE_Student_Survey.md', 'NACE Student Survey\n학생 취업 준비 활동과 인턴 프로젝트의 결과를 분석했다. 응답자 중 65%가 채용 지원 경험이 있었다.'],
-    ['장애 이론의 종류.txt', '장애 이론의 종류\n기획 프로젝트 과제로 이론을 분석했다. 의료 모델과 사회 모델의 학습 내용을 정리했다.'],
-    ['경험_예시.md', sample('가상 프로젝트')],
-  ]) await writeFile(path.join(fixtureD, name), body);
-  await fixturePage.close();
+  // Real raster pictures: a result chart, an app screen and a tiny icon that must be dropped.
+  const painter = await browser.newPage();
+  await painter.setViewport({ width: 800, height: 900 });
+  const shot = async (html, width, height) => { await painter.setContent(`<body style="margin:0">${html}</body>`); return painter.screenshot({ clip: { x: 0, y: 0, width, height } }); };
+  const chart = await shot('<div style="width:600px;height:400px;background:#fff;font:20px sans-serif;padding:20px;box-sizing:border-box"><b>가입 전환율</b><div style="display:flex;gap:40px;align-items:flex-end;height:300px"><div style="width:120px;height:90px;background:#999">12%</div><div style="width:120px;height:240px;background:#222;color:#fff">30%</div></div></div>', 600, 400);
+  const screen = await shot('<div style="width:420px;height:640px;background:#f4f4f4;font:18px sans-serif;padding:24px;box-sizing:border-box"><h2>FitPoly 업로드</h2><p>파일을 올리면 경험을 정리해요</p><div style="height:300px;border:2px dashed #888"></div></div>', 420, 640);
+  const icon = await shot('<div style="width:40px;height:40px;background:red"></div>', 40, 40);
+  await painter.setContent(`<meta charset="utf-8"><h1>FitPoly 결과 보고서</h1><p>베타 테스트 결과 가입 전환율이 개선됐다.</p><img src="data:image/png;base64,${Buffer.from(chart).toString('base64')}" width="600">`);
+  const pdf = Buffer.from(await painter.pdf());
+  await painter.close();
+
+  const xml = text => `<root xmlns:a="urn:a">${text.split('\n').map(line => `<a:p><a:r><a:t>${line}</a:t></a:r></a:p>`).join('')}</root>`;
+  const pptx = await new JSZip()
+    .file('ppt/slides/slide1.xml', xml('FitPoly 기획서\n취준생의 포트폴리오 제작 부담을 줄이기 위한 서비스'))
+    .file('ppt/slides/slide2.xml', xml('베타 결과\n가입 전환율 12% → 30%'))
+    .file('ppt/slides/_rels/slide2.xml.rels', '<Relationships><Relationship Id="rId2" Target="../media/image1.png"/><Relationship Id="rId3" Target="../media/image2.png"/></Relationships>')
+    .file('ppt/media/image1.png', chart).file('ppt/media/image2.png', icon)
+    .generateAsync({ type: 'nodebuffer' });
+  const docx = await new JSZip().file('word/document.xml', xml('FitPoly 화면 설계서\n업로드 화면을 설계하고 사용자 인터뷰 12회를 진행했다.'))
+    .file('word/media/image1.png', screen).generateAsync({ type: 'nodebuffer' });
+  const resume = '김유신 이력서\nFitPoly 3명 (기획 1, 개발 2) 2차 베타 성공 기준 설계\n디지털 트윈 기반 시뮬레이션으로 운영 리스크 제거 및 OPEX 40% 절감 설계';
+  const fixtures = [
+    { name: 'FitPoly 기획서.pptx', bytes: pptx }, { name: 'FitPoly 화면 설계서.docx', bytes: docx }, { name: 'FitPoly 결과 보고서.pdf', bytes: pdf },
+    { name: '김유신_이력서.txt', bytes: Buffer.from(resume) }, { name: '김유신_이력서 (1).txt', bytes: Buffer.from(resume) },
+    { name: '마케팅 강의자료.txt', bytes: Buffer.from('마케팅 원론 3주차 강의 자료입니다. 4P와 STP를 설명한다.') },
+  ];
+  for (const fixture of fixtures) await writeFile(path.join(fixtureDirectory, fixture.name), fixture.bytes);
+
   const page = await browser.newPage();
   page.setDefaultTimeout(60000);
   page.on('pageerror', error => errors.push(error.message));
@@ -59,323 +56,143 @@ try {
   page.on('request', async request => {
     const url = new URL(request.url());
     const respond = (data, status = 200) => request.respond({ status, contentType: 'application/json', body: JSON.stringify(data) });
+    const body = () => JSON.parse(request.postData() || '{}');
+    if (url.pathname.startsWith('/__test-images/')) return request.respond({ contentType: 'image/png', body: chart });
     if (websiteMode && ['/src/services/localExperienceConnector.js', '/src/components/LocalExperienceImport.jsx'].includes(url.pathname)) {
       const module = await (await fetch(request.url())).text();
       return request.respond({ contentType: 'application/javascript', body: module.replace(/import\.meta\.env\??\.DEV/g, 'false') });
     }
-    if (url.pathname === '/__fitpoly/local-experience/connect') {
-      autoStartRequests++;
-      return respond({ ready: true, version: 3 });
+    // Firestore is not reachable here: the result page's document read goes to the mock API instead.
+    if (url.pathname === '/src/pages/experience/ExperienceResult.jsx') {
+      const module = await (await fetch(request.url())).text();
+      const rerouted = module.replace(/await getDoc\(doc\(db, ["']experiences["'], id\)\)/g, () => "await fetch('/api/experience/' + id).then(r => r.json()).then(d => ({ exists: () => true, data: () => d }))");
+      assert.notEqual(rerouted, module, 'result page document read is rerouted');
+      return request.respond({ contentType: 'application/javascript', body: rerouted });
     }
+    if (url.pathname === '/__fitpoly/local-experience/connect') return respond({ ready: true, version: 3 });
     if (url.origin === 'http://127.0.0.1:43127') {
       if (!connectorAvailable) return request.abort('connectionrefused');
       const headers = { ...request.headers() }; delete headers.host; delete headers['content-length'];
-      const upstream = await fetch(connectorEndpoint + url.pathname, { method: request.method(), headers, ...(['POST'].includes(request.method()) ? { body: request.postData() || '{}' } : {}) });
+      const upstream = await fetch(connectorEndpoint + url.pathname, { method: request.method(), headers, ...(request.method() === 'POST' ? { body: request.postData() || '{}' } : {}) });
       return request.respond({ status: upstream.status, headers: Object.fromEntries(upstream.headers), body: Buffer.from(await upstream.arrayBuffer()) });
     }
     if (url.pathname === '/src/services/apiBase.js') return request.respond({ contentType: 'application/javascript', body: "export function getApiBaseUrl(){return '/api';}" });
     if (url.pathname === '/src/stores/authStore.js') return request.respond({ contentType: 'application/javascript', body: "import {create} from '/node_modules/.vite/deps/zustand.js';export default create(()=>({user:{uid:'local-fixture',displayName:'테스트'},profile:{nameKo:'테스트',jobCategory:'pm'},loading:false,profileLoading:false,init:()=>()=>{}}));" });
     if (url.pathname.startsWith('/api/')) {
-      if (url.pathname === '/api/experience/list') return respond(writes.map((body, i) => ({ ...body, id: `saved-${i}` })));
-      if (url.pathname === '/api/experience' && request.method() === 'POST') {
-        const body = JSON.parse(request.postData()); writes.push(body); return respond({ ...body, id: `saved-${writes.length}` }, 201);
+      if (url.pathname === '/api/experience/local-discover') {
+        const input = body(); discoverBodies.push(input);
+        const ids = pattern => input.documents.filter(doc => pattern.test(doc.text)).map(doc => doc.id);
+        const fit = ids(/FitPoly/), twin = ids(/디지털 트윈/);
+        const primary = input.documents.find(doc => /기획서/.test(doc.path))?.id || fit[0];
+        return respond({ experiences: [
+          { title: 'FitPoly — 경험 정리 서비스 기획·개발', period: '2026-02 ~ 2026-06', summary: '취준생 경험 정리 서비스', core: '베타 성공 기준을 세우고 업로드 흐름을 설계해 가입 전환율을 높였다.', documentIds: [primary, ...fit.filter(id => id !== primary)], primaryDocumentId: primary, anchors: ['FitPoly'], strength: 5 },
+          { title: '디지털 트윈 융설 시뮬레이션', summary: '융설 시스템 시뮬레이션', core: '시뮬레이션으로 OPEX 절감안을 설계했다.', documentIds: twin, primaryDocumentId: twin[0], anchors: ['디지털 트윈'], strength: 3 },
+        ], updates: [], excluded: ids(/강의/).map(documentId => ({ documentId, reason: '강의 자료(참고자료)' })) });
       }
+      if (url.pathname === '/api/experience/local-organize') {
+        const input = body(); organizeBodies.push(input);
+        return respond({ experience: /FitPoly/.test(input.experience.title) ? {
+          title: 'FitPoly — 경험 정리 서비스 기획·개발', period: '2026-02 ~ 2026-06', role: '3인 팀 · 기획 담당',
+          context: '취준생은 포트폴리오 제작에 40시간 이상을 쓰고 있었다.', task: '경험 정리 시간을 줄이는 서비스를 기획해야 했다.',
+          action: '• 사용자 인터뷰 12회를 진행해 업로드 단계의 불편을 확인했다\n• 2차 베타 성공 기준과 Go/No-Go 기준을 설계했다',
+          result: '• 가입 전환율 12% → 30%', keywords: ['사용자 인터뷰'], category: '프로젝트', core: '베타 성공 기준 설계로 전환율을 높였다.', missing: [],
+        } : { title: '디지털 트윈 융설 시뮬레이션', context: '겨울철 도로 결빙 문제가 있었다.', action: '• 디지털 트윈 시뮬레이션을 설계했다', result: '• OPEX 40% 절감 설계', missing: ['role', 'task'] },
+        images: input.images.map((image, index) => ({ id: image.id, analyzed: true, kind: index ? 'screen' : 'result', relevance: index ? 'supporting' : 'core',
+          caption: index ? `화면 ${index}` : '가입 전환율 그래프', description: index ? '업로드 화면 설계' : '베타 전후 가입 전환율 막대 그래프', text: index ? '' : '12% → 30%' })) });
+      }
+      if (url.pathname === '/api/upload/image') { uploads.push(request.postData()?.length || 0); return respond({ url: `${origin}/__test-images/${uploads.length}.png` }); }
+      if (url.pathname === '/api/experience/list') return respond(writes.map((saved, i) => ({ ...saved, id: `saved-${i + 1}` })));
+      if (url.pathname === '/api/experience' && request.method() === 'POST') { const saved = body(); writes.push(saved); return respond({ ...saved, id: `saved-${writes.length}` }, 201); }
       if (url.pathname === '/api/experience/analyze') {
-        const body = JSON.parse(request.postData()); analysisCalls.push(body);
-        if (failWithConfigurationError) return respond({ error: 'AI 서버의 인증 또는 모델 접근 설정 문제로 분석하지 못했어요.', code: 'AI_CONFIGURATION', stopBatch: true }, 503);
-        if (failNextAnalysis) { failNextAnalysis = false; return respond({ error: '테스트 분석 실패' }, 400); }
-        const saved = writes[Number(body.experienceId.split('-').at(-1)) - 1];
-        assert.equal('reviewedMoments' in body, false);
-        const next = { ...saved.structuredResult,
-          keyExperiences: Array.from({ length: body.momentsCount }, (_, i) => ({ ...saved.structuredResult.keyExperiences[0], id: `case-${i}`, title: `${saved.jobCategory} 핵심 판단 ${i + 1}`, jobData: saved.jobCategory === 'pm' ? { pmWorkProducts: { alternatives: [] } } : { techStack: 'React', troubleshooting: '검색 지연 개선' } })),
-          jobSpecific: saved.jobCategory === 'pm' ? { strategy: '가설과 우선순위 결정' } : { architecture: '검색 구조 설계' },
-        };
-        delete next._draft;
-        saved.structuredResult = next;
-        return respond(next);
+        const { experienceId, momentsCount } = body();
+        const saved = writes[Number(experienceId.split('-')[1]) - 1];
+        const keyExperiences = [{ id: 'k1', title: '베타 성공 기준 설계', context: '베타 판단 기준이 없었다', action: '성공 기준 설계', result: '가입 전환율 12% → 30%' },
+          { id: 'k2', title: '업로드 화면 설계', action: '인터뷰로 업로드 화면 설계' }, { id: 'k3', title: '인터뷰 운영', action: '인터뷰 12회' }].slice(0, momentsCount);
+        saved.structuredResult = { ...saved.structuredResult, _draft: undefined, keyExperiences, jobCategory: saved.jobCategory };
+        saved.keyExpImages = assignLocalImages(keyExperiences, saved.images); // same placement as the server route
+        return respond(saved.structuredResult);
       }
-      if (/^\/api\/experience\/saved-\d+$/.test(url.pathname)) {
-        const saved = writes[Number(url.pathname.split('-').at(-1)) - 1];
-        return respond({ ...saved, id: url.pathname.split('/').at(-1) });
-      }
+      if (/^\/api\/experience\/saved-\d+$/.test(url.pathname)) return respond({ ...writes[Number(url.pathname.split('-').at(-1)) - 1], id: url.pathname.split('/').at(-1) });
       if (url.pathname === '/api/experience/analyze-role') return respond({ pmOnePage: { title: '로컬 자료의 기획 임팩트', source: 'analysis' } });
-      if (/import|upload|analyze|draft/.test(url.pathname)) prohibited.push(url.pathname);
       return respond({ balance: 1000, feedbackRewardGranted: true });
     }
     if (url.origin !== origin && !request.url().startsWith('data:') && !request.url().startsWith('blob:')) return request.abort();
     return request.continue();
   });
-  const click = async (selector, label) => {
-    assert.equal(await page.$$eval(selector, (nodes, label) => { const node = nodes.find(node => node.textContent.includes(label)); node?.click(); return Boolean(node); }, label), true, `Missing button: ${label}`);
-  };
-  await page.setViewport({ width: 1440, height: 1080 });
-  await page.goto(`${origin}/app/experience/start`);
-  await page.waitForSelector('[data-method="local"]');
-  assert.equal(await page.$$eval('.fp-method-card', nodes => nodes.length), 4);
-  await page.screenshot({ path: path.join(output, 'start-desktop.png'), fullPage: true });
-  await page.click('[data-method="local"]');
+  const click = async (selector, label) => assert.equal(await page.$$eval(selector, (nodes, label) => { const node = nodes.find(node => node.textContent.includes(label) && !node.disabled); node?.click(); return Boolean(node); }, label), true, `Missing button: ${label}`);
+  const organized = () => page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate .fp-local-fields').length === 2 && !document.querySelector('.fp-local-body > .fp-local-organizing'));
+
+  // 1. A browser-granted folder: AI finds, organizes with pictures, and the chosen photos reach the result.
+  await page.setViewport({ width: 1280, height: 1000 });
+  await page.goto(`${origin}/app/experience/start?method=local`);
   await page.waitForSelector('.fp-local-choose');
   await page.evaluate(fixtures => {
-    const files = fixtures.map(fixture => {
-      const bytes = fixture.base64 ? Uint8Array.from(atob(fixture.base64), ch => ch.charCodeAt(0)) : fixture.text;
-      return new File([bytes], fixture.name);
-    });
-    window.fixtureLocalFiles = files;
-    const entries = files.map(file => ({ kind: 'file', name: file.name, getFile: async () => file }));
+    const files = fixtures.map(fixture => new File([Uint8Array.from(atob(fixture.base64), ch => ch.charCodeAt(0))], fixture.name, { lastModified: Date.now() }));
     const dir = (name, rows) => ({ kind: 'directory', name, async *values() { yield* rows; } });
-    window.showDirectoryPicker = async () => dir('경험자료', [dir('학교활동', entries), dir('node_modules', [{ kind: 'file', name: 'secret.md', getFile() { throw Error('Must not read'); } }])]);
-  }, fixtures);
-  await click('button', '폴더 선택하기');
-  await page.waitForSelector('.fp-local-files');
-  assert.equal(await page.$$eval('.fp-local-files li', nodes => nodes.length), 8);
-  await page.type('[aria-label="파일 목록 검색"]', '보고서');
-  assert.equal(await page.$$eval('.fp-local-files li', nodes => nodes.length), 1);
-  await page.$eval('[aria-label="파일 목록 검색"]', input => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); });
-  await page.waitForFunction(() => document.querySelectorAll('.fp-local-files li').length === 8);
-  await click('button', '검색 결과 선택');
-  await page.screenshot({ path: path.join(output, 'files-desktop.png'), fullPage: true });
-  await click('button', '개 파일 정리');
-  await page.waitForSelector('.fp-local-candidate');
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 6, 'PDF, DOCX, PPTX, HWPX and text parsed in browser; exact copies deduplicated');
-  assert.ok(await page.$$eval('.fp-local-recommendation-badge', nodes => nodes.some(node => node.textContent === '추천 경험')), 'manual intake shows recommended experiences');
-  assert.ok(await page.$$eval('.fp-local-recommendation', nodes => nodes.every(node => node.textContent.trim().length > 4)), 'recommendation labels include evidence rather than an empty badge');
-  assert.ok(await page.$$eval('.fp-local-title input, .fp-local-fields textarea', nodes => nodes.every(node => !/<\/?(?:li|h[1-6]|strong|ul|p)>|\*\*/.test(node.value))), 'HTML and Markdown do not leak into editable fields');
-  const pdfCandidate = await page.$$eval('.fp-local-candidate', nodes => nodes.filter(node => node.textContent.includes('연구발표.pdf')).map(node => ({ title: node.querySelector('.fp-local-title input').value, source: node.querySelector('pre').textContent })));
-  assert.ok(pdfCandidate.some(item => item.title.includes('연구 발표 프로젝트')), `Korean PDF text is retained: ${JSON.stringify(pdfCandidate)}`);
-  assert.match(await page.$eval('.fp-local-warning', node => node.textContent), /깨진파일.pdf/);
-  assert.equal(writes.length, 0, 'reading and review send no account writes');
-  assert.deepEqual(prohibited, [], 'no upload endpoint used');
-  assert.equal(analysisCalls.length, 0, 'only discovery and local extraction happen before analysis is requested');
-  assert.equal(await page.$eval('[aria-label="분석할 직군"]', select => select.value), 'pm');
-  assert.match(await page.$eval('.fp-local-fields', node => node.textContent), /T · 과제/);
-  assert.ok(await page.$$eval('.fp-local-candidate', nodes => nodes.some(node => [...node.querySelectorAll('label')].some(label => label.textContent.includes('T · 과제') && label.querySelector('textarea')?.value.includes('검색 과정을 단순')))));
-  await page.select('[aria-label="분석 경력 단계"]', 'experienced');
-  await page.screenshot({ path: path.join(output, 'review-desktop.png'), fullPage: true });
-  await page.$eval('.fp-local-candidate', node => node.scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'candidate-desktop.png') });
-  await page.setViewport({ width: 390, height: 844 });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'mobile page has no horizontal overflow');
-  await page.screenshot({ path: path.join(output, 'review-mobile.png'), fullPage: true });
-  await page.$eval('.fp-local-candidate', node => node.scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'candidate-mobile.png') });
-  await click('button', '선택 해제');
-  await page.$$eval('.fp-local-candidate', nodes => {
-    for (const name of ['프로젝트.txt', '성과.csv']) nodes.find(node => node.querySelector('.fp-local-source').textContent.includes(name)).querySelector('.fp-local-candidate-top input').click();
-  });
-  await click('button', '선택한 후보 하나로 합치기');
-  await page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate').length === 5);
-  const mergedSources = await page.$$eval('.fp-local-source', nodes => nodes.map(node => node.textContent));
-  assert.ok(mergedSources.some(text => text.includes('프로젝트.txt') && text.includes('복사본.md') && text.includes('성과.csv')));
-  await click('button', '모두 선택');
-  failNextAnalysis = true;
-  await click('button', '직군별 분석 시작');
-  await page.waitForSelector('[role="alert"]');
-  assert.equal(writes.length, 5);
-  assert.equal(analysisCalls.length, 5);
-  assert.equal(await page.$$eval('.fp-local-candidate-top label', nodes => nodes.filter(node => node.textContent.includes('직군별 분석 완료')).length), 4);
-  assert.equal(await page.$eval('[aria-label="분석할 직군"]', select => select.disabled), true);
-  const failedId = analysisCalls[0].experienceId;
-  await click('button', '직군별 분석 시작');
-  await page.waitForFunction(() => location.pathname.startsWith('/app/experience/result/'));
-  await page.waitForFunction(() => !document.querySelector('.fp-local-import'));
-  assert.equal(new URL(page.url()).pathname, `/app/experience/result/${failedId}`, 'a single analysis opens the existing result screen');
-  assert.equal(writes.length, 5, 'analysis retry reuses the original saved draft');
-  assert.equal(analysisCalls.at(-1).experienceId, failedId);
-  assert.ok(writes.every(body => body.analysisMode === 'local_folder' && body.lifecycleStatus === 'needs_confirmation' && body.localSources.length));
-  assert.ok(writes.every(body => body.jobCategory === 'pm' && body.careerStage === 'experienced' && body.structuredResult.keyExperiences.length === 3));
-  assert.ok(writes.every(body => body.content['로컬 파일 원문'].includes('--- 경험자료/학교활동/')));
-  assert.ok(writes.every(body => !('file' in body) && !('base64' in body)));
-  assert.ok(writes.some(body => body.content.rawInput.includes('18%')));
-  await page.waitForFunction(() => document.body.textContent.includes('pm 핵심 판단'));
-  await page.waitForSelector('[aria-label="STAR 경험 정리"]');
-  assert.match(await page.$eval('[aria-label="STAR 경험 정리"]', node => node.textContent), /과제·목표/);
-  await page.screenshot({ path: path.join(output, 'role-result-mobile.png') });
-  // The FileList fallback follows the same local discovery flow.
-  await page.goto(`${origin}/app/experience/start?method=local`);
-  await page.waitForSelector('.fp-local-choose');
-  await page.evaluate(() => {
-    const transfer = new DataTransfer();
-    const file = new File(['로컬 경험\n한 일: 동아리 발표 자료를 만들고 발표회를 운영했습니다.'], '회고.md');
-    Object.defineProperty(file, 'webkitRelativePath', { value: '다른폴더/회고.md' });
-    transfer.items.add(file);
-    const input = document.querySelector('input[webkitdirectory]'); input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  await page.waitForSelector('.fp-local-files');
-  assert.match(await page.$eval('.fp-local-files', node => node.textContent), /다른폴더\/회고.md/);
-  await page.evaluate(() => {
-    window.showDirectoryPicker = async () => ({ kind: 'directory', name: 'slow', async *values() {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      yield { kind: 'file', name: '경험.md', getFile: async () => window.fixtureLocalFiles[0] };
-    } });
-  });
-  await click('button', '다른 폴더 선택');
-  await page.waitForSelector('.fp-local-progress');
-  await click('button', '중단하기');
-  await page.waitForSelector('.fp-local-files');
-  assert.match(await page.$eval('.fp-local-files', node => node.textContent), /다른폴더\/회고.md/, 'cancel preserves previous inventory');
-  await click('button', '개 파일 정리');
-  await page.waitForSelector('.fp-local-analysis-options');
-  await page.select('[aria-label="분석할 직군"]', 'dev');
-  await page.select('[aria-label="분석 경력 단계"]', 'newgrad');
-  await page.select('[aria-label="핵심경험 수"]', '5');
-  await click('button', '직군별 분석 시작');
-  await page.waitForFunction(() => location.pathname.startsWith('/app/experience/result/'));
-  await page.waitForFunction(() => document.body.textContent.includes('dev 핵심 판단'));
-  assert.equal(writes.at(-1).jobCategory, 'dev');
-  assert.equal(writes.at(-1).careerStage, 'newgrad');
-  assert.equal(writes.at(-1).structuredResult.keyExperiences.length, 5);
-  assert.equal(analysisCalls.at(-1).momentsCount, 5);
-  // Automatic discovery goes from the primary button directly to experience candidates.
-  await page.goto(`${origin}/app/experience/start?method=local`);
-  await page.waitForSelector('.fp-local-choose');
-  await page.evaluate(() => { window.pickerCalls = 0; window.showDirectoryPicker = () => { window.pickerCalls += 1; throw Error('automatic search must not open a picker'); }; });
-  const hosting = JSON.parse(await readFile(new URL('../../frontend/vercel.json', import.meta.url), 'utf8'));
-  const productionCsp = hosting.headers[0].headers.find(header => header.key === 'Content-Security-Policy').value;
-  assert.match(productionCsp, /connect-src[^;]*http:\/\/127\.0\.0\.1:43127/);
-  await page.evaluate(() => { const meta = document.createElement('meta'); meta.httpEquiv = 'Content-Security-Policy'; meta.content = "connect-src 'self' http://127.0.0.1:43127"; document.head.append(meta); });
-  await click('button', '내 컴퓨터 자동 찾기');
-  await page.waitForSelector('[role="alert"]');
-  assert.match(await page.$eval('[role="alert"]', node => node.textContent), /로컬 네트워크 권한/);
-  assert.equal(await page.$('.fp-local-setup'), null, 'local development never asks users to run or download a helper');
-  connectorAvailable = true;
-  await click('button', '내 컴퓨터 자동 찾기');
-  await page.waitForSelector('.fp-local-auto-summary');
-  assert.equal(await page.$('.fp-local-files'), null, 'no folder/file selection step');
-  assert.equal(await page.evaluate(() => window.pickerCalls), 0);
-  assert.equal(autoStartRequests, 2, 'each click automatically prepares the connector before connecting');
-  assert.match(await page.$eval('.fp-local-auto-summary', node => node.textContent), /49개 자동 확인/);
-  const rootSummary = await page.$eval('.fp-local-root-status', node => node.textContent);
-  assert.match(rootSummary, /C: 드라이브/); assert.match(rootSummary, /D: 드라이브/); assert.match(rootSummary, /탐색 완료/);
-  const firstSources = await page.$$eval('.fp-local-source', nodes => nodes.map(node => node.textContent).join('\n'));
-  assert.match(firstSources, /C: 드라이브/); assert.match(firstSources, /D: 드라이브/);
-  assert.ok(await page.$$eval('.fp-local-recommendation-badge', nodes => nodes.length > 0), 'automatic intake shows recommended experiences');
-  const cardOrderBeforeEditing = await page.$$eval('.fp-local-candidate', nodes => nodes.map(node => node.id));
-  const roleField = (await page.$$('.fp-local-fields textarea'))[1];
-  await roleField.click(); await page.keyboard.down('Control'); await page.keyboard.press('A'); await page.keyboard.up('Control'); await roleField.type('직접 맡은 역할');
-  assert.equal(await roleField.evaluate(node => node.value), '직접 맡은 역할', 'plain-text editing keeps spaces');
-  assert.equal(await roleField.evaluate(node => document.activeElement === node), true, 'editing a recommendation keeps focus');
-  assert.deepEqual(await page.$$eval('.fp-local-candidate', nodes => nodes.map(node => node.id)), cardOrderBeforeEditing, 'typing does not reorder recommendation cards');
-  await page.$eval('.fp-local-auto-summary', node => node.scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'automatic-candidates-mobile.png') });
-  assert.equal(await page.$('.fp-local-auto-summary button'), null, 'all documents are checked instead of stopping after five candidates');
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 5, 'only five evidence-backed experiences are expanded');
-  assert.match(await page.$eval('.fp-local-filter-summary', node => node.textContent), /NACE|릴스|예시/);
-  assert.ok(await page.$$eval('.fp-local-title input', nodes => nodes.every(node => !/NACE|릴스|가상|장애 이론/.test(node.value))));
-  assert.equal(await (await page.$$('.fp-local-fields textarea'))[1].evaluate(node => node.value), '직접 맡은 역할', 'review keeps user edits');
-  assert.ok(Number((await page.$eval('.fp-local-footer .fp-local-primary', node => node.textContent)).match(/\d+/)[0]) <= 5, 'hidden candidates are not silently selected for paid analysis');
-  assert.ok(await page.$$eval('.fp-local-experience-index li', nodes => nodes.length) > 5, 'all found experience titles are discoverable above the cards');
-  await click('button', '모두 선택');
-  await page.$eval('.fp-local-filter-summary', node => node.scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'core-experience-filter-mobile.png') });
-  await click('button', '근거 있는 다른 핵심경험 더 보기');
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 10);
-  assert.equal(writes.length, 6, 'automatic local discovery does not write to the account before analysis');
-  // A provider authentication failure shows its actual cause and stops the paid batch.
-  failWithConfigurationError = true;
-  const beforeCalls = analysisCalls.length;
-  await click('button', '직군별 분석 시작');
-  await page.waitForSelector('[role="alert"]');
-  assert.match(await page.$eval('[role="alert"]', node => node.textContent), /인증 또는 모델 접근 설정 문제/);
-  assert.equal(analysisCalls.length, beforeCalls + 1);
-  assert.equal(writes.length, 7, 'provider outage leaves one saved draft and does not create the rest');
-  const failedConfigurationId = analysisCalls.at(-1).experienceId;
-  failWithConfigurationError = false;
-  await click('button', '직군별 분석 시작');
-  await page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate-top label').length > 0
-    && [...document.querySelectorAll('.fp-local-candidate-top label')].filter(node => node.textContent.includes('직군별 분석 완료')).length === 5);
-  assert.equal(analysisCalls[beforeCalls + 1].experienceId, failedConfigurationId, 'retry reuses the saved experience after an authentication failure');
-  assert.equal(writes.length, 11, 'only the remaining four drafts are created');
-  // Visitors can use a browser-granted folder without installing or starting an app.
-  await page.goto(`${origin}/app/experience/start?method=local`);
-  await page.waitForSelector('.fp-local-choose');
-  await page.evaluate(() => {
-    window.showDirectoryPicker = async () => ({ name: '내 경험', kind: 'directory', async *values() {
-      const text = '프로젝트명: 학교 공지 검색\n역할: 개발 담당\n상황: 회원이 공지를 놓치고 있었다.\n과제: 필요한 공지를 찾도록 해야 했다.\n한 일: 검색 필터를 구현했다.';
-      yield { kind: 'file', name: '공지 검색.md', getFile: async () => new File([text], '공지 검색.md') };
-      yield { kind: 'file', name: '자기소개서.md', getFile: async () => new File(['역량 자기소개\n저는 학교 공지 검색 프로젝트에서 백엔드 개발자로서 회원 권한별 검색 조건을 검토하고 공지 필터를 수정했습니다.\n상황: 공개 공지와 회원 전용 공지가 함께 노출되고 있었습니다.'], '자기소개서.md') };
-      yield { kind: 'file', name: '활동 후기.md', getFile: async () => new File(['결과 회고\n결과: 학교 공지 검색 시제품을 배포하고 팀원들이 찾기 편하다고 답했다.'], '활동 후기.md') };
-      yield { kind: 'file', name: '축제 운영.md', getFile: async () => new File(['프로젝트명: 축제 동선 운영\n역할: 운영 담당\n한 일: 관객 안내 표지를 제작하고 입장 대기 줄을 분리했습니다.\n성과: 관객 1200명이 방문했고 입장 대기 시간이 절반으로 줄었습니다.'], '축제 운영.md') };
-    } });
-  });
+    const entry = file => ({ kind: 'file', name: file.name, getFile: async () => file });
+    window.showDirectoryPicker = async () => dir('내 자료', [dir('FitPoly', files.slice(0, 3).map(entry)), ...files.slice(3).map(entry)]);
+  }, fixtures.map(fixture => ({ name: fixture.name, base64: fixture.bytes.toString('base64') })));
   await click('button', '설치 없이 폴더 접근 허용');
   await page.waitForSelector('.fp-local-candidate');
-  assert.equal(await page.$('.fp-local-files'), null, 'folder permission goes directly to automatic STAR candidates');
-  assert.match(await page.$eval('.fp-local-auto-summary', node => node.textContent), /허용한 폴더/);
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 2, 'report, essay and retrospective of one project fuse while a different project stays separate');
-  const projectFusion = await page.$$eval('.fp-local-candidate', nodes => {
-    const node = nodes.find(node => node.querySelector('.fp-local-source').textContent.includes('공지 검색.md'));
-    return { title: node.querySelector('.fp-local-title input').value, text: node.textContent, originals: node.querySelector('pre').textContent,
-      action: node.querySelectorAll('textarea')[4].value, result: node.querySelectorAll('textarea')[5].value };
-  });
-  assert.match(projectFusion.text, /관련 자료 3개/);
-  assert.match(projectFusion.originals, /공지 검색.md/); assert.match(projectFusion.originals, /자기소개서.md/); assert.match(projectFusion.originals, /활동 후기.md/);
-  assert.match(projectFusion.action, /검색 필터|공지 필터/); assert.match(projectFusion.action, /회원 권한/); assert.match(projectFusion.result, /시제품/);
-  assert.doesNotMatch(projectFusion.originals, /관객 1200명/);
-  await page.$$eval('.fp-local-candidate', nodes => nodes.find(node => node.querySelector('.fp-local-source').textContent.includes('공지 검색.md')).scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'merged-star-experience.png'), fullPage: true });
-  await click('button', '다른 경험이면 묶음 나누기');
-  await page.waitForFunction(() => document.querySelectorAll('.fp-local-candidate').length === 4);
-  assert.match(await page.$eval('.fp-local-candidates', node => node.textContent), /직접 나눈 경험/);
-  assert.equal(writes.length, 11);
-  // Exercise the production connection branch. Never invoke an OS protocol during QA.
+  await organized();
+  const sent = discoverBodies[0].documents;
+  assert.equal(sent.length, 5, 'an identical résumé copy is read once');
+  assert.ok(!JSON.stringify(discoverBodies[0]).includes('"data"'), 'no picture bytes are sent for discovery');
+  const imageCount = name => sent.find(doc => doc.path.includes(name)).imageCount;
+  assert.deepEqual([imageCount('기획서.pptx'), imageCount('화면 설계서.docx'), imageCount('결과 보고서.pdf')], [1, 1, 1], 'PPTX, DOCX and PDF pictures are read; the icon is dropped');
+  assert.ok(sent.findIndex(doc => doc.path.includes('기획서')) < sent.findIndex(doc => doc.path.includes('이력서')), 'project documents are read before the résumé');
+  const fitOrganize = organizeBodies.find(input => /FitPoly/.test(input.experience.title));
+  assert.equal(fitOrganize.documents.length, 4);
+  assert.ok(fitOrganize.images.length === 3 && fitOrganize.images.every(image => image.mimeType === 'image/jpeg' && image.data.length > 1000));
+  assert.match(fitOrganize.images.find(image => image.path.includes('pptx')).context, /^슬라이드 2: 베타 결과/);
+  assert.match(fitOrganize.images.find(image => image.path.includes('pdf')).context, /^1쪽/);
+  const card = await page.$eval('.fp-local-candidate', node => ({ title: node.querySelector('.fp-local-title input').value,
+    result: node.querySelectorAll('.fp-local-fields textarea')[5].value, images: node.querySelectorAll('.fp-local-images li').length,
+    loaded: [...node.querySelectorAll('.fp-local-images img')].every(img => img.complete && img.naturalWidth > 0) }));
+  assert.deepEqual(card, { title: 'FitPoly — 경험 정리 서비스 기획·개발', result: '• 가입 전환율 12% → 30%', images: 3, loaded: true });
+  assert.match(await page.$eval('.fp-local-filter-summary', node => node.textContent), /강의자료/);
+  assert.match(await page.$$eval('.fp-local-candidate', nodes => nodes[1].textContent), /원문에서 확인되지 않은 항목: 내 역할 · 과제/);
+  assert.equal(writes.length, 0, 'finding and organizing write nothing to the account');
+  await page.$eval('.fp-local-images', node => node.scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(output, 'review-images-desktop.png') });
+  await page.setViewport({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'no horizontal overflow on mobile');
+  await page.screenshot({ path: path.join(output, 'review-images-mobile.png') });
+  await page.setViewport({ width: 1280, height: 1000 });
+  await page.$$eval('.fp-local-candidate', nodes => nodes[0].querySelectorAll('.fp-local-images input[type=checkbox]')[2].click());
+  await click('button', '선택 해제');
+  await page.$eval('.fp-local-candidate .fp-local-candidate-top input', node => node.click());
+  await click('button', '직군별 분석 시작');
+  await page.waitForFunction(() => location.pathname.startsWith('/app/experience/result/'));
+  assert.equal(uploads.length, 2, 'only the two pictures left in the card are uploaded');
+  assert.ok(writes[0].images.length === 2 && writes[0].images.every(image => image.localImage && image.caption));
+  assert.match(writes[0].content['문서 속 이미지 분석'], /가입 전환율 그래프/);
+  assert.ok(!JSON.stringify(writes[0]).includes('base64'), 'the saved experience keeps URLs, not picture bytes');
+  await page.waitForFunction(() => [...document.querySelectorAll('img')].some(img => img.src.includes('/__test-images/') && img.complete && img.naturalWidth > 0), { timeout: 30000 });
+  await page.evaluate(() => [...document.querySelectorAll('img')].find(img => img.src.includes('/__test-images/')).scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(output, 'result-photos.png') });
+
+  // 2. Full-PC automatic search through the local connector reads the same pictures from file bytes.
+  connectorAvailable = true;
+  discoverBodies.length = 0;
+  await page.goto(`${origin}/app/experience/start?method=local`);
+  await page.waitForSelector('.fp-local-choose');
+  await click('button', '내 컴퓨터 자동 찾기');
+  await page.waitForSelector('.fp-local-auto-summary');
+  await organized();
+  assert.match(await page.$eval('.fp-local-root-status', node => node.textContent), /D: 드라이브/);
+  assert.equal(discoverBodies[0].documents.find(doc => doc.path.includes('기획서.pptx')).imageCount, 1);
+  assert.equal(await page.$eval('.fp-local-candidate', node => node.querySelectorAll('.fp-local-images li').length), 3);
+
+  // 3. The deployed site without a connector explains the one-time setup.
   websiteMode = true; connectorAvailable = false;
   await page.goto(`${origin}/app/experience/start?method=local`);
   await page.waitForSelector('.fp-local-choose');
-  await page.evaluate(() => { window.pickerCalls = 0; window.showDirectoryPicker = () => { window.pickerCalls++; throw Error('full PC connection must not invoke a folder picker'); }; });
   await click('button', '내 컴퓨터 자동 찾기');
   await page.waitForSelector('.fp-local-setup');
-  assert.match(await page.$eval('.fp-local-setup', node => node.textContent), /방문자 본인의 Windows 계정/);
   assert.match(await page.$eval('.fp-local-setup', node => node.textContent), /FitPoly-자동연결-설정.cmd/);
-  assert.equal(await page.$eval('a[download]', node => node.getAttribute('href')), '/local-experience-connector/fitpoly-local-connector-win.zip');
-  await page.screenshot({ path: path.join(output, 'website-connection-setup.png'), fullPage: true });
-  await page.$eval('a[href="fitpoly-local://connect"]', node => node.addEventListener('click', event => event.preventDefault()));
-  connectorAvailable = true;
-  await click('a', '설정한 PC 연결 열기');
-  await page.waitForSelector('.fp-local-candidate');
-  assert.equal(await page.$('.fp-local-setup'), null);
-  assert.equal(writes.length, 11);
-  assert.equal(await page.evaluate(() => window.pickerCalls), 0);
-  // Later discoveries can outrank existing cards while reviewed values and selections survive.
-  await page.goto(`${origin}/app/experience/start?method=local`);
-  await page.waitForSelector('.fp-local-choose');
-  await page.evaluate(() => {
-    window.showDirectoryPicker = async () => ({ name: '후속 탐색 검증', kind: 'directory', async *values() {
-      for (let index = 0; index < 244; index += 1) {
-        const name = `기획 프로젝트 기록 ${String(index).padStart(3, '0')}.md`;
-        const body = index === 0 ? '프로젝트명: CampusLink\n역할: 백엔드 개발자\n상황: 공개 공지와 회원 전용 공지가 함께 노출되고 있었습니다.\n한 일: 회원 권한 조건을 검증하고 공지 검색 필터를 구현했습니다.'
-          : index === 243 ? '운영 결과 회고\n프로젝트명: CampusLink\n한 일: 공지 탐색 로그를 분류하고 검색 오류를 수정했습니다.\n성과: 공지 탐색 시간이 5분에서 1분으로 줄었습니다.'
-          : `일정 운영 프로젝트 ${index}\n역할: 동아리 운영 담당\n한 일: 회의 일정을 조율하고 논의 내용을 정리했습니다.`;
-        yield { kind: 'file', name, getFile: async () => new File([body], name) };
-      }
-      const name = '후반 프로젝트 회고.md';
-      const body = '프로젝트명: 결제 단계 개선\n역할: 서비스 기획자\n상황: 결제 화면의 입력 단계가 많아 고객이 이탈했습니다.\n과제: 결제 단계를 줄이고 고객 이탈을 개선해야 했습니다.\n한 일: 고객 12명을 인터뷰하고 결제 화면의 필수 입력을 세 단계로 줄였습니다.\n성과: 결제 완료율이 42%에서 55%로 개선됐습니다.';
-      yield { kind: 'file', name, getFile: async () => new File([body], name) };
-    } });
-  });
-  await click('button', '설치 없이 폴더 접근 허용');
-  await page.waitForSelector('.fp-local-candidate');
-  assert.equal(await page.$$eval('.fp-local-candidate', nodes => nodes.length), 5);
-  const reviewedCardId = await page.$$eval('.fp-local-candidate', nodes => nodes.find(node => node.querySelector('.fp-local-title input').value === 'CampusLink').id);
-  const reviewedTask = (await (await page.$(`[id="${reviewedCardId}"]`)).$$('textarea'))[3];
-  await reviewedTask.type('회의 운영 기준을 확인했습니다.');
-  await click('button', '다음 자료에서 경험 더 찾기');
-  await page.waitForFunction(() => document.querySelector('.fp-local-title input')?.value === '결제 단계 개선');
-  assert.equal(await page.$eval('.fp-local-candidate .fp-local-recommendation-badge', node => node.textContent), '추천 경험');
-  assert.equal(await page.evaluate(id => document.getElementById(id).querySelectorAll('textarea')[3].value, reviewedCardId), '회의 운영 기준을 확인했습니다.');
-  assert.equal(await page.evaluate(id => document.getElementById(id).querySelector('input[type="checkbox"]').checked, reviewedCardId), true);
-  const continuedFusion = await page.$$eval('.fp-local-candidate', nodes => nodes.filter(node => node.querySelector('.fp-local-title input').value === 'CampusLink').map(node => ({
-    action: node.querySelectorAll('textarea')[4].value, result: node.querySelectorAll('textarea')[5].value, source: node.querySelector('pre').textContent,
-  })));
-  assert.equal(continuedFusion.length, 1, 'a selected card is refreshed in place rather than duplicated after a later related document');
-  assert.match(continuedFusion[0].action, /회원 권한/); assert.match(continuedFusion[0].action, /공지 탐색 로그/); assert.match(continuedFusion[0].result, /1분/);
-  assert.match(continuedFusion[0].source, /기록 000.md/); assert.match(continuedFusion[0].source, /기록 243.md/);
-  assert.equal(await page.$$eval('.fp-local-candidate input[type="checkbox"]:checked', nodes => nodes.length), 5, 'existing selections stay visible and a newly recommended card is not silently selected');
-  assert.equal(writes.length, 11);
-  await page.$eval('.fp-local-candidate', node => node.scrollIntoView());
-  await page.screenshot({ path: path.join(output, 'recommendation-followup-mobile.png') });
-  assert.deepEqual(prohibited, []);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, automaticDiscovery: { pickerCalls: 0, documents: 49, expandedCoreExperiences: 5, noiseFiltered: true, readsPastFirstFive: true }, recommendations: { evidenceShown: true, laterCandidatesRankFirst: true, reviewedValuesAndVisibleSelectionsKept: true }, contentMerging: { differentFileNames: true, reportEssayRetrospectiveOneCard: true, laterSourceRefreshesOneCard: true, newContributionsAndResultsKept: true, canSeparate: true }, parsedFormats: ['TXT', 'MD', 'CSV', 'PDF', 'DOCX', 'PPTX', 'HWPX'], roles: ['pm', 'dev'], experiences: writes.length, analysisRequests: analysisCalls.length, prohibitedRequests: prohibited, screenshots: output }));
+  console.log(JSON.stringify({ passed: true, pictures: { pptx: 1, docx: 1, pdf: 1, iconDropped: true }, uploads: uploads.length, keyExpImages: writes[0].keyExpImages, screenshots: output }));
 } finally {
   await browser.close();
   connector.closeAllConnections(); await new Promise(resolve => connector.close(resolve));

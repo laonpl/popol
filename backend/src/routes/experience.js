@@ -22,7 +22,10 @@ import {
   generateIdentityPatternCandidates,
   judgeEvidenceLabels,
   generateExperienceTags,
+  parseJSON,
 } from '../services/geminiService.js';
+import { generateWithRetry } from '../config/geminiClient.js';
+import { sanitizeDiscoverInput, discoverLocalExperiences, sanitizeOrganizeInput, organizeLocalExperience, assignLocalImages } from '../services/localExperienceAI.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 import { analyzeRoleOnePage, editRoleOnePage } from '../services/roleOnePageService.js';
 import { logError } from '../services/errorLogger.js';
@@ -241,10 +244,14 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     analysis.interviewSession = data.structuredResult?.interviewSession || analysis.interviewSession || null;
     analysis.deliverables = data.structuredResult?.deliverables || analysis.deliverables || [];
     analysis = preserveRolePresentation(analysis, data.structuredResult);
+    // 내 컴퓨터 문서에서 가져온 사진을 처음 분석할 때 핵심 경험 옆에 배치한다. 사용자가 옮긴 배치는 덮어쓰지 않는다.
+    const localImages = data.analysisMode === 'local_folder' && !Object.keys(data.keyExpImages || {}).length
+      ? assignLocalImages(analysis.keyExperiences, data.images) : {};
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
       structuredResult: analysis,
+      ...(Object.keys(localImages).length ? { keyExpImages: localImages } : {}),
       analysisFailure: null,
       keywords: analysis.keywords || [],
       highlights: analysis.highlights || [],
@@ -256,6 +263,36 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     res.json(analysis);
   } catch (error) {
     next(error);
+  }
+});
+
+// 내 컴퓨터에서 경험 찾기: 브라우저가 읽은 문서 본문(원본 파일·절대 경로 없음)으로 AI가 본인 경험을 찾는다.
+function sendLocalAiError(res, error, stage) {
+  const issue = experienceAnalysisIssue(error, stage);
+  res.status(issue.status).json({ error: issue.message, code: issue.code, stopBatch: issue.stopBatch });
+}
+
+// POST /api/experience/local-discover
+router.post('/local-discover', authMiddleware, requireCredits, aiRateLimiter, async (req, res) => {
+  const input = sanitizeDiscoverInput(req.body);
+  if (!input.documents.length) return res.status(400).json({ error: '경험을 찾을 문서 본문이 없어요.' });
+  try {
+    res.json(await discoverLocalExperiences(input, { generate: generateWithRetry, parse: parseJSON }));
+  } catch (error) {
+    console.error('[local-discover] 실패:', error.message);
+    sendLocalAiError(res, error, 'discover');
+  }
+});
+
+// POST /api/experience/local-organize — 경험 하나의 원문 전체와 문서 속 이미지를 읽어 STAR를 채운다.
+router.post('/local-organize', authMiddleware, requireCredits, aiRateLimiter, async (req, res) => {
+  const input = sanitizeOrganizeInput(req.body);
+  if (!input.experience.title || !input.documents.length) return res.status(400).json({ error: '정리할 경험의 원문이 없어요.' });
+  try {
+    res.json(await organizeLocalExperience(input, { generate: generateWithRetry, parse: parseJSON }));
+  } catch (error) {
+    console.error('[local-organize] 실패:', error.message);
+    sendLocalAiError(res, error, 'organize');
   }
 });
 

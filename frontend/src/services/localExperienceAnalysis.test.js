@@ -133,3 +133,23 @@ test('long sources retain middle and final evidence; oversized merged experience
   assert.equal(draft.content.rawInput.includes('마지막 성과 근거'), false, 'original evidence is separate from reviewed self report');
   assert.throws(() => buildLocalExperienceDraft({ ...item, sourceText: '가'.repeat(120001) }), /12만 자/);
 });
+
+test('chosen photos are uploaded once before saving, and an upload failure does not block the experience', async () => {
+  const picture = (id, include = true) => ({ id, path: `자료/${id}.pptx`, include, blob: new Blob(['x']),
+    analysis: { relevance: 'core', kind: 'result', caption: `${id} 캡션`, description: '', text: '' } });
+  const uploads = [], created = [];
+  const item = { ...candidate('one'), images: [picture('ok'), picture('broken'), picture('left-out', false)] };
+  const result = await analyzeLocalExperiences({ items: [item], jobCategory: 'dev',
+    uploadImage: async image => { uploads.push(image.id); if (image.id === 'broken') throw new Error('network'); return `https://files/${image.id}`; },
+    createExperience: async payload => { created.push(payload); return 'experience-1'; },
+    analyzeExperience: async () => analysis('dev'),
+  });
+  assert.deepEqual(uploads, ['ok', 'broken']);
+  assert.deepEqual(created[0].images.map(row => row.url), ['https://files/ok']);
+  assert.match(created[0].content['문서 속 이미지 분석'], /broken 캡션/, 'the finding still informs the analysis');
+  assert.equal(result.records.one.status, 'complete');
+  await analyzeLocalExperiences({ items: [item], jobCategory: 'dev', records: { one: { experienceId: 'experience-1', status: 'draft' } },
+    uploadImage: async image => { uploads.push(image.id); return ''; }, createExperience: async () => { throw new Error('no second draft'); },
+    analyzeExperience: async () => analysis('dev') });
+  assert.equal(uploads.length, 2, 'a retry reuses the saved draft and its photos');
+});

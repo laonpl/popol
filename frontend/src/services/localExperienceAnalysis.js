@@ -1,9 +1,9 @@
-import { buildLocalExperienceDraft } from '../utils/localExperienceDraft.js';
+import { buildLocalExperienceDraft, savedLocalImages } from '../utils/localExperienceDraft.js';
 
 // Use the same persisted experience and analysis API as other intake methods.
 // A created draft keeps its ID after failure; retries never create another copy.
 export async function analyzeLocalExperiences({ items, jobCategory, careerStage, momentsCount = 3,
-  records = {}, createExperience, analyzeExperience, onRecord = () => {},
+  records = {}, createExperience, analyzeExperience, uploadImage = null, onRecord = () => {},
   onProgress = () => {}, shouldStop = () => false }) {
   const nextRecords = { ...records };
   const failures = [];
@@ -16,7 +16,10 @@ export async function analyzeLocalExperiences({ items, jobCategory, careerStage,
     try {
       if (!record?.experienceId) {
         onProgress({ stage: 'saving', item, current: index + 1, total: items.length });
-        const payload = buildLocalExperienceDraft(item, jobCategory, { careerStage, momentsCount });
+        const imageUrls = {};
+        // A photo that fails to upload is left out; the experience and its text evidence are still saved.
+        if (uploadImage) for (const image of savedLocalImages(item)) imageUrls[image.id] = await uploadImage(image).catch(() => '');
+        const payload = buildLocalExperienceDraft(item, jobCategory, { careerStage, momentsCount, imageUrls });
         const experienceId = await createExperience(payload);
         if (!experienceId) throw new Error('저장된 경험 ID를 확인하지 못했어요.');
         record = { experienceId, status: 'draft' };

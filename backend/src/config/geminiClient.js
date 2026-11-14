@@ -1,11 +1,16 @@
 // AI 호출 진입점. 이름은 기존 호출부 호환을 위해 geminiClient 로 남겨 두었지만,
-// 2026-10 부터 실제 호출은 Amazon Bedrock(bedrockClient.js)으로 간다.
+// 2026-10 부터 실제 호출은 Amazon Bedrock(bedrockClient.js)으로 간다. .env 에 AI_PROVIDER=gemini 이면
+// GEMINI_API_KEY 로 Google Gemini API(googleGenAiClient.js)를 쓴다.
 // 호출부가 넘기는 Gemini 모델명은 티어로 해석한다:
 //   options.tier 지정 → 그 티어 / 첨부 파일(inlineData) → vision / 'lite' 모델만 → fast / 그 외 → standard
 import OpenAI from 'openai';
 import { assertHasCredits, getBillingStore, recordAiUsage } from '../services/billingService.js';
 import { getAiErrorStatus } from '../utils/aiError.js';
 import { AI_TIERS, AI_TIMEOUT_MESSAGE, callBedrock, getModelSlotStats, getTierModels, hasFreeModelSlot, hasInlineData } from './bedrockClient.js';
+import { callGemini, getGeminiTierModels, usesGemini } from './googleGenAiClient.js';
+
+const tierModels = tier => (usesGemini() ? getGeminiTierModels(tier) : getTierModels(tier));
+const callProvider = request => (usesGemini() ? callGemini(request) : callBedrock(request));
 
 let openaiClient = null;
 function getOpenAIClient() {
@@ -189,7 +194,7 @@ async function callModelChain(modelIds, { contents, config, retries, delayMs, ca
   for (const modelId of ordered) {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
-        return await callBedrock({ modelId, contents, config, timeoutMs: callTimeoutMs, billingStore });
+        return await callProvider({ modelId, contents, config, timeoutMs: callTimeoutMs, billingStore });
       } catch (err) {
         lastError = err;
         const status = getAiErrorStatus(err);
@@ -225,7 +230,7 @@ async function callModelChain(modelIds, { contents, config, retries, delayMs, ca
 export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore(), returnMetadata = false) {
   await assertHasCredits();
   assertNoSearchTools(config);
-  const chain = getTierModels(resolveTier(null, [modelName], contents));
+  const chain = tierModels(resolveTier(null, [modelName], contents));
   const preferred = chain.slice(/lite/i.test(modelName) ? Math.min(1, chain.length - 1) : 0);
   const modelId = preferred.find(id => !isModelBlocked(id)) || preferred[0];
   const text = await callModelChain([modelId], {
@@ -279,7 +284,7 @@ export async function generateWithRetry(prompt, options = {}) {
   }
 
   try {
-    const chain = getTierModels(resolveTier(tier, models, prompt));
+    const chain = tierModels(resolveTier(tier, models, prompt));
     const text = await callModelChain(chain, { contents: prompt, config, retries, delayMs, callTimeoutMs, billingStore });
     return returnMetadata ? { text, groundingMetadata: null } : text;
   } catch (lastError) {
