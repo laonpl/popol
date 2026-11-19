@@ -17,7 +17,12 @@ if (process.platform !== 'win32') {
     try { current = await readFile(path.join(source, name)); }
     catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     const entry = packaged.file(name);
-    if (!entry || !current.equals(await entry.async('nodebuffer'))) throw new Error('Local connector sources changed. Rebuild the Windows ZIP before deployment.');
+    // Git checks text out as LF on Linux, while the Windows ZIP preserves CRLF.
+    // Compare text with the same line endings so deployment only rejects real changes.
+    const normalize = value => value.toString('utf8').replace(/\r\n/g, '\n');
+    if (!entry || normalize(current) !== normalize(await entry.async('nodebuffer'))) {
+      throw new Error(`Local connector source changed: ${name}. Rebuild the Windows ZIP before deployment.`);
+    }
   }
   console.log('Using the packaged Windows local connector. Rebuild its ZIP on Windows when connector sources change.');
 } else {
